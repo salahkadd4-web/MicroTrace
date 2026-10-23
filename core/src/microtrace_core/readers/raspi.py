@@ -41,6 +41,7 @@ def read_raspi(root: Path) -> Iterator[Spectrum]:
     rows = [r for r in rows if any(c.strip() for c in r)]
     if len(rows) % 2:
         raise ValueError(f"{raw}: odd number of data rows, expected (id, intensity) pairs")
+    seen: dict[str, int] = {}
     for i in range(0, len(rows), 2):
         xr, yr = rows[i], rows[i + 1]
         sid = xr[0].strip()
@@ -52,8 +53,16 @@ def read_raspi(root: Path) -> Iterator[Spectrum]:
         if len(x) != len(y):
             raise ValueError(
                 f"RaSPI {sid}: wavenumber has {len(x)} values, intensity has {len(y)}")
+        seen[sid] = occurrence = seen.get(sid, 0) + 1
+        note = ""
         row = meta.get(sid)
-        if row is None:
+        if occurrence > 1:
+            note = (f"duplicate id in RaSPI_raw.csv (occurrence {occurrence}); "
+                    "identity ambiguous")
+            warnings.warn(f"RaSPI id {sid} occurs again in {raw.name} (occurrence "
+                          f"{occurrence}), polymer UNKNOWN", stacklevel=2)
+            polymer_raw, laser = "", None
+        elif row is None:
             warnings.warn(f"RaSPI spectrum {sid} has no metadata, polymer UNKNOWN",
                           stacklevel=2)
             polymer_raw, laser = "", None
@@ -61,8 +70,9 @@ def read_raspi(root: Path) -> Iterator[Spectrum]:
             polymer_raw = (row["Plastic Type"] or "").strip()
             laser = float(row["Laser (nm)"])
         yield Spectrum(
-            spectrum_id=f"raspi:{sid}", source="raspi", technique="raman", x=x, y=y,
+            spectrum_id=f"raspi:{sid}" + (f"#{occurrence}" if occurrence > 1 else ""), source="raspi", technique="raman", x=x, y=y,
             x_unit="cm-1", polymer=normalize_polymer(polymer_raw), polymer_raw=polymer_raw,
             state="pristine", sample_group="raspi:" + re.sub(r"[a-z]$", "", sid),
             file=rel_posix(raw, root), laser_nm=laser,
+            label_note=note,
         )

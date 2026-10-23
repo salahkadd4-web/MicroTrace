@@ -122,3 +122,19 @@ def test_iter_all_chains_sources_in_order(tmp_path):
     sources = [s.source for s in iter_all(tmp_path)]
     assert sources == ["mpx", "flopp", "flopp_e", "slopp", "slopp_e", "raspi",
                        "raman_weathered"]
+
+
+def test_raspi_duplicate_id_is_disambiguated(tmp_path):
+    base = make_raspi(tmp_path, {"PE1a": synthetic_points()}, META)
+    raw = base / "RaSPI_raw.csv"
+    text = raw.read_text(encoding="utf-8")
+    raw.write_text(text + "".join(text.splitlines(keepends=True)[1:]), encoding="utf-8")
+    with pytest.warns(UserWarning, match="PE1a"):
+        first, second = list(read_raspi(tmp_path))
+    assert first.spectrum_id == "raspi:PE1a" and first.polymer == "PE"
+    assert second.spectrum_id == "raspi:PE1a#2"
+    assert second.polymer == "UNKNOWN" and second.polymer_raw == ""
+    assert second.laser_nm is None
+    assert second.label_note == (
+        "duplicate id in RaSPI_raw.csv (occurrence 2); identity ambiguous")
+    assert second.sample_group == first.sample_group == "raspi:PE1"
