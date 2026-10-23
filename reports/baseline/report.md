@@ -1,10 +1,10 @@
 # MicroTrace : rapport de la baseline d'identification des polymères
 
-- Date : 2026-10-23
-- Catalogue (git_commit) : `79032e9cefd8f0a8b94de213a076ccff00aaefbd`
+- Date : 2026-10-24
+- Catalogue (git_commit) : `40de9d9ae02dcaf1fb6bd79955fc60dc9d29740e`
 - Nature des données : reference/environmental polymers — not human biological matrices
 - Seuil de corrélation testé : 0.7
-- Durée du calcul : 42.9 s
+- Durée du calcul : 47.1 s
 
 Ce rapport mesure dans quelle mesure le polymère d'un échantillon peut être retrouvé à partir de son spectre, avec des séparations qui évitent toute fuite de données entre apprentissage et test. Trois méthodes sont comparées : `correlation@0` (le spectre de référence le plus proche est toujours retenu), `correlation@0.7` (la réponse est NO_MATCH si la corrélation est inférieure au seuil) et `pca_svm` (réduction PCA puis machine à vecteurs de support).
 
@@ -49,50 +49,50 @@ Résultats cumulés sur toutes les sources tenues à part :
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 4210 | 0.080 | 0.228 | 0.690 | 25 |
-| correlation@0.7 | 4210 | 0.067 | 0.429 | 0.085 | 25 |
-| pca_svm | 4210 | 0.035 | 0.336 | 1.000 | 25 |
+| correlation@0 | 4210 | 0.849 | 0.741 | 1.000 | 25 |
+| correlation@0.7 | 4210 | 0.792 | 0.805 | 0.857 | 25 |
+| pca_svm | 4210 | 0.700 | 0.687 | 1.000 | 25 |
 
 Source tenue à part : **flopp**
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 185 | 0.805 | 0.721 | 1.000 | 21 |
-| correlation@0.7 | 185 | 0.805 | 0.721 | 1.000 | 21 |
-| pca_svm | 185 | 0.671 | 0.588 | 1.000 | 21 |
+| correlation@0 | 185 | 0.921 | 0.916 | 1.000 | 21 |
+| correlation@0.7 | 185 | 0.921 | 0.916 | 1.000 | 21 |
+| pca_svm | 185 | 0.854 | 0.839 | 1.000 | 21 |
 
 Source tenue à part : **flopp_e**
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 193 | 0.783 | 0.731 | 1.000 | 4 |
-| correlation@0.7 | 193 | 0.783 | 0.731 | 1.000 | 4 |
-| pca_svm | 193 | 0.190 | 0.329 | 1.000 | 4 |
+| correlation@0 | 193 | 0.921 | 0.874 | 1.000 | 4 |
+| correlation@0.7 | 193 | 0.921 | 0.874 | 1.000 | 4 |
+| pca_svm | 193 | 0.905 | 0.848 | 1.000 | 4 |
 
 Source tenue à part : **mpx**
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 3832 | 0.015 | 0.018 | 0.661 | 0 |
-| correlation@0.7 | 3832 | 0.000 | 0.000 | 0.001 | 0 |
-| pca_svm | 3832 | 0.000 | 0.000 | 1.000 | 0 |
+| correlation@0 | 3832 | 0.842 | 0.865 | 1.000 | 0 |
+| correlation@0.7 | 3832 | 0.780 | 0.849 | 0.844 | 0 |
+| pca_svm | 3832 | 0.683 | 0.794 | 1.000 | 0 |
 
 Rappel par polymère (LOSO cumulé) :
 
 | Polymère | correlation@0 | correlation@0.7 | pca_svm |
 |---|---|---|---|
-| ABS | 0.800 | 0.800 | 0.867 |
-| CELLULOSE | 0.923 | 0.923 | 0.769 |
-| EVA | 0.333 | 0.333 | 0.267 |
-| PA | 1.000 | 1.000 | 1.000 |
-| PC | 0.222 | 0.222 | 0.222 |
-| PE | 0.087 | 0.044 | 0.017 |
-| PET | 0.039 | 0.036 | 0.025 |
-| PLA | 0.000 | 0.000 | 0.000 |
-| PP | 0.095 | 0.090 | 0.020 |
-| PS | 0.061 | 0.052 | 0.000 |
-| PU | 0.526 | 0.526 | 0.474 |
-| PVC | 0.944 | 0.944 | 0.778 |
+| ABS | 1.000 | 1.000 | 0.867 |
+| CELLULOSE | 0.962 | 0.962 | 0.962 |
+| EVA | 0.400 | 0.400 | 0.533 |
+| PA | 0.944 | 0.944 | 1.000 |
+| PC | 1.000 | 1.000 | 1.000 |
+| PE | 0.860 | 0.808 | 0.737 |
+| PET | 0.862 | 0.832 | 0.681 |
+| PLA | 0.723 | 0.712 | 0.582 |
+| PP | 0.944 | 0.816 | 0.768 |
+| PS | 0.738 | 0.668 | 0.612 |
+| PU | 0.684 | 0.684 | 0.737 |
+| PVC | 0.889 | 0.889 | 0.944 |
 
 ### Validation croisée par groupes (group_kfold)
 
@@ -100,34 +100,34 @@ Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est cou
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 4206 | 0.680 | 0.732 | 1.000 | 0 |
-| correlation@0.7 | 4206 | 0.678 | 0.735 | 0.994 | 0 |
-| pca_svm | 4206 | 0.673 | 0.563 | 1.000 | 0 |
+| correlation@0 | 4206 | 0.762 | 0.822 | 1.000 | 0 |
+| correlation@0.7 | 4206 | 0.759 | 0.828 | 0.994 | 0 |
+| pca_svm | 4206 | 0.835 | 0.830 | 1.000 | 0 |
 
 ### Pristine vers vieilli (pristine_to_aged)
 
 | Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
 |---|---|---|---|---|---|
-| correlation@0 | 4025 | 0.048 | 0.105 | 0.672 | 4 |
-| correlation@0.7 | 4025 | 0.037 | 0.392 | 0.048 | 4 |
-| pca_svm | 4025 | 0.030 | 0.261 | 1.000 | 4 |
+| correlation@0 | 4025 | 0.800 | 0.552 | 1.000 | 4 |
+| correlation@0.7 | 4025 | 0.736 | 0.687 | 0.809 | 4 |
+| pca_svm | 4025 | 0.625 | 0.596 | 1.000 | 4 |
 
 Rappel par polymère :
 
 | Polymère | correlation@0 | correlation@0.7 | pca_svm |
 |---|---|---|---|
 | ABS | 1.000 | 1.000 | 1.000 |
-| CELLULOSE | 1.000 | 1.000 | 0.917 |
-| EVA | 0.200 | 0.200 | 0.200 |
-| PA | 1.000 | 1.000 | 0.833 |
-| PC | 1.000 | 1.000 | 0.000 |
-| PE | 0.061 | 0.027 | 0.024 |
-| PET | 0.020 | 0.017 | 0.014 |
-| PLA | 0.000 | 0.000 | 0.000 |
-| PP | 0.074 | 0.070 | 0.056 |
-| PS | 0.031 | 0.022 | 0.016 |
-| PU | 0.333 | 0.333 | 0.333 |
-| PVC | 0.889 | 0.889 | 0.444 |
+| CELLULOSE | 1.000 | 1.000 | 1.000 |
+| EVA | 0.400 | 0.400 | 0.400 |
+| PA | 1.000 | 1.000 | 1.000 |
+| PC | 1.000 | 1.000 | 1.000 |
+| PE | 0.800 | 0.727 | 0.626 |
+| PET | 0.836 | 0.797 | 0.656 |
+| PLA | 0.727 | 0.714 | 0.579 |
+| PP | 0.827 | 0.719 | 0.606 |
+| PS | 0.714 | 0.624 | 0.602 |
+| PU | 1.000 | 1.000 | 0.833 |
+| PVC | 0.889 | 0.889 | 0.889 |
 
 ## Technique : raman
 
