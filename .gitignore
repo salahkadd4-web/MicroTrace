@@ -1,0 +1,36 @@
+# Données brutes : jamais dans Git (plusieurs Go, fichiers > 100 Mo, licences tierces)
+datasets/*
+!datasets/SOURCES.md
+
+# Artefacts produits par les pipelines
+data/interim/
+data/processed/
+models/
+*.parquet
+*.rds
+*.ckpt
+*.pt
+*.onnx
+mlruns/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Système / éditeurs
+__MACOSX/
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
