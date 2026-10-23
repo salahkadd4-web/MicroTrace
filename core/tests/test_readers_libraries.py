@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+
+import pytest
 from conftest import make_flopp, make_slopp, make_weathered, synthetic_points
 
+from microtrace_core.readers.common import read_xy, sha256_file
 from microtrace_core.readers.flopp import read_flopp
 from microtrace_core.readers.slopp import read_slopp
 from microtrace_core.readers.weathered import read_weathered
@@ -28,7 +32,8 @@ def test_flopp_reads_codes_and_states(tmp_path):
 
 
 def test_flopp_sorted_and_missing_folder(tmp_path):
-    assert list(read_flopp(tmp_path, "FLOPP")) == []
+    with pytest.raises(FileNotFoundError):
+        list(read_flopp(tmp_path, "FLOPP"))
     make_flopp(tmp_path, "FLOPP", {"R 10. b.CSV": synthetic_points(),
                                    "PE 1. a.CSV": synthetic_points()})
     ids = [s.spectrum_id for s in read_flopp(tmp_path, "FLOPP")]
@@ -73,7 +78,76 @@ def test_weathered_labels_from_xlsx(tmp_path):
     assert s.file.endswith("/sta-1.txt") and s.file.startswith("Spectres/A Raman")
 
 
-def test_weathered_without_xlsx(tmp_path):
+def test_weathered_missing_folder_or_xlsx(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        list(read_weathered(tmp_path))
     make_weathered(tmp_path, {"wea-1.txt": synthetic_points()})
+    with pytest.raises(FileNotFoundError, match="content.xlsx"):
+        list(read_weathered(tmp_path))
+
+
+def test_slopp_missing_folder(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        list(read_slopp(tmp_path, "SLoPP"))
+
+
+def test_weathered_sta_slash_is_unknown(tmp_path):
+    make_weathered(tmp_path, {"sta-2.txt": synthetic_points()},
+                   rows=[("sta-2", "/", "/", "yes", 1, None)])
     (s,) = list(read_weathered(tmp_path))
-    assert s.polymer == "UNKNOWN"
+    assert s.polymer == "UNKNOWN" and s.state == "pristine"
+
+
+def test_weathered_duplicate_id_raises(tmp_path):
+    make_weathered(tmp_path, {"wea-1.txt": synthetic_points()},
+                   rows=[("wea-1", "PE", "/", "x", 1, None), ("wea-1", "PP", "/", "x", 2, None)])
+    with pytest.raises(ValueError, match="wea-1"):
+        list(read_weathered(tmp_path))
+
+
+def test_weathered_skips_unexpected_txt_with_warning(tmp_path):
+    make_weathered(tmp_path, {"wea-1.txt": synthetic_points(), "notes.txt": synthetic_points()},
+                   rows=[("wea-1", "PE", "/", "x", 1, None)])
+    with pytest.warns(UserWarning, match="notes.txt"):
+        out = list(read_weathered(tmp_path))
+    assert [s.spectrum_id for s in out] == ["raman_weathered:wea-1"]
+
+
+def test_readers_raise_on_too_few_points(tmp_path):
+    make_flopp(tmp_path, "FLOPP", {"PE 1. short.CSV": synthetic_points(5)})
+    with pytest.raises(ValueError, match="short.CSV"):
+        list(read_flopp(tmp_path, "FLOPP"))
+
+
+def test_read_xy_skips_blank_and_short_rows(tmp_path):
+    f = tmp_path / "a.txt"
+    f.write_text("1\t2\n\n3\n4\t5\t\n6\t\n7\t8\n", encoding="utf-8")
+    x, y = read_xy(f, "\t")
+    assert x.tolist() == [1.0, 4.0, 7.0] and y.tolist() == [2.0, 5.0, 8.0]
+
+
+def test_read_xy_non_numeric_raises_with_line(tmp_path):
+    f = tmp_path / "bad.txt"
+    f.write_text("1 2\n3 4\nabc def\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"bad\.txt.*line 3"):
+        read_xy(f, None)
+
+
+def test_read_xy_skip_rows(tmp_path):
+    f = tmp_path / "h.txt"
+    f.write_text("x y\n1 2\n", encoding="utf-8")
+    x, _ = read_xy(f, None, skip_rows=1)
+    assert x.tolist() == [1.0]
+
+
+def test_read_xy_decimal_comma_raises(tmp_path):
+    f = tmp_path / "c.txt"
+    f.write_text("1,5;2,3\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="line 1"):
+        read_xy(f, ";")
+
+
+def test_sha256_file(tmp_path):
+    f = tmp_path / "z.bin"
+    f.write_bytes(b"hello" * 1000)
+    assert sha256_file(f) == hashlib.sha256(b"hello" * 1000).hexdigest()

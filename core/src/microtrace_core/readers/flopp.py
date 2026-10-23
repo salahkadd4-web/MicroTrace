@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from microtrace_core.polymers import normalize_polymer
-from microtrace_core.readers.common import read_xy, rel_posix
+from microtrace_core.readers.common import read_spectrum_xy, rel_posix
 from microtrace_core.spectrum import Spectrum
 
 FLOPP_CODES = {
@@ -20,9 +20,9 @@ def read_flopp(root: Path, variant: Literal["FLOPP", "FLOPP-e"]) -> Iterator[Spe
     state = "pristine" if variant == "FLOPP" else "weathered"
     folder = root / "Spectres" / f"{variant} .csv"
     if not folder.is_dir():
-        return
+        raise FileNotFoundError(f"FLOPP folder not found: {folder}")
     for path in sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() == ".csv"):
-        x, y = read_xy(path, ",")
+        x, y = read_spectrum_xy(path, ",")
         code = path.stem.split(" ", 1)[0]
         sid = f"{source}:{path.stem}"
         yield Spectrum(
