@@ -22,6 +22,7 @@ EVAL_EXCLUDED = {"UNKNOWN", "OTHER"}
 MIN_COVERAGE = 0.8
 N_SPLITS = 5
 MAX_COMPONENTS = 30
+SEED = 0
 DEFAULT_DATA_NATURE = "unknown"
 
 
@@ -73,14 +74,17 @@ def _pca_svm_predict(Y_tr, y_tr, ids_tr, Q):
     if len(set(y_tr)) < 2:
         raise _Skip("training set has fewer than 2 classes")
     n_comp = min(MAX_COMPONENTS, len(y_tr) - 1, Y_tr.shape[1])
-    model = make_pca_svm(n_components=n_comp).fit(Y_tr, y_tr)
+    model = make_pca_svm(n_components=n_comp, random_state=SEED).fit(Y_tr, y_tr)
     return model.predict(Q)
 
 
 def _methods(threshold: float) -> dict[str, Callable]:
+    key = f"correlation@{threshold:g}"
+    if key == "correlation@0":
+        raise ValueError("threshold must differ from 0 (correlation@0 is always evaluated)")
     return {
         "correlation@0": _correlation_predictor(0.0),
-        f"correlation@{threshold:g}": _correlation_predictor(threshold),
+        key: _correlation_predictor(threshold),
         "pca_svm": _pca_svm_predict,
     }
 
@@ -170,7 +174,7 @@ def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
     dropped = df[~df["polymer"].isin(keep_poly)]
     gk_excl = {
         "total": int(len(dropped)),
-        "polymers_with_fewer_than_5_groups": {
+        "polymers_with_fewer_groups_than_splits": {
             k: int(v) for k, v in dropped["polymer"].value_counts().sort_index().items()
         },
     }
@@ -182,12 +186,12 @@ def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
     else:
         pos = np.flatnonzero(df["polymer"].isin(keep_poly).to_numpy())
         sub = df.iloc[pos].reset_index(drop=True)
-        folds = [(pos[tr], pos[te]) for tr, te in group_kfold(sub, N_SPLITS, seed=0)]
+        folds = [(pos[tr], pos[te]) for tr, te in group_kfold(sub, N_SPLITS, seed=SEED)]
         res = _run_folds(Y, y, ids, folds, methods)
         protocols["group_kfold"] = {
             "excluded": gk_excl,
             "n_splits": N_SPLITS,
-            "seed": 0,
+            "seed": SEED,
             "methods": {name: _pool(y, res[name]) for name in methods},
         }
 
@@ -247,14 +251,20 @@ def _fmt(v, digits: int = 3) -> str:
 
 
 def _metrics_table(methods: dict) -> list[str]:
-    lines = ["| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |",
-             "|---|---|---|---|---|---|"]
+    lines = ["| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |",
+             "|---|---|---|---|---|---|---|"]
+    notes = []
     for name, m in methods.items():
         if "skipped" in m:
-            lines.append(f"| {name} | – | ignoré : {m['skipped']} | | | |")
-        else:
-            lines.append(f"| {name} | {m['n']} | {_fmt(m['accuracy'])} | {_fmt(m['macro_f1'])} "
-                         f"| {_fmt(m['coverage'])} | {m['out_of_library']} |")
+            lines.append(f"| {name} | – | – | ignoré : {m['skipped']} | | | |")
+            continue
+        lines.append(f"| {name} | {m['n']} | {m['n_evaluated']} | {_fmt(m['accuracy'])} "
+                     f"| {_fmt(m['macro_f1'])} | {_fmt(m['coverage'])} | {m['out_of_library']} |")
+        if m.get("skipped_folds"):
+            notes.append(f"Plis ignorés pour {name} : " + " ; ".join(m["skipped_folds"]) + ".")
+    lines += ["", ACCURACY_NOTE]
+    for note in notes:
+        lines += ["", note]
     return lines
 
 
@@ -269,6 +279,11 @@ def _recall_table(methods: dict) -> list[str]:
         lines.append(f"| {c} | " + " | ".join(cells) + " |")
     return lines
 
+
+ACCURACY_NOTE = (
+    "Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes "
+    "présentes dans la bibliothèque (n_evaluated = n − out_of_library)."
+)
 
 _PROTOCOL_TITLES = {
     "loso": "Leave-one-source-out (LOSO)",
@@ -336,12 +351,13 @@ def _render_report(r: dict) -> str:
                 continue
             if proto == "group_kfold":
                 e = p["excluded"]
+                rare = e["polymers_with_fewer_groups_than_splits"]
+                removed = (" (" + ", ".join(f"{k} : {v}" for k, v in rare.items()) + ")") if rare else ""
                 L += [f"Validation croisée en {p['n_splits']} plis, graine {p['seed']} : "
                       "aucun groupe d'échantillons n'est coupé entre apprentissage et "
-                      "test. Seuls les polymères présents dans au moins 5 groupes sont "
-                      f"conservés ; {e['total']} spectres retirés "
-                      f"({e['polymers_with_fewer_than_5_groups']}). Résultats cumulés "
-                      "sur les prédictions hors pli :", ""]
+                      "test. Seuls les polymères présents dans au moins "
+                      f"{N_SPLITS} groupes sont conservés ; {e['total']} spectres "
+                      f"retirés{removed}. Résultats cumulés sur les prédictions hors pli :", ""]
             L += _metrics_table(p["methods"]) + [""]
             if proto == "pristine_to_aged":
                 L += ["Rappel par polymère :", ""]

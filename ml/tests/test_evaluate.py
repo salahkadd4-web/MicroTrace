@@ -68,14 +68,12 @@ def test_evaluation_excludes_unknown_and_other(catalog, tmp_path):
     assert tech["excluded"]["OTHER"] == 1
     assert tech["excluded"]["low_coverage"] == 1
     assert tech["excluded"]["total"] == 3
-    text = json.dumps(res)
     assert "UNKNOWN" not in json.dumps(tech["protocols"])
     assert '"OTHER"' not in json.dumps(tech["protocols"])
     for proto in tech["protocols"].values():
         pooled = proto.get("pooled") or proto.get("methods")
         for method in ("correlation@0", "correlation@0.7", "pca_svm"):
             assert method in pooled
-    assert text
 
 def test_loso_out_of_library_counted(catalog, tmp_path):
     res = run_baseline(catalog, tmp_path / "out")
@@ -108,3 +106,93 @@ def test_cli_baseline_writes_reports(catalog, tmp_path):
     report = (out / "report.md").read_text(encoding="utf-8")
     assert "Limites" in report
     json.loads((out / "metrics.json").read_text(encoding="utf-8"))
+
+
+def _strip_volatile(res):
+    res = dict(res)
+    res.pop("runtime_seconds", None)
+    res.pop("date", None)
+    return res
+
+
+def _small_catalog(path, noise=False):
+    rng = np.random.default_rng(1)
+    n = _grid_len()
+    protos = {p: rng.normal(size=n) for p in ("PE", "PP")}
+    rows, i = [], 0
+    for src, pols in (("A", ("PE", "PP")), ("B", ("PE",))):
+        for pol in pols:
+            for g in range(3):
+                for _ in range(2):
+                    y = protos[pol] + 0.1 * rng.normal(size=n)
+                    rows.append(_row(i, src, pol, f"{src}-{pol}-{g}", "pristine", y))
+                    i += 1
+    if noise:
+        for _ in range(4):
+            rows.append(_row(i, "NOISE", "PE", f"N-{i}", "pristine", rng.normal(size=n)))
+            i += 1
+    pd.DataFrame(rows).to_parquet(path)
+    return path
+
+
+def test_pca_svm_is_deterministic(catalog, tmp_path):
+    a = run_baseline(catalog, tmp_path / "a")
+    b = run_baseline(catalog, tmp_path / "b")
+    assert _strip_volatile(a) == _strip_volatile(b)
+
+
+def test_single_class_training_fold_is_skipped_and_small_train_does_not_raise(tmp_path):
+    cat = _small_catalog(tmp_path / "spectra_catalog.parquet")
+    res = run_baseline(cat, tmp_path / "out")
+    loso = res["techniques"]["ftir_atr"]["protocols"]["loso"]
+    # holding out A leaves only PE (1 class) for training
+    assert list(loso["per_source"]["A"]["pca_svm"]) == ["skipped"]
+    assert "fewer than 2 classes" in loso["per_source"]["A"]["pca_svm"]["skipped"]
+    # holding out B leaves 12 training rows: the component cap must keep PCA valid
+    assert loso["per_source"]["B"]["pca_svm"]["n"] == 6
+    pooled = loso["pooled"]["pca_svm"]
+    assert len(pooled["skipped_folds"]) == 1
+    report = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "Plis ignorés pour pca_svm" in report
+
+
+def test_catalog_meta_is_reported(catalog, tmp_path):
+    (catalog.parent / "catalog_meta.json").write_text(
+        json.dumps({"git_commit": "abc1234", "data_nature": "test nature"}), encoding="utf-8"
+    )
+    run_baseline(catalog, tmp_path / "with")
+    text = (tmp_path / "with" / "report.md").read_text(encoding="utf-8")
+    assert "abc1234" in text and "test nature" in text
+    (catalog.parent / "catalog_meta.json").unlink()
+    res = run_baseline(catalog, tmp_path / "without")
+    assert res["catalog"] == {"git_commit": "unknown", "data_nature": "unknown"}
+    text = (tmp_path / "without" / "report.md").read_text(encoding="utf-8")
+    assert "unknown" in text
+
+
+def test_report_content(catalog, tmp_path):
+    run_baseline(catalog, tmp_path / "out")
+    text = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    for heading in ("## Technique : ftir_atr", "### Effectifs par source",
+                    "### Effectifs par polymère", "### Leave-one-source-out (LOSO)",
+                    "### Validation croisée par groupes", "### Pristine vers vieilli",
+                    "## Limites"):
+        assert heading in text
+    assert "Rappel par polymère" in text
+    assert "| SRC_A |" in text and "| PE |" in text
+    assert "n_evaluated" in text
+    assert "uniquement sur les requêtes présentes dans la bibliothèque" in text
+    assert "{" not in text.split("## Limites")[0].split("Seuls les polymères")[1][:300]
+
+
+def test_correlation_threshold_abstains_on_low_score(tmp_path):
+    cat = _small_catalog(tmp_path / "spectra_catalog.parquet", noise=True)
+    res = run_baseline(cat, tmp_path / "out")
+    noise = res["techniques"]["ftir_atr"]["protocols"]["loso"]["per_source"]["NOISE"]
+    assert noise["correlation@0"]["coverage"] >= noise["correlation@0.7"]["coverage"]
+    assert noise["correlation@0.7"]["coverage"] == 0.0
+
+
+def test_threshold_zero_rejected(catalog, tmp_path):
+    with pytest.raises(ValueError):
+        run_baseline(catalog, tmp_path / "out", threshold=0.0)
