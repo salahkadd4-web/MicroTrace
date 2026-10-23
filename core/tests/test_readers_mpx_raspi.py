@@ -22,6 +22,8 @@ def test_mpx_reads_units_per_record(tmp_path):
     assert got["mpx:b_cm"].x_unit == "cm-1" and got["mpx:b_cm"].laser_nm == MPX_RAMAN_LASER_NM
     assert got["mpx:c_atr"].technique == "ftir_atr" and got["mpx:c_atr"].laser_nm is None
     assert got["mpx:a_nm"].technique == "raman"
+    assert got["mpx:c_atr"].y_unit == "absorbance"
+    assert got["mpx:a_nm"].y_unit == got["mpx:b_cm"].y_unit == "intensity"
     assert got["mpx:c_atr"].file.endswith("dataset/c_atr.csv")
 
 
@@ -138,3 +140,10 @@ def test_raspi_duplicate_id_is_disambiguated(tmp_path):
     assert second.label_note == (
         "duplicate id in RaSPI_raw.csv (occurrence 2); identity ambiguous")
     assert second.sample_group == first.sample_group == "raspi:PE1"
+
+
+def test_mpx_atr_with_non_absorbance_unit_is_rejected(tmp_path):
+    make_mpx(tmp_path, [mpx_record("t_atr.csv", Analysis="ATR", y_unit="T")],
+             {"t_atr.csv": synthetic_points()})
+    with pytest.raises(ValueError, match="t_atr.csv"):
+        list(read_mpx(tmp_path))

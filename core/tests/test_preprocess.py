@@ -92,3 +92,40 @@ def test_preprocess_outside_grid_is_all_nan():
         warnings.simplefilter("error")
         out = preprocess(_spec(x, np.arange(50.0), "cm-1"))
     assert out.dtype == np.float32 and np.isnan(out).all()
+
+
+def _ftir(y, y_unit):
+    x = np.arange(500.0, 4100.0, 2.0)
+    return Spectrum(
+        spectrum_id="t", source="t", technique="ftir_atr", x=x, y=y, x_unit="cm-1",
+        y_unit=y_unit, polymer="PET", polymer_raw="PET", state="unknown",
+        sample_group="g", file="f")
+
+
+def _band():
+    x = np.arange(500.0, 4100.0, 2.0)
+    a = 0.8 * np.exp(-(((x - 1716.0) / 20.0) ** 2)) + 0.02
+    return x, a
+
+
+def test_preprocess_transmittance_is_converted_to_absorbance():
+    x, a = _band()
+    t = 100.0 * 10.0 ** (-a)
+    t[:30] = 0.0
+    t[-30:] = 0.0
+    t_in = t.copy()
+    s = _ftir(t, "transmittance_pct")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        out = preprocess(s)
+    grid = GRIDS["ftir_atr"]
+    assert int(np.argmax(out)) == int(np.argmin(np.abs(grid - 1716.0)))
+    assert np.isnan(out[grid < x[30]]).all() and np.isnan(out[grid > x[-31]]).all()
+    assert np.isfinite(out[(grid > 700) & (grid < 3900)]).all()
+    np.testing.assert_array_equal(s.y, t_in)
+
+
+def test_preprocess_absorbance_gives_same_argmax():
+    _, a = _band()
+    out = preprocess(_ftir(a, "absorbance"))
+    assert int(np.argmax(out)) == int(np.argmin(np.abs(GRIDS["ftir_atr"] - 1716.0)))

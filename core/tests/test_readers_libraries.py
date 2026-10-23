@@ -22,10 +22,11 @@ def test_flopp_reads_codes_and_states(tmp_path):
     assert s.polymer == "ABS" and s.state == "pristine" and s.source == "flopp"
     assert s.technique == "ftir_atr" and s.polymer_raw == "ABS"
     assert s.file == "Spectres/FLOPP .csv/ABS 1. Orange LEGO Fragment.CSV"
-    assert len(s.x) == 12
+    assert len(s.x) == 12 and s.y_unit == "transmittance_pct"
     assert a["flopp:PEA 1. Clear Double Sided Tape"].polymer == "OTHER"
     (e,) = list(read_flopp(tmp_path, "FLOPP-e"))
     assert e.polymer == "CELLULOSE" and e.state == "weathered" and e.source == "flopp_e"
+    assert e.y_unit == "transmittance_pct"
     assert e.spectrum_id == "flopp_e:CO 1. Grey Fiber"
     assert e.sample_group == e.spectrum_id
     assert e.file == "Spectres/FLOPP-e .csv/CO 1. Grey Fiber.CSV"

@@ -57,9 +57,12 @@ def test_build_catalog_roundtrip(tmp_path):
         np.testing.assert_array_equal(np.asarray(row.x_raw), s.x)
         assert row.file_sha256 == sha256_file(ds / s.file)
         assert json.loads(row.extra) == s.extra
+    assert {r.spectrum_id: r.y_unit for r in df.itertuples()} == {
+        sid: s.y_unit for sid, s in originals.items()}
+    assert set(df["y_unit"]) >= {"transmittance_pct", "intensity"}
     assert set(df.columns) == {
         "spectrum_id", "source", "technique", "polymer", "polymer_raw", "state",
-        "sample_group", "file", "file_sha256", "laser_nm", "x_unit", "label_note",
+        "sample_group", "file", "file_sha256", "laser_nm", "x_unit", "y_unit", "label_note",
         "coverage", "x_raw", "y_raw", "y_grid", "extra"}
 
 
@@ -68,6 +71,7 @@ def test_build_catalog_rejects_duplicate_ids(tmp_path, monkeypatch):
         return Spectrum(
             spectrum_id="dup:1", source="flopp", technique="ftir_atr",
             x=np.arange(700, 1300, 10.0), y=np.ones(60), x_unit="cm-1",
+            y_unit="transmittance_pct",
             polymer="PE", polymer_raw="PE", state="pristine", sample_group="g",
             file="a.csv")
     (tmp_path / "a.csv").write_text("x", encoding="utf-8")

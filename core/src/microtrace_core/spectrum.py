@@ -7,6 +7,7 @@ from typing import Literal, get_args
 import numpy as np
 
 Technique = Literal["ftir_atr", "raman"]
+YUnit = Literal["absorbance", "transmittance_pct", "intensity"]
 State = Literal["pristine", "weathered", "biofouled", "unknown"]
 
 MIN_POINTS = 10
@@ -28,6 +29,7 @@ class Spectrum:
     sample_group: str
     file: str
     laser_nm: float | None = None
+    y_unit: YUnit = "intensity"
     label_note: str = ""
     extra: dict[str, str] = field(default_factory=dict)
 
@@ -44,5 +46,11 @@ class Spectrum:
             raise ValueError(f"invalid technique: {self.technique!r}")
         if self.state not in get_args(State):
             raise ValueError(f"invalid state: {self.state!r}")
+        if self.y_unit not in get_args(YUnit):
+            raise ValueError(f"invalid y_unit: {self.y_unit!r}")
+        if self.technique == "ftir_atr" and self.y_unit not in ("absorbance", "transmittance_pct"):
+            raise ValueError(f"ftir_atr requires absorbance or transmittance_pct, got {self.y_unit!r}")
+        if self.technique == "raman" and self.y_unit != "intensity":
+            raise ValueError(f"raman requires y_unit 'intensity', got {self.y_unit!r}")
         if self.technique == "raman" and self.x_unit == "nm" and self.laser_nm is None:
             raise ValueError("raman spectrum in nm requires laser_nm")

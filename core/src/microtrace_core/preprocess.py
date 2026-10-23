@@ -7,7 +7,7 @@ from scipy.sparse.linalg import spsolve
 
 from microtrace_core.spectrum import Spectrum, Technique
 
-PREPROCESS_VERSION = "1"
+PREPROCESS_VERSION = "2"
 
 GRIDS: dict[Technique, np.ndarray] = {
     "ftir_atr": np.arange(600, 4001, 4.0),
@@ -24,6 +24,15 @@ def nm_to_raman_shift(wavelength_nm: np.ndarray, laser_nm: float) -> np.ndarray:
     """Convert absolute wavelengths (nm) to Raman shift (cm-1)."""
     wl = np.asarray(wavelength_nm, dtype=np.float64)
     return 1e7 / laser_nm - 1e7 / wl
+
+
+def transmittance_to_absorbance(t_pct: np.ndarray) -> np.ndarray:
+    """A = -log10(T/100); T <= 0 or non-finite (zero padding) becomes NaN."""
+    t = np.asarray(t_pct, dtype=np.float64)
+    out = np.full(t.shape, np.nan)
+    ok = np.isfinite(t) & (t > 0)
+    out[ok] = -np.log10(t[ok] / 100.0)
+    return out
 
 
 def clean(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -103,7 +112,10 @@ def preprocess(s: Spectrum) -> np.ndarray:
     x = s.x
     if s.x_unit == "nm":
         x = nm_to_raman_shift(x, s.laser_nm)
-    x, y = clean(x, s.y)
+    y = s.y
+    if s.y_unit == "transmittance_pct":
+        y = transmittance_to_absorbance(y)
+    x, y = clean(x, y)
     grid = GRIDS[s.technique]
     y_grid = resample(x, y, grid)
     lam, p = _ALS_PARAMS[s.technique]

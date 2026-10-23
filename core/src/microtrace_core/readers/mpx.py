@@ -49,11 +49,15 @@ def read_mpx(root: Path) -> Iterator[Spectrum]:
         if treatment not in _STATE:
             raise ValueError(f"{meta}: unknown Treatment {treatment!r} for {rec['file']}")
         technique = _TECHNIQUE[analysis]
+        if technique == "ftir_atr" and rec.get("y_unit") != "A":
+            raise ValueError(
+                f"{path}: ATR record has y_unit {rec.get('y_unit')!r}, expected 'A' (absorbance)")
         x, y = _read_csv(path)
         raw = _text(rec["Polymer"])
         yield Spectrum(
             spectrum_id=f"mpx:{path.stem}", source="mpx", technique=technique, x=x, y=y,
-            x_unit=rec["x_unit"], polymer=normalize_polymer(raw), polymer_raw=raw,
+            x_unit=rec["x_unit"], y_unit="absorbance" if technique == "ftir_atr" else "intensity",
+            polymer=normalize_polymer(raw), polymer_raw=raw,
             state=_STATE[treatment], sample_group=f"mpx:{raw}", file=rel_posix(path, root),
             laser_nm=MPX_RAMAN_LASER_NM if technique == "raman" else None,
             extra={k: _text(rec.get(k)) for k in ("Region", "Campaign", "Exposure_days", "State")},

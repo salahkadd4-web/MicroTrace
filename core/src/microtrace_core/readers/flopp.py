@@ -27,6 +27,7 @@ def read_flopp(root: Path, variant: Literal["FLOPP", "FLOPP-e"]) -> Iterator[Spe
         sid = f"{source}:{path.stem}"
         yield Spectrum(
             spectrum_id=sid, source=source, technique="ftir_atr", x=x, y=y, x_unit="cm-1",
+            y_unit="transmittance_pct",
             polymer=normalize_polymer(FLOPP_CODES.get(code, code)), polymer_raw=code,
             state=state, sample_group=sid, file=rel_posix(path, root),
         )
