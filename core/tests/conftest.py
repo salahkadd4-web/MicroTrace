@@ -72,3 +72,63 @@ def make_weathered(root: Path, files: dict[str, Points],
         ws.append((None,) * 6)
         wb.save(base / "content.xlsx")
     return base
+
+
+MPX_DIR = ("Spectres", "10.22000-1820", "data", "dataset")
+
+
+def mpx_record(file: str, **overrides) -> dict:
+    """A MicroPlastiX metadata record (keys as in the real metadata.json)."""
+    rec = {
+        "index": 0, "Region": "VLFR", "Campaign": "C1", "State": "dry",
+        "Treatment": "nobio", "Analysis": "ATR", "Exposure_days": 30,
+        "Polymer_ID": 9, "file_legacy": None, "LocationDescription": None,
+        "Country": None, "LAT": None, "LON": None, "Replicate": 1,
+        "Polymer": "(09) PET", "Product_ID": None, "Supplier": None,
+        "Specifications": None, "SpecNo": None, "ATRcorrection": None,
+        "BaselineCorrection": None, "file": file, "spec_hash": "abc",
+        "x_unit": "cm-1", "y_unit": "A",
+    }
+    rec.update(overrides)
+    return rec
+
+
+def make_mpx(root: Path, records: list[dict], files: dict[str, Points]) -> Path:
+    """Write the MicroPlastiX folder: metadata.json (pandas table orient) and csv files.
+
+    Each csv has ONE header line then comma-separated pairs. Records whose file is not
+    in `files` stay referenced in metadata.json but are not written.
+    """
+    import json
+
+    base = root.joinpath(*MPX_DIR)
+    base.mkdir(parents=True, exist_ok=True)
+    (base / "metadata.json").write_text(
+        json.dumps({"schema": {"fields": []}, "data": records}), encoding="utf-8")
+    (base / "spectra.zip").write_bytes(b"junk")
+    for name, pts in files.items():
+        (base / name).write_text(
+            "cm-1,A" + chr(10) + "".join(f"{x},{y}" + chr(10) for x, y in pts), encoding="utf-8")
+    return base
+
+
+def make_raspi(root: Path, spectra: dict[str, Points],
+               meta_rows: list[list[str]], trailing: int = 3) -> Path:
+    """Write RaSPI_raw.csv (ragged, trailing empty cells) and RaSPI_metadata.csv (BOM)."""
+    import csv
+
+    base = root / "Spectres"
+    base.mkdir(parents=True, exist_ok=True)
+    with (base / "RaSPI_raw.csv").open("w", encoding="utf-8", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["Spectrum ID"] + [""] * 14)
+        for sid, pts in spectra.items():
+            empty = [""] * trailing
+            w.writerow([sid, "wavenumber", *[x for x, _ in pts], *empty])
+            w.writerow(["", "intensity", *[y for _, y in pts], *empty])
+    with (base / "RaSPI_metadata.csv").open("w", encoding="utf-8-sig", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["Spectra ID", "Colour", "Origin", "Additional Information",
+                    "Plastic Type", "Laser (nm)", "Diffraction Grating (mm/line)"])
+        w.writerows(meta_rows)
+    return base
