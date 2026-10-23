@@ -1,10 +1,10 @@
 # MicroTrace : rapport de la baseline d'identification des polymères
 
 - Date : 2026-10-24
-- Catalogue (git_commit) : `40de9d9ae02dcaf1fb6bd79955fc60dc9d29740e`
+- Catalogue (git_commit) : `86a400be0292cbf5d8ede0300faad0997e65ab00`
 - Nature des données : reference/environmental polymers — not human biological matrices
 - Seuil de corrélation testé : 0.7
-- Durée du calcul : 47.1 s
+- Durée du calcul : 22.9 s
 
 Ce rapport mesure dans quelle mesure le polymère d'un échantillon peut être retrouvé à partir de son spectre, avec des séparations qui évitent toute fuite de données entre apprentissage et test. Trois méthodes sont comparées : `correlation@0` (le spectre de référence le plus proche est toujours retenu), `correlation@0.7` (la réponse est NO_MATCH si la corrélation est inférieure au seuil) et `pca_svm` (réduction PCA puis machine à vecteurs de support).
 
@@ -47,35 +47,43 @@ Spectres évalués après exclusions : 4210. Exclus avant toute séparation : 3 
 
 Résultats cumulés sur toutes les sources tenues à part :
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 4210 | 0.849 | 0.741 | 1.000 | 25 |
-| correlation@0.7 | 4210 | 0.792 | 0.805 | 0.857 | 25 |
-| pca_svm | 4210 | 0.700 | 0.687 | 1.000 | 25 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 4210 | 4185 | 0.849 | 0.741 | 1.000 | 25 |
+| correlation@0.7 | 4210 | 4185 | 0.792 | 0.805 | 0.857 | 25 |
+| pca_svm | 4210 | 4185 | 0.700 | 0.687 | 1.000 | 25 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **flopp**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 185 | 0.921 | 0.916 | 1.000 | 21 |
-| correlation@0.7 | 185 | 0.921 | 0.916 | 1.000 | 21 |
-| pca_svm | 185 | 0.854 | 0.839 | 1.000 | 21 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 185 | 164 | 0.921 | 0.916 | 1.000 | 21 |
+| correlation@0.7 | 185 | 164 | 0.921 | 0.916 | 1.000 | 21 |
+| pca_svm | 185 | 164 | 0.854 | 0.839 | 1.000 | 21 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **flopp_e**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 193 | 0.921 | 0.874 | 1.000 | 4 |
-| correlation@0.7 | 193 | 0.921 | 0.874 | 1.000 | 4 |
-| pca_svm | 193 | 0.905 | 0.848 | 1.000 | 4 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 193 | 189 | 0.921 | 0.874 | 1.000 | 4 |
+| correlation@0.7 | 193 | 189 | 0.921 | 0.874 | 1.000 | 4 |
+| pca_svm | 193 | 189 | 0.905 | 0.848 | 1.000 | 4 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **mpx**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 3832 | 0.842 | 0.865 | 1.000 | 0 |
-| correlation@0.7 | 3832 | 0.780 | 0.849 | 0.844 | 0 |
-| pca_svm | 3832 | 0.683 | 0.794 | 1.000 | 0 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 3832 | 3832 | 0.842 | 0.865 | 1.000 | 0 |
+| correlation@0.7 | 3832 | 3832 | 0.780 | 0.849 | 0.844 | 0 |
+| pca_svm | 3832 | 3832 | 0.683 | 0.794 | 1.000 | 0 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère (LOSO cumulé) :
 
@@ -96,21 +104,25 @@ Rappel par polymère (LOSO cumulé) :
 
 ### Validation croisée par groupes (group_kfold)
 
-Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 4 spectres retirés ({'CA': 2, 'PMMA': 2}). Résultats cumulés sur les prédictions hors pli :
+Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 4 spectres retirés (CA : 2, PMMA : 2). Résultats cumulés sur les prédictions hors pli :
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 4206 | 0.762 | 0.822 | 1.000 | 0 |
-| correlation@0.7 | 4206 | 0.759 | 0.828 | 0.994 | 0 |
-| pca_svm | 4206 | 0.835 | 0.830 | 1.000 | 0 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 4206 | 4206 | 0.762 | 0.822 | 1.000 | 0 |
+| correlation@0.7 | 4206 | 4206 | 0.759 | 0.828 | 0.994 | 0 |
+| pca_svm | 4206 | 4206 | 0.835 | 0.830 | 1.000 | 0 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 ### Pristine vers vieilli (pristine_to_aged)
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 4025 | 0.800 | 0.552 | 1.000 | 4 |
-| correlation@0.7 | 4025 | 0.736 | 0.687 | 0.809 | 4 |
-| pca_svm | 4025 | 0.625 | 0.596 | 1.000 | 4 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 4025 | 4021 | 0.800 | 0.552 | 1.000 | 4 |
+| correlation@0.7 | 4025 | 4021 | 0.736 | 0.687 | 0.809 | 4 |
+| pca_svm | 4025 | 4021 | 0.625 | 0.596 | 1.000 | 4 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère :
 
@@ -172,51 +184,63 @@ Spectres évalués après exclusions : 2312. Exclus avant toute séparation : 50
 
 Résultats cumulés sur toutes les sources tenues à part :
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 2312 | 0.898 | 0.759 | 1.000 | 315 |
-| correlation@0.7 | 2312 | 0.857 | 0.798 | 0.912 | 315 |
-| pca_svm | 2312 | 0.871 | 0.753 | 1.000 | 315 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 2312 | 1997 | 0.898 | 0.759 | 1.000 | 315 |
+| correlation@0.7 | 2312 | 1997 | 0.857 | 0.798 | 0.912 | 315 |
+| pca_svm | 2312 | 1997 | 0.871 | 0.753 | 1.000 | 315 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **mpx**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 1604 | 0.908 | 0.933 | 1.000 | 218 |
-| correlation@0.7 | 1604 | 0.853 | 0.910 | 0.887 | 218 |
-| pca_svm | 1604 | 0.867 | 0.900 | 1.000 | 218 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 1604 | 1386 | 0.908 | 0.933 | 1.000 | 218 |
+| correlation@0.7 | 1604 | 1386 | 0.853 | 0.910 | 0.887 | 218 |
+| pca_svm | 1604 | 1386 | 0.867 | 0.900 | 1.000 | 218 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **raman_weathered**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 165 | 0.756 | 0.586 | 1.000 | 1 |
-| correlation@0.7 | 165 | 0.756 | 0.591 | 0.970 | 1 |
-| pca_svm | 165 | 0.780 | 0.648 | 1.000 | 1 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 165 | 164 | 0.756 | 0.586 | 1.000 | 1 |
+| correlation@0.7 | 165 | 164 | 0.756 | 0.591 | 0.970 | 1 |
+| pca_svm | 165 | 164 | 0.780 | 0.648 | 1.000 | 1 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **raspi**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 396 | 0.939 | 0.918 | 1.000 | 87 |
-| correlation@0.7 | 396 | 0.926 | 0.930 | 0.968 | 87 |
-| pca_svm | 396 | 0.939 | 0.931 | 1.000 | 87 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 396 | 309 | 0.939 | 0.918 | 1.000 | 87 |
+| correlation@0.7 | 396 | 309 | 0.926 | 0.930 | 0.968 | 87 |
+| pca_svm | 396 | 309 | 0.939 | 0.931 | 1.000 | 87 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **slopp**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 71 | 0.908 | 0.870 | 1.000 | 6 |
-| correlation@0.7 | 71 | 0.892 | 0.837 | 0.985 | 6 |
-| pca_svm | 71 | 0.892 | 0.851 | 1.000 | 6 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 71 | 65 | 0.908 | 0.870 | 1.000 | 6 |
+| correlation@0.7 | 71 | 65 | 0.892 | 0.837 | 0.985 | 6 |
+| pca_svm | 71 | 65 | 0.892 | 0.851 | 1.000 | 6 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **slopp_e**
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 76 | 0.849 | 0.731 | 1.000 | 3 |
-| correlation@0.7 | 76 | 0.849 | 0.742 | 0.959 | 3 |
-| pca_svm | 76 | 0.863 | 0.735 | 1.000 | 3 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 76 | 73 | 0.849 | 0.731 | 1.000 | 3 |
+| correlation@0.7 | 76 | 73 | 0.849 | 0.742 | 0.959 | 3 |
+| pca_svm | 76 | 73 | 0.863 | 0.735 | 1.000 | 3 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère (LOSO cumulé) :
 
@@ -236,21 +260,25 @@ Rappel par polymère (LOSO cumulé) :
 
 ### Validation croisée par groupes (group_kfold)
 
-Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 223 spectres retirés ({'ACRYLIC': 1, 'CA': 1, 'NC': 1, 'PLA': 218, 'RUBBER': 2}). Résultats cumulés sur les prédictions hors pli :
+Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 223 spectres retirés (ACRYLIC : 1, CA : 1, NC : 1, PLA : 218, RUBBER : 2). Résultats cumulés sur les prédictions hors pli :
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 2089 | 0.912 | 0.866 | 1.000 | 0 |
-| correlation@0.7 | 2089 | 0.892 | 0.870 | 0.962 | 0 |
-| pca_svm | 2089 | 0.900 | 0.814 | 1.000 | 0 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 2089 | 2089 | 0.912 | 0.866 | 1.000 | 0 |
+| correlation@0.7 | 2089 | 2089 | 0.892 | 0.870 | 0.962 | 0 |
+| pca_svm | 2089 | 2089 | 0.900 | 0.814 | 1.000 | 0 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 ### Pristine vers vieilli (pristine_to_aged)
 
-| Méthode | n | accuracy | macro-F1 | coverage | out_of_library |
-|---|---|---|---|---|---|
-| correlation@0 | 1827 | 0.893 | 0.583 | 1.000 | 221 |
-| correlation@0.7 | 1827 | 0.834 | 0.659 | 0.877 | 221 |
-| pca_svm | 1827 | 0.745 | 0.556 | 1.000 | 221 |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+|---|---|---|---|---|---|---|
+| correlation@0 | 1827 | 1606 | 0.893 | 0.583 | 1.000 | 221 |
+| correlation@0.7 | 1827 | 1606 | 0.834 | 0.659 | 0.877 | 221 |
+| pca_svm | 1827 | 1606 | 0.745 | 0.556 | 1.000 | 221 |
+
+Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère :
 

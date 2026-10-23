@@ -1,7 +1,7 @@
 {
   "date": "2026-10-24",
   "catalog": {
-    "git_commit": "40de9d9ae02dcaf1fb6bd79955fc60dc9d29740e",
+    "git_commit": "86a400be0292cbf5d8ede0300faad0997e65ab00",
     "data_nature": "reference/environmental polymers — not human biological matrices"
   },
   "threshold": 0.7,
@@ -964,7 +964,7 @@
         "group_kfold": {
           "excluded": {
             "total": 4,
-            "polymers_with_fewer_than_5_groups": {
+            "polymers_with_fewer_groups_than_splits": {
               "CA": 2,
               "PMMA": 2
             }
@@ -2858,7 +2858,7 @@
         "group_kfold": {
           "excluded": {
             "total": 223,
-            "polymers_with_fewer_than_5_groups": {
+            "polymers_with_fewer_groups_than_splits": {
               "ACRYLIC": 1,
               "CA": 1,
               "NC": 1,
@@ -3509,5 +3509,5 @@
       }
     }
   },
-  "runtime_seconds": 47.1
+  "runtime_seconds": 22.9
 }
