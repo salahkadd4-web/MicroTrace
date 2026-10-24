@@ -92,3 +92,47 @@ def test_duplicate_header_after_normalisation():
 def test_no_header_row():
     with pytest.raises(TableReadError, match="aucun en-tête"):
         read_table(b"\n;;\n\n", "r.csv")
+
+
+def test_limit_total_rows_blank_csv_and_xlsx(tmp_path, monkeypatch):
+    monkeypatch.setattr(tables, "MAX_ROWS", 2)
+    monkeypatch.setattr(tables, "MAX_BLANK_ROWS", 3)
+    blanks = ["a\n1\n"] + [";\n"] * 5
+    with pytest.raises(TableReadError, match="vides comprises"):
+        read_table("".join(blanks).encode(), "r.csv")
+    xl = _xlsx(tmp_path, [["a"], [1]] + [[None]] * 4 + [[None, None, 1]])
+    with pytest.raises(TableReadError, match="lignes"):
+        read_table(xl, "r.xlsx")
+    ok = _xlsx(tmp_path, [["a"], [1], [None], [None], [2]])
+    assert read_table(ok, "r.xlsx").row_numbers == (2, 5)
+
+
+def test_forged_dimension_is_ignored(tmp_path):
+    import io
+    import zipfile
+    xl = _xlsx(tmp_path, [["a", "b"], [1, 2]])
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(xl)) as zin, zipfile.ZipFile(out, "w") as zout:
+        for item in zin.infolist():
+            buf = zin.read(item.filename)
+            if item.filename == "xl/worksheets/sheet1.xml":
+                assert b'<dimension ref="A1:B2"' in buf
+                buf = buf.replace(b'<dimension ref="A1:B2"', b'<dimension ref="A1:XFD1048576"')
+            zout.writestr(item, buf)
+    t = read_table(out.getvalue(), "r.xlsx")
+    assert t.rows == ({"a": "1", "b": "2"},) and t.row_numbers == (2,)
+
+
+def test_csv_wide_row_beyond_max_columns(monkeypatch):
+    monkeypatch.setattr(tables, "MAX_COLUMNS", 2)
+    with pytest.raises(TableReadError, match="colonnes"):
+        read_table(b"a;b\n1;2;;;;x\n", "r.csv")
+    t = read_table(b"a;b\n1;2;;;;;\n", "r.csv")
+    assert t.rows == ({"a": "1", "b": "2"},)
+
+
+def test_xlsx_cell_beyond_max_columns(tmp_path, monkeypatch):
+    xl = _xlsx(tmp_path, [["a", "b"], [1, 2, 3]])
+    monkeypatch.setattr(tables, "MAX_COLUMNS", 2)
+    with pytest.raises(TableReadError):
+        read_table(xl, "r.xlsx")

@@ -20,6 +20,7 @@ MAX_BYTES = 50 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 MAX_COLUMNS = 500
 MAX_ROWS = 100_000
+MAX_BLANK_ROWS = 10_000
 
 
 class TableReadError(ValueError):
@@ -114,8 +115,11 @@ def _xlsx_rows(data: bytes, sheet: str | None) -> tuple[Iterator[list[object]], 
 
     def gen() -> Iterator[list[object]]:
         try:
-            pairs = zip(values[sheet].iter_rows(values_only=True),
-                        formulas[sheet].iter_rows(values_only=True), strict=False)
+            # never trust the declared <dimension>: bound the scan explicitly
+            bounds = {"min_row": 1, "max_row": MAX_ROWS + MAX_BLANK_ROWS + 2,
+                      "max_col": MAX_COLUMNS + 1, "values_only": True}
+            pairs = zip(values[sheet].iter_rows(**bounds),
+                        formulas[sheet].iter_rows(**bounds), strict=False)
             for rowno, (vals, forms) in enumerate(pairs, 1):
                 for col, (v, f) in enumerate(zip(vals, forms, strict=False), 1):
                     if v is None and isinstance(f, str) and f.startswith("="):
@@ -153,6 +157,14 @@ def read_table(data: bytes, filename: str, sheet: str | None = None) -> RawTable
     numbers: list[int] = []
     try:
         for rowno, rawrow in enumerate(raw, 1):
+            if rowno > MAX_ROWS + MAX_BLANK_ROWS + 1:
+                raise TableReadError(
+                    f"Trop de lignes dans le fichier (limite : {MAX_ROWS + MAX_BLANK_ROWS} "
+                    "lignes, vides comprises).")
+            if len(rawrow) > MAX_COLUMNS + 1:
+                if any(_cell_text(c) for c in rawrow[MAX_COLUMNS + 1:]):
+                    raise TableReadError(f"Trop de colonnes (limite : {MAX_COLUMNS}).")
+                rawrow = rawrow[:MAX_COLUMNS + 1]
             r = [_cell_text(c) for c in rawrow]
             if not any(r):
                 continue
