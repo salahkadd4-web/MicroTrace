@@ -121,7 +121,7 @@ def test_xlsx_numbers_never_in_exponent_form(tmp_path):
 
 
 @pytest.mark.parametrize("value,text", [(10 ** 25, "10000000000000000000000000"), (7, "7"),
-                                        (1.23e-7, "0.000000123"), (2.0, "2"), (1e22, "1" + "0" * 22),
+                                        (1.23e-7, "0.000000123"), (2.0, "2"), (1e22, "1e+22"),
                                         (123456.789, "123456.789")])
 def test_cell_text_plain_digits(value, text):
     assert tables._cell_text(value) == text
@@ -133,3 +133,18 @@ def test_limit_cells(monkeypatch):
         read_table(b"a;b;c\n1;2;3\n4;5;6\n", "r.csv")
     assert len(read_table(b"a;b;c\n1;2;3\n", "r.csv").rows) == 1
     assert tables.MAX_CELLS == 5
+
+
+@pytest.mark.parametrize("value", [1e308, 5e-324, -1e300, 1e21, 9e-13, 1.7976931348623157e308])
+def test_extreme_floats_keep_short_exponent_form(value):
+    from microtrace_core.results.censoring import parse_reported_value
+    text = tables._cell_text(value)
+    assert len(text) <= 32 and "e" in text
+    r = parse_reported_value(text)
+    assert r.ok and r.hint is None and r.value == value
+
+
+@pytest.mark.parametrize("value,text", [(1e-05, "0.00001"), (0.0, "0"), (1e-12, "0.000000000001"),
+                                        (9.99e20, "999000000000000000000")])
+def test_floats_in_range_have_no_exponent(value, text):
+    assert tables._cell_text(value) == text

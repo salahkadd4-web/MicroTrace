@@ -38,7 +38,12 @@ _QUALIFIERS = frozenset({
     "sample", "echantillon", "polymer", "polymere", "product", "produit", "method", "methode",
     "lab", "labo", "study", "etude", "file", "fichier", "batch", "lot", "instrument",
     "compound", "material", "materiau", "species", "series", "commercial", "trade", "brand",
-    "common", "usuel", "analysis", "analyse",
+    "common", "analysis", "analyse",
+})
+# a nom/name token is never excused when the header also names a person
+_PERSON = frozenset({
+    "patient", "donneur", "donor", "personne", "person", "sujet", "subject", "participant",
+    "volontaire", "volunteer",
 })
 _SPECTRO = frozenset({
     "spectra", "spectrum", "spectre", "spectroscopy", "spectroscopie", "signal", "band",
@@ -90,7 +95,7 @@ def _header_verdict(header: str) -> str | None:
     joined = "".join(toks)
     bases = [_bases(t) for t in toks]
     flat: set[str] = set().union(*bases)
-    scientific = bool(flat & _QUALIFIERS)
+    scientific = bool(flat & _QUALIFIERS) and not flat & _PERSON
     for b in bases:
         for hit in b & _PII_TOKENS:
             if hit in _NAME_TOKENS and scientific:

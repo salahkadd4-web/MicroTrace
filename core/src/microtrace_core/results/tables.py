@@ -44,9 +44,10 @@ def _clean(text: str) -> str:
 
 
 def _float_text(v: float) -> str:
-    """Shortest exact decimal of a float (its repr), never in exponent form: 1e-05 ->
-    "0.00001", 1.5e20 -> "150000000000000000000", 2.0 -> "2"."""
-    if not math.isfinite(v):
+    """Shortest exact decimal of a float (its repr) without exponent when 1e-12 <= |v| < 1e21
+    (1e-05 -> "0.00001", 2.0 -> "2"); outside that range the short repr ("1e+308") is kept,
+    so a cell never expands into hundreds of digits (censoring reads exponents)."""
+    if not math.isfinite(v) or (v != 0 and not 1e-12 <= abs(v) < 1e21):
         return repr(v)
     text = format(Decimal(repr(v)), "f")
     if "." in text:

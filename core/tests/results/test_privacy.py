@@ -289,8 +289,24 @@ def test_pii_issue_field_is_the_mapped_standard_field():
 
 
 @pytest.mark.parametrize("header", ["Commercial name", "Trade name", "Brand name", "Common name",
-                                    "Nom commercial", "Nom usuel", "Analysis name",
+                                    "Nom commercial", "Analysis name",
                                     "Nom de l'analyse", "Nom d'analyse"])
 def test_more_name_qualifiers(header):
+    t = _table([header], [["1"]])
+    assert detect_pii(t, Mapping("long", {})) == []
+
+
+@pytest.mark.parametrize("header", ["Nom usuel", "Nom usuel du patient", "Common name (patient)",
+                                    "Analysis name patient", "Nom du donneur", "Trade name donors",
+                                    "Brand name subject", "Nom commercial participant2",
+                                    "Common name volontaire", "Nom personne", "Sample name person"])
+def test_person_headers_never_excuse_names(header):
+    t = _table([header], [["1"]])
+    got = detect_pii(t, Mapping("long", {}))
+    assert [i.code for i in got if i.severity == "error"] == ["E_PII_COLUMN"]
+
+
+@pytest.mark.parametrize("header", ["Common name", "Trade name", "Nom commercial", "Analysis name"])
+def test_qualified_names_without_person_stay_clean(header):
     t = _table([header], [["1"]])
     assert detect_pii(t, Mapping("long", {})) == []
