@@ -53,3 +53,16 @@ def test_parse_matrix_and_technique():
 @pytest.mark.parametrize("tech", [Technique.py_gc_ms, Technique.micro_ftir])
 def test_ps_sum_labels(label, tech):
     assert normalize_result_polymer(label, tech) == "PS_SUM"
+
+
+@pytest.mark.parametrize("value,src,dst,expected", [
+    (500.0, "ng/mL", "ug/mL", 0.5), (130.0, "ng/mL", "ug/mL", 0.13), (9.0, "ng/mL", "ug/mL", 0.009),
+    (43.0, "ug/L", "ug/mL", 0.043), (0.13, "ug/mL", "ng/mL", 130.0), (2500.0, "particles/L",
+                                                                       "particles/mL", 2.5),
+    (51.0, "ng/g", "ug/g", 0.051), (2.0, "mg/L", "ug/mL", 2.0)])
+def test_conversions_are_exact_decimals(value, src, dst, expected):
+    assert convert(value, UNITS[src], UNITS[dst]) == expected
+
+
+def test_to_canonical_exact():
+    assert to_canonical(9.0, UNITS["ng/mL"]) == (0.009, UNITS["ug/mL"])

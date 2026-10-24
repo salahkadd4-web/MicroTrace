@@ -174,8 +174,9 @@ def test_e_lod_gt_loq():
 
 def test_w_limit_conflict():
     recs, issues = run(row(lod="0,2", loq="0,43"))
-    check(issues, "W_LIMIT_CONFLICT", "warning", "lod")
+    i = check(issues, "W_LIMIT_CONFLICT", "warning", "lod")
     assert recs[0].lod == 0.2
+    assert "(0,2)" in i.message and "(0,13)" in i.message
 
 
 def test_w_no_limits():
@@ -230,7 +231,7 @@ def test_e_duplicate_record():
 
 def test_empty_value_is_not_analysed_without_error():
     recs, issues = run(row(reported_value=""))
-    assert issues == []
+    assert [(i.code, i.severity) for i in issues] == [("I_EMPTY_AS_NOT_ANALYSED", "info")]
     assert recs[0].status is DetectionStatus.not_analysed and recs[0].value is None
 
 
@@ -414,3 +415,95 @@ def test_e_sample_conflict_one_issue_per_sample():
     assert "S2" in got[1].message and "4, 5" in got[1].message and "type" in got[1].message
     assert "S3" in got[2].message and "matrice" in got[2].message and "type" in got[2].message
     assert not any("S4" in i.message for i in issues)
+
+
+def test_empty_cells_reported_once_per_column_with_count():
+    recs, issues = run(row(2, col="PE", polymer="PE", reported_value=""),
+                       row(3, col="PE", polymer="PE", reported_value="", sample_id="S2"),
+                       row(2, col="PP", polymer="PP", reported_value=""),
+                       row(4, col="PP", polymer="PP", reported_value="NA", sample_id="S3"),
+                       context=ctx(limits=()))
+    assert all(r.status is DetectionStatus.not_analysed for r in recs) and len(recs) == 4
+    got = [(i.code, i.severity, i.row, i.field, i.column) for i in issues]
+    assert got == [("I_EMPTY_AS_NOT_ANALYSED", "info", None, "reported_value", "PE"),
+                   ("I_EMPTY_AS_NOT_ANALYSED", "info", None, "reported_value", "PP")]
+    assert issues[0].message.startswith("2 ") and issues[1].message.startswith("1 ")
+
+
+@pytest.mark.parametrize("text", ["2021-06-01", "2021-06-01T08:30:00", "2021-06-01 08:30",
+                                  "2021-06-01T08:30", "2020-02-29"])
+def test_iso_analysis_dates_accepted_unchanged(text):
+    recs, issues = run(row(analysis_date=text))
+    assert issues == [] and recs[0].analysis_date == text
+
+
+@pytest.mark.parametrize("text,iso", [("05/06/2021", "2021-06-05"), ("5.6.2021", "2021-06-05"),
+                                      ("05-06-2021", "2021-06-05"), ("29/02/2020", "2020-02-29")])
+def test_day_first_analysis_date_normalised(text, iso):
+    recs, issues = run(row(analysis_date=text))
+    assert recs[0].analysis_date == iso
+    assert [(i.code, i.severity, i.row, i.field, i.column) for i in issues] == [
+        ("I_DATE_NORMALIZED", "info", None, "analysis_date", "[analysis_date]")]
+
+
+def test_date_normalised_once_per_column_counting_table_rows():
+    recs, issues = run(row(2, col="PE", polymer="PE", analysis_date="05/06/2021"),
+                       row(2, col="PP", polymer="PP", analysis_date="05/06/2021"),
+                       row(3, col="PE", polymer="PE", analysis_date="06/06/2021", sample_id="S2"),
+                       context=ctx(limits=()))
+    got = only(issues, "I_DATE_NORMALIZED")
+    assert got.message.startswith("2 ") and {r.analysis_date for r in recs} == {
+        "2021-06-05", "2021-06-06"}
+
+
+@pytest.mark.parametrize("text", ["31/02/2021", "2021-13-01", "June 2021", "2021/06/01",
+                                  "05/06/21", "2021-06-01T25:00", "2021-6-1", "1er juin 2021",
+                                  "2021-02-30 10:00"])
+def test_invalid_analysis_date(text):
+    recs, issues = run(row(analysis_date=text))
+    assert recs == []
+    check(issues, "E_INVALID_DATE", "error", "analysis_date")
+
+
+def test_broken_study_limit_reported_once_per_entry():
+    rows = [row(n, sample_id=f"S{n}") for n in (2, 3, 4)]
+    for limit, code in [(DetectionLimit(PYGC, "PET", 0.5, 0.2, "ug/mL", "simulated"), "E_LOD_GT_LOQ"),
+                        (unchecked_limit(unit_code="furlongs"), "E_LIMIT_UNIT_MISMATCH"),
+                        (unchecked_limit(lod=-0.1), "E_NEGATIVE_VALUE"),
+                        (DetectionLimit(PYGC, "PET", 1, 3, "particles/mL", "simulated"),
+                         "E_LIMIT_UNIT_MISMATCH")]:
+        recs, issues = run(*rows, context=ctx(limits=(limit,)))
+        assert recs == []
+        assert [(i.code, i.row, i.column) for i in issues] == [(code, 2, None)]
+
+
+def test_canonical_limits_on_record():
+    recs, _ = run(row(reported_value="500", unit="ng/mL"))
+    r = recs[0]
+    assert (r.lod, r.loq, r.canonical_lod, r.canonical_loq) == (130.0, 430.0, 0.13, 0.43)
+    recs, _ = run(row(), context=ctx(limits=()))
+    assert (recs[0].canonical_lod, recs[0].canonical_loq) == (None, None)
+
+
+@pytest.mark.parametrize("text,rtype", [
+    ("échantillon", "sample"), ("Echantillon", "sample"), ("Blanc de procédure", "procedural_blank"),
+    ("blanc procédure", "procedural_blank"), ("blanc de terrain", "field_blank"),
+    ("Blanc terrain", "field_blank"), ("dopé", "spiked"), ("Enrichi", "spiked"),
+    ("spiked sample", "spiked"), ("procedural-blank", "procedural_blank")])
+def test_record_type_french_synonyms(text, rtype):
+    recs, issues = run(row(record_type=text))
+    assert not [i for i in issues if i.severity == "error"]
+    assert recs[0].record_type.value == rtype
+
+
+def test_method_matching_tolerates_case_and_spaces():
+    c = ctx(limits=(DetectionLimit(" py-gc/ms", "PET", 0.13, 0.43, "ug/mL", "simulated"),))
+    recs, issues = run(row(method="  PY-GC/MS "), context=c)
+    assert issues == [] and recs[0].method == PYGC and recs[0].lod == 0.13
+    _, issues = run(row(2), row(3, method="py-gc/ms"))
+    check(issues, "E_DUPLICATE_RECORD", "error", "sample_id", number=3)
+
+
+def test_study_context_rejects_methods_equal_after_normalisation():
+    with pytest.raises(ValueError, match="Méthode"):
+        ctx(methods=(MethodSpec(PYGC, Technique.py_gc_ms), MethodSpec("py-gc/ms ", Technique.other)))

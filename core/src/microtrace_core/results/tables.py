@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import csv
 import io
+import math
 import zipfile
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import date, datetime, time
+from decimal import Decimal
 from pathlib import PurePath
 
 from openpyxl import load_workbook
@@ -21,6 +23,7 @@ MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 MAX_COLUMNS = 500
 MAX_ROWS = 100_000
 MAX_BLANK_ROWS = 10_000
+MAX_CELLS = 2_000_000  # data rows x columns
 
 
 class TableReadError(ValueError):
@@ -40,6 +43,17 @@ def _clean(text: str) -> str:
     return text.replace("\xa0", " ").strip()
 
 
+def _float_text(v: float) -> str:
+    """Shortest exact decimal of a float (its repr), never in exponent form: 1e-05 ->
+    "0.00001", 1.5e20 -> "150000000000000000000", 2.0 -> "2"."""
+    if not math.isfinite(v):
+        return repr(v)
+    text = format(Decimal(repr(v)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return "0" if text == "-0" else text
+
+
 def _cell_text(v: object) -> str:
     """Faithful text of a typed spreadsheet cell."""
     if v is None:
@@ -49,7 +63,7 @@ def _cell_text(v: object) -> str:
     if isinstance(v, int):
         return str(v)
     if isinstance(v, float):
-        return str(int(v)) if v.is_integer() and abs(v) < 1e15 else format(v, ".15g")
+        return _float_text(v)
     if isinstance(v, datetime):
         return v.date().isoformat() if v.time() == time(0) else v.isoformat(timespec="seconds")
     if isinstance(v, date):
@@ -187,6 +201,9 @@ def read_table(data: bytes, filename: str, sheet: str | None = None) -> RawTable
                 r = r[:len(columns)]
             if len(rows) >= MAX_ROWS:
                 raise TableReadError(f"Trop de lignes de données (limite : {MAX_ROWS}).")
+            if (len(rows) + 1) * len(columns) > MAX_CELLS:
+                raise TableReadError(
+                    f"Trop de cellules dans le fichier (lignes × colonnes, limite : {MAX_CELLS}).")
             rows.append(dict(zip(columns, r + [""] * (len(columns) - len(r)), strict=True)))
             numbers.append(rowno)
     finally:

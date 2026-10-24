@@ -1,4 +1,6 @@
 """Column mapping tests (all tables are synthetic, simulated)."""
+import pytest
+
 from microtrace_core.results.issues import Issue, has_errors
 from microtrace_core.results.mapping import MappedRow, Mapping, apply_mapping, suggest_mapping
 from microtrace_core.results.tables import RawTable
@@ -83,9 +85,10 @@ def test_has_errors():
 def test_split_requires_digit_before_letter():
     t = _table(["Donor", "Valeur"], [["Control", "1"], ["blank", "2"], ["3b", "3"], ["a", "4"]])
     m = Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}, split_aliquot_suffix=True)
-    rows, _ = apply_mapping(t, m)
+    rows, issues = apply_mapping(t, m)
     assert [(r.fields["sample_id"], r.fields["aliquot"]) for r in rows] == [
         ("Control", ""), ("blank", ""), ("3", "b"), ("a", "")]
+    assert [(i.code, i.severity) for i in issues] == [("W_ALIQUOT_SPLIT_FAILED", "warning")]
 
 
 def test_wide_rejects_constant_polymer_or_value():
@@ -120,3 +123,46 @@ def test_mapped_row_columns_long_and_wide():
     rows, _ = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"}, {"PE": "PE", "PP": "PP"},
                                        {"unit": "µg/mL"}))
     assert rows[1].columns == {"sample_id": "Donor", "polymer": "PP", "reported_value": "PP"}
+
+
+@pytest.mark.parametrize("sid,base,aliquot", [
+    ("2A", "2", "a"), ("D01-a", "D01", "a"), ("D01_B", "D01", "b"), ("12a", "12", "a"),
+    ("MT-2021-3b", "MT-2021-3", "b")])
+def test_split_aliquot_separators_and_case(sid, base, aliquot):
+    t = _table(["Donor", "Valeur"], [[sid, "1"]])
+    m = Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}, split_aliquot_suffix=True)
+    rows, issues = apply_mapping(t, m)
+    assert (rows[0].fields["sample_id"], rows[0].fields["aliquot"]) == (base, aliquot)
+    assert issues == []
+
+
+def test_split_failures_reported_once_with_examples():
+    ids = ["Control", "blank", "a", "7", "X1-", "Y", "Z", "3b", "", "Control"]
+    t = _table(["Donor", "Valeur"], [[i, "1"] for i in ids])
+    m = Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}, split_aliquot_suffix=True)
+    _, issues = apply_mapping(t, m)
+    assert [(i.code, i.row, i.field, i.column) for i in issues] == [
+        ("W_ALIQUOT_SPLIT_FAILED", None, "sample_id", "Donor")]
+    msg = issues[0].message
+    assert msg.startswith("7 ") and all(f"« {x} »" in msg for x in ["Control", "blank", "a", "7", "X1-"])
+    assert "« Y »" not in msg and "« Z »" not in msg
+
+
+def test_unmapped_columns_reported():
+    t = _table(["Donor", "Valeur", "Notes", "PE", "PP"], [["1", "2", "x", "1", "2"]])
+    _, issues = apply_mapping(t, Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}))
+    assert [(i.code, i.severity, i.column, i.field) for i in issues] == [
+        ("I_UNMAPPED_COLUMN", "info", c, None) for c in ("Notes", "PE", "PP")]
+    _, issues = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"}, {"PE": "PE", "PP": "PP"},
+                                         {"unit": "µg/mL"}))
+    assert [i.column for i in issues] == ["Valeur", "Notes"]
+
+
+def test_wide_headers_with_units_detected_and_stripped():
+    t = _table(["Donor", "PET (µg/mL)", "PE [ng/mL]", "PMMA (lot 2)"], [["1", "1", "2", "3"]])
+    m = suggest_mapping(t)
+    assert m.mode == "wide"
+    assert m.polymer_columns == {"PET (µg/mL)": "PET", "PE [ng/mL]": "PE"}
+    rows, _ = apply_mapping(t, m)
+    assert [(r.fields["polymer"], r.source_column) for r in rows] == [
+        ("PET", "PET (µg/mL)"), ("PE", "PE [ng/mL]")]

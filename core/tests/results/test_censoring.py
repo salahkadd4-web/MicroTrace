@@ -58,3 +58,41 @@ def test_parse_declared_status(text, status):
 def test_infer_status_partial_limits(text, lod, loq, status):
     s = infer_status(parse_reported_value(text), lod, loq)
     assert (s.value if s else None) == status
+
+
+@pytest.mark.parametrize("text,value", [("1e-05", 1e-05), ("1,2E-3", 0.0012), ("2.5e+3", 2500.0),
+                                        ("3E2", 300.0)])
+def test_plain_numbers_with_exponent(text, value):
+    r = parse_reported_value(text)
+    assert r.ok and r.hint is None and r.value == pytest.approx(value)
+
+
+@pytest.mark.parametrize("text", ["1e", "e5", "1e-", "1,2,E3"])
+def test_bad_exponents_unreadable(text):
+    assert parse_reported_value(text).ok is False
+
+
+@pytest.mark.parametrize("text,status", [
+    ("< LD", "below_lod"), ("< LQ", "not_quantified"), ("<  lod", "below_lod"),
+    ("< LOQ", "not_quantified"), ("<\xa0LD", "below_lod")])
+def test_spaces_after_lt_collapsed(text, status):
+    assert parse_reported_value(text).hint == status
+
+
+_REPORTED_NOTATIONS = ["<LOD", "< LOD", "<LD", "< LD", "ND", "n.d.", "n.d", "not detected",
+                       "Non détecté", "<LOQ", "< LQ", "<LQ", "NA", "n/a", "not analysed",
+                       "Not analyzed", "non analysé"]
+
+
+@pytest.mark.parametrize("text", _REPORTED_NOTATIONS)
+def test_declared_status_accepts_reported_notations(text):
+    assert parse_declared_status(text) == parse_reported_value(text).hint is not None
+
+
+@pytest.mark.parametrize("text,status", [
+    ("below lod", "below_lod"), ("Below LOD", "below_lod"), ("not quantified", "not_quantified"),
+    ("between lod loq", "between_lod_loq"), ("Between LOD-LOQ", "between_lod_loq"),
+    ("LOD—LOQ", "between_lod_loq"), ("LOD – LOQ", "between_lod_loq"), ("> LOQ", "quantified"),
+    ("not analysed", "not_analysed"), ("Not_Quantified", "not_quantified")])
+def test_declared_status_more_notations(text, status):
+    assert parse_declared_status(text) == status

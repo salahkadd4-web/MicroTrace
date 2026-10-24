@@ -37,7 +37,8 @@ _NAME_TOKENS = frozenset({"nom", "name"})
 _QUALIFIERS = frozenset({
     "sample", "echantillon", "polymer", "polymere", "product", "produit", "method", "methode",
     "lab", "labo", "study", "etude", "file", "fichier", "batch", "lot", "instrument",
-    "compound", "material", "materiau", "species", "series",
+    "compound", "material", "materiau", "species", "series", "commercial", "trade", "brand",
+    "common", "usuel", "analysis", "analyse",
 })
 _SPECTRO = frozenset({
     "spectra", "spectrum", "spectre", "spectroscopy", "spectroscopie", "signal", "band",

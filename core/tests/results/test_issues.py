@@ -3,9 +3,11 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
+
 import microtrace_core.results as results
 from microtrace_core.results.importer import run_import
-from microtrace_core.results.issues import ISSUE_CODES, Issue
+from microtrace_core.results.issues import ISSUE_CODES, Issue, fmt_fr
 from microtrace_core.results.mapping import Mapping, apply_mapping
 from microtrace_core.results.privacy import detect_pii
 from microtrace_core.results.tables import RawTable
@@ -67,6 +69,12 @@ def _corpus() -> list[Issue]:
                       replace(ctx, limits=(), data_nature="published")).issues
     out += detect_pii(_table(["Nom", "Code patient", "comment"],
                              [["x", "Jean Dupont", "a@b.fr 12/03/1985"]]), Mapping("long", {}))
+    dated = _table(["Sample", "Polymer", "Value", "Date"],
+                   [["S1", "PET", "", "05/06/2021"], ["S2", "PET", "1", "31/02/2021"]])
+    out += run_import(dated, Mapping("long", {"sample_id": "Sample", "polymer": "Polymer",
+                                              "reported_value": "Value", "analysis_date": "Date"},
+                                     constants={"matrix": "plasma", "unit": UG_ML, "method": PYGC},
+                                     split_aliquot_suffix=True), ctx).issues
     two = _table(["Sample", "PE", "PP", "V"], [["1", "1", "2", "3"]])
     for mapping in (Mapping("wide", {"sample_id": "Sample", "reported_value": "V"}, {"PE": "PE"}),
                     Mapping("wide", {"sample_id": "Sample"}),
@@ -77,7 +85,7 @@ def _corpus() -> list[Issue]:
 
 def test_every_emitted_issue_has_its_registered_severity():
     corpus = _corpus()
-    assert len({i.code for i in corpus}) >= 30
+    assert {i.code for i in corpus} == set(ISSUE_CODES)
     for i in corpus:
         assert i.severity == ISSUE_CODES[i.code], i
 
@@ -103,3 +111,11 @@ def test_package_exports_the_b2_contract():
                  "DataNature", "PS_SUM", "UNITS", "parse_unit", "canonical_unit", "STANDARD_FIELDS",
                  "SampleResult", "Frequency", "PolymerStats"):
         assert name in results.__all__ and hasattr(results, name), name
+
+
+
+@pytest.mark.parametrize("value,text", [(0.13, "0,13"), (2.0, "2"), (1e-05, "0,00001"),
+                                        (130.0, "130"), (1 / 3, "0,333333"), (1234567.0, "1234567"),
+                                        (-0.5, "-0,5")])
+def test_fmt_fr(value, text):
+    assert fmt_fr(value) == text

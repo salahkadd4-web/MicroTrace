@@ -3,6 +3,7 @@ from datetime import date, datetime, time
 import pytest
 from openpyxl import Workbook
 
+from microtrace_core.results import tables
 from microtrace_core.results.tables import RawTable, TableReadError, read_table
 
 
@@ -109,3 +110,26 @@ def test_read_table_errors(tmp_path):
     with pytest.raises(TableReadError):
         read_table(b"not a zip", "r.xlsx")
     assert issubclass(TableReadError, ValueError)
+
+
+def test_xlsx_numbers_never_in_exponent_form(tmp_path):
+    data = _xlsx(tmp_path, [["a", "b", "c", "d", "e", "f"],
+                            [1e-05, 1.5e20, 1.23e-07, 1e16, -0.5, 2.50]])
+    t = read_table(data, "r.xlsx")
+    assert t.rows[0] == {"a": "0.00001", "b": "150000000000000000000", "c": "0.000000123",
+                         "d": "10000000000000000", "e": "-0.5", "f": "2.5"}
+
+
+@pytest.mark.parametrize("value,text", [(10 ** 25, "10000000000000000000000000"), (7, "7"),
+                                        (1.23e-7, "0.000000123"), (2.0, "2"), (1e22, "1" + "0" * 22),
+                                        (123456.789, "123456.789")])
+def test_cell_text_plain_digits(value, text):
+    assert tables._cell_text(value) == text
+
+
+def test_limit_cells(monkeypatch):
+    monkeypatch.setattr(tables, "MAX_CELLS", 5)
+    with pytest.raises(TableReadError, match="cellules"):
+        read_table(b"a;b;c\n1;2;3\n4;5;6\n", "r.csv")
+    assert len(read_table(b"a;b;c\n1;2;3\n", "r.csv").rows) == 1
+    assert tables.MAX_CELLS == 5

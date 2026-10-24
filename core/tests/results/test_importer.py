@@ -194,3 +194,10 @@ def test_pii_errors_stop_before_validation_and_never_echo_values():
     for i in r.issues:
         assert not any(s in i.message for s in secrets), i
         assert i.code in _PII_CODES or i.code.startswith("E_MAPPING") or i.code == "I_UNMAPPED_COLUMN"
+
+
+
+def test_leslie_like_has_no_unmapped_or_split_warnings():
+    r = run_import(leslie_like_wide_table(), leslie_like_mapping(), leslie_like_context())
+    codes = {i.code for i in r.issues}
+    assert not codes & {"I_UNMAPPED_COLUMN", "W_ALIQUOT_SPLIT_FAILED", "E_SAMPLE_CONFLICT"}

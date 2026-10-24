@@ -123,6 +123,27 @@ def normalize_result_polymer(label: str | None, technique: Technique) -> str:
     return code
 
 
+_RECORD_TYPE_SYNONYMS: dict[str, RecordType] = {
+    **{m.value.replace("_", " "): m for m in RecordType},
+    "echantillon": RecordType.sample,
+    "blanc de procedure": RecordType.procedural_blank,
+    "blanc procedure": RecordType.procedural_blank,
+    "blanc de terrain": RecordType.field_blank, "blanc terrain": RecordType.field_blank,
+    "dope": RecordType.spiked, "enrichi": RecordType.spiked, "spiked sample": RecordType.spiked,
+}
+
+
+def parse_record_type(text: str) -> RecordType | None:
+    """Record type from its code or a French / English synonym ("blanc de terrain")."""
+    key = " ".join(fold(text).replace("_", " ").replace("-", " ").split())
+    return _RECORD_TYPE_SYNONYMS.get(key)
+
+
+def method_key(name: str) -> str:
+    """Method names match case- and whitespace-insensitively (" py-GC/MS" == "Py-GC/MS")."""
+    return " ".join(name.casefold().split())
+
+
 def default_identification(technique: Technique) -> IdentificationStatus:
     if technique is Technique.other:
         return IdentificationStatus.candidate

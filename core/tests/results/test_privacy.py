@@ -285,3 +285,12 @@ def test_pii_issue_field_is_the_mapped_standard_field():
     assert {(i.code, i.column, i.field) for i in got} == {
         ("W_POSSIBLE_PII_COLUMN", "Code patient", "sample_id"),
         ("E_PII_VALUE", "Code patient", "sample_id"), ("E_PII_VALUE", "comment", None)}
+
+
+
+@pytest.mark.parametrize("header", ["Commercial name", "Trade name", "Brand name", "Common name",
+                                    "Nom commercial", "Nom usuel", "Analysis name",
+                                    "Nom de l'analyse", "Nom d'analyse"])
+def test_more_name_qualifiers(header):
+    t = _table([header], [["1"]])
+    assert detect_pii(t, Mapping("long", {})) == []

@@ -91,7 +91,8 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
             value = None
         first = rows[0]
         out.append(SampleResult(
-            sample_id=first.sample_id, matrix=first.matrix, polymer=first.polymer, method=first.method,
+            sample_id=first.sample_id, matrix=first.matrix, polymer=first.polymer,
+            method=first.method,
             kind=first.kind, basis=first.basis, canonical_unit=first.canonical_unit,
             status=status, value=value, n_aliquots=len(rows), n_quantified=len(quantified),
         ))

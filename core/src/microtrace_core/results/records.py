@@ -14,6 +14,7 @@ from microtrace_core.results.vocab import (
     QuantityKind,
     RecordType,
     Technique,
+    method_key,
     parse_technique,
 )
 
@@ -86,6 +87,12 @@ class StudyContext:
             object.__setattr__(self, "data_nature", DataNature(self.data_nature))
         object.__setattr__(self, "methods", tuple(self.methods))
         object.__setattr__(self, "limits", tuple(self.limits))
+        keys: set[str] = set()
+        for spec in self.methods:
+            if method_key(spec.name) in keys:
+                raise ValueError(
+                    f"Méthode « {spec.name} » déclarée deux fois (casse et espaces ignorés)")
+            keys.add(method_key(spec.name))
         if self.blank_corrected not in _BLANK_CORRECTED:
             raise ValueError(
                 "blank_corrected doit valoir yes, no ou unknown "
@@ -95,6 +102,10 @@ class StudyContext:
 
 @dataclass(frozen=True)
 class MeasurementRecord:
+    """One validated measurement. ``value``, ``lod`` and ``loq`` are in the row unit
+    (``unit``); ``canonical_value``, ``canonical_lod`` and ``canonical_loq`` in
+    ``canonical_unit``. ``method`` is the study method name."""
+
     sample_id: str
     aliquot: str
     record_type: RecordType
@@ -112,6 +123,8 @@ class MeasurementRecord:
     status: DetectionStatus
     lod: float | None
     loq: float | None
+    canonical_lod: float | None
+    canonical_loq: float | None
     identification_status: IdentificationStatus
     size_min_um: float | None
     size_max_um: float | None

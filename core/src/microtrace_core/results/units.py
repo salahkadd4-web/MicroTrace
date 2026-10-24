@@ -18,24 +18,32 @@ class UnitMismatchError(ValueError):
 
 @dataclass(frozen=True)
 class Unit:
+    """``per_canonical``: how many of this unit make one canonical unit of (kind, basis)
+    (ng/mL: 1000). Integers keep conversions exact: 500 ng/mL -> 500 / 1000 = 0.5."""
+
     code: str
     label: str
     kind: QuantityKind
     basis: Basis
-    factor: float  # multiplier to the canonical unit of (kind, basis)
+    per_canonical: int
+
+    @property
+    def factor(self) -> float:
+        """Multiplier to the canonical unit (informative; conversions use per_canonical)."""
+        return 1 / self.per_canonical
 
 
 UNITS: dict[str, Unit] = {u.code: u for u in (
-    Unit("ug/mL", "µg/mL", _MASS, _VOL, 1.0),
-    Unit("ng/mL", "ng/mL", _MASS, _VOL, 0.001),
-    Unit("mg/L", "mg/L", _MASS, _VOL, 1.0),
-    Unit("ug/L", "µg/L", _MASS, _VOL, 0.001),
-    Unit("ug/g", "µg/g", _MASS, _MS, 1.0),
-    Unit("ng/g", "ng/g", _MASS, _MS, 0.001),
-    Unit("mg/kg", "mg/kg", _MASS, _MS, 1.0),
-    Unit("particles/mL", "particules/mL", _NUM, _VOL, 1.0),
-    Unit("particles/L", "particules/L", _NUM, _VOL, 0.001),
-    Unit("particles/g", "particules/g", _NUM, _MS, 1.0),
+    Unit("ug/mL", "µg/mL", _MASS, _VOL, 1),
+    Unit("ng/mL", "ng/mL", _MASS, _VOL, 1000),
+    Unit("mg/L", "mg/L", _MASS, _VOL, 1),
+    Unit("ug/L", "µg/L", _MASS, _VOL, 1000),
+    Unit("ug/g", "µg/g", _MASS, _MS, 1),
+    Unit("ng/g", "ng/g", _MASS, _MS, 1000),
+    Unit("mg/kg", "mg/kg", _MASS, _MS, 1),
+    Unit("particles/mL", "particules/mL", _NUM, _VOL, 1),
+    Unit("particles/L", "particules/L", _NUM, _VOL, 1000),
+    Unit("particles/g", "particules/g", _NUM, _MS, 1),
 )}
 
 _CANONICAL: dict[tuple[QuantityKind, Basis], str] = {
@@ -56,7 +64,6 @@ _SYNONYMS.update({
     "particules/g": "particles/g", "p/g": "particles/g", "mps/g": "particles/g",
     "items/g": "particles/g",
 })
-
 
 
 def _normalize(text: str) -> str:
@@ -88,7 +95,8 @@ def convert(value: float, src: Unit, dst: Unit) -> float:
             f"Conversion impossible entre {src.code} et {dst.code} "
             "(grandeur ou base différente)"
         )
-    return value * src.factor / dst.factor
+    # one integer multiplication then one division: each step is correctly rounded
+    return value * dst.per_canonical / src.per_canonical
 
 
 def to_canonical(value: float, unit: Unit) -> tuple[float, Unit]:

@@ -7,26 +7,30 @@ from dataclasses import dataclass
 from microtrace_core.results.vocab import DetectionStatus, fold
 
 _NUM = r"-?\d+(?:[.,]\d+)?"
-_NUMBER = re.compile(rf"^{_NUM}$")
+_NUMBER = re.compile(rf"^{_NUM}(?:e[+-]?\d+)?$")  # a plain number may carry an exponent
 _BOUND = re.compile(rf"^<\s*({_NUM})$")
 _STAR = re.compile(rf"^(?:\*({_NUM})|({_NUM})\*)$")
 
 _NOT_ANALYSED = {"", "na", "n/a", "not analysed", "not analyzed", "non analyse"}
-_BELOW_LOD = {"<lod", "< lod", "<ld", "nd", "n.d.", "n.d", "not detected", "non detecte"}
-_NOT_QUANTIFIED = {"<loq", "< loq", "<lq"}
+_BELOW_LOD = {"<lod", "<ld", "nd", "n.d.", "n.d", "not detected", "non detecte"}
+_NOT_QUANTIFIED = {"<loq", "<lq"}
 
+# a declared status accepts every notation of a reported value, plus status words
 _DECLARED: dict[str, DetectionStatus] = {
+    **{k: DetectionStatus.not_analysed for k in _NOT_ANALYSED if k},
+    **{k: DetectionStatus.below_lod for k in _BELOW_LOD},
+    **{k: DetectionStatus.not_quantified for k in _NOT_QUANTIFIED},
     "quantified": DetectionStatus.quantified, ">loq": DetectionStatus.quantified,
     "q": DetectionStatus.quantified,
-    "between_lod_loq": DetectionStatus.between_lod_loq,
+    "between lod loq": DetectionStatus.between_lod_loq,
+    "between lod-loq": DetectionStatus.between_lod_loq,
+    "between lod and loq": DetectionStatus.between_lod_loq,
     "lod-loq": DetectionStatus.between_lod_loq,
-    "lod–loq": DetectionStatus.between_lod_loq,
-    "not_quantified": DetectionStatus.not_quantified,
-    "<loq": DetectionStatus.not_quantified,
-    "below_lod": DetectionStatus.below_lod, "<lod": DetectionStatus.below_lod,
-    "nd": DetectionStatus.below_lod,
-    "not_analysed": DetectionStatus.not_analysed, "na": DetectionStatus.not_analysed,
+    "not quantified": DetectionStatus.not_quantified,
+    "below lod": DetectionStatus.below_lod,
 }
+_AFTER_LT_GT = re.compile(r"([<>])\s+")
+_DASH = re.compile(r"\s*[-–—]\s*")
 
 
 @dataclass(frozen=True)
@@ -37,13 +41,18 @@ class Reported:
     ok: bool
 
 
+def _key(text: str) -> str:
+    """Folded, single-spaced, no space after "<" or ">" ("< LD" -> "<ld")."""
+    return _AFTER_LT_GT.sub(r"\1", " ".join(fold(text.strip(" \xa0")).split()))
+
+
 def _num(text: str) -> float:
     return float(text.replace(",", "."))
 
 
 def parse_reported_value(text: str) -> Reported:
-    """Parse a reported cell: number, ``<LOD``, ``n.d.``, ``< 0,68``, ``*1.2``..."""
-    key = " ".join(fold(text.strip(" \xa0")).split())
+    """Parse a reported cell: number, ``<LOD``, ``n.d.``, ``< 0,68``, ``*1.2``, ``1e-05``..."""
+    key = _key(text)
     if key in _NOT_ANALYSED:
         return Reported(None, DetectionStatus.not_analysed, None, True)
     if key in _BELOW_LOD:
@@ -81,4 +90,5 @@ def infer_status(r: Reported, lod: float | None, loq: float | None) -> Detection
 
 
 def parse_declared_status(text: str) -> DetectionStatus | None:
-    return _DECLARED.get("".join(fold(text.strip(" \xa0")).split()))
+    """Declared status: a status name (``below_lod``), a status word, or a reported notation."""
+    return _DECLARED.get(_DASH.sub("-", _key(text.replace("_", " "))))

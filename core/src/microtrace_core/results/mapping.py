@@ -10,10 +10,17 @@ from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
 from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.schema import FIELD_NAMES
 from microtrace_core.results.tables import RawTable
+from microtrace_core.results.units import parse_unit
 
 
 @dataclass(frozen=True)
 class Mapping:
+    """How table columns map onto standard fields. Frozen but not hashable (it holds dicts).
+
+    ``polymer_columns`` (wide mode): file column -> polymer label. ``constants``: field ->
+    value applied to every row. ``split_aliquot_suffix``: "12a" / "D01-b" -> sample + aliquot.
+    """
+
     mode: Literal["long", "wide"]
     field_columns: dict[str, str]
     polymer_columns: dict[str, str] = field(default_factory=dict)
@@ -55,8 +62,19 @@ _LOOKUP: dict[str, str] = {_norm(s): f for f, syns in _SYNONYMS.items() for s in
 _GENERIC_ID = "id"  # only applies when no more specific sample synonym matched
 
 
+_UNIT_SUFFIX = re.compile(r"^(.*?)\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$")
+
+
+def _polymer_label(header: str) -> str:
+    """The header without a trailing unit in parentheses or brackets ("PET (µg/mL)" -> "PET")."""
+    m = _UNIT_SUFFIX.match(header)
+    if m and m.group(1) and parse_unit(m.group(2) or m.group(3) or "") is not None:
+        return m.group(1)
+    return header
+
+
 def _is_polymer_header(header: str) -> bool:
-    return normalize_polymer(header) not in (UNKNOWN, OTHER)
+    return normalize_polymer(_polymer_label(header)) not in (UNKNOWN, OTHER)
 
 
 def suggest_mapping(table: RawTable) -> Mapping:
@@ -74,11 +92,12 @@ def suggest_mapping(table: RawTable) -> Mapping:
         used = set(field_columns.values())
         polymer_cols = [c for c in table.columns if c not in used and _is_polymer_header(c)]
         if len(polymer_cols) >= 2:
-            return Mapping("wide", field_columns, {c: c for c in polymer_cols})
+            return Mapping("wide", field_columns, {c: _polymer_label(c) for c in polymer_cols})
     return Mapping("long", field_columns)
 
 
-_SUFFIX = re.compile(r"^(.*\d)([a-z])$")  # a digit must precede the letter
+_SUFFIX = re.compile(r"^(.*\d)[-_]?([A-Za-z])$")  # a digit must precede the letter
+_MAX_EXAMPLES = 5
 
 
 def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
@@ -126,26 +145,48 @@ def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
     return issues
 
 
+def _unmapped(table: RawTable, mapping: Mapping) -> list[Issue]:
+    used = set(mapping.field_columns.values()) | set(mapping.polymer_columns)
+    return [issue("I_UNMAPPED_COLUMN",
+                  f"La colonne « {col} » n'est associée à aucun champ : elle est ignorée.",
+                  column=col)
+            for col in table.columns if col not in used]
+
+
+def _split_failed(failed: list[str], column: str) -> Issue:
+    examples = ", ".join(f"« {x} »" for x in failed[:_MAX_EXAMPLES])
+    return issue(
+        "W_ALIQUOT_SPLIT_FAILED",
+        f"{len(failed)} identifiant(s) d'échantillon sans suffixe d'aliquote reconnu "
+        f"(chiffre suivi d'une lettre, ex. « 12a », « D01-b ») : aliquote laissée vide. "
+        f"Exemples : {examples}.", column=column, field="sample_id")
+
+
 def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], list[Issue]]:
     issues = _check_mapping(table, mapping)
     if issues:
         return [], issues
+    issues = _unmapped(table, mapping)
     split = (mapping.split_aliquot_suffix and "sample_id" in mapping.field_columns
              and "aliquot" not in mapping.field_columns and "aliquot" not in mapping.constants)
     columns = dict(mapping.field_columns)
     if split:
         columns["aliquot"] = columns["sample_id"]
     out: list[MappedRow] = []
+    failed: dict[str, None] = {}  # ordered set of ids without a recognised suffix
     for row, number in zip(table.rows, table.row_numbers, strict=True):
         base: dict[str, str] = dict(mapping.constants)
         for name, col in mapping.field_columns.items():
             base[name] = row.get(col, "")
         if split:
-            m = _SUFFIX.match(base["sample_id"])
+            sid = base["sample_id"].strip(" \xa0\t\r\n")
+            m = _SUFFIX.match(sid)
             if m:
-                base["sample_id"], base["aliquot"] = m.group(1), m.group(2)
+                base["sample_id"], base["aliquot"] = m.group(1), m.group(2).lower()
             else:
                 base["aliquot"] = ""
+                if sid:
+                    failed[sid] = None
         if mapping.mode == "long":
             out.append(MappedRow(base, number, mapping.field_columns.get("reported_value", ""),
                                  columns))
@@ -154,4 +195,6 @@ def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], l
                 out.append(MappedRow({**base, "polymer": label, "reported_value": row.get(col, "")},
                                      number, col,
                                      {**columns, "polymer": col, "reported_value": col}))
+    if failed:
+        issues.append(_split_failed(list(failed), columns["sample_id"]))
     return out, issues

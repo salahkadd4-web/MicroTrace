@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Literal
 
 Severity = Literal["error", "warning", "info"]
@@ -32,6 +33,7 @@ ISSUE_CODES: dict[str, str] = {
     "E_MAPPING_CONFLICT": "error",
     "E_MAPPING_NO_POLYMER_COLUMNS": "error",
     "W_ALIQUOT_SPLIT_FAILED": "warning",
+    "I_UNMAPPED_COLUMN": "info",
     # personal data
     "E_PII_COLUMN": "error",
     "E_PII_VALUE": "error",
@@ -60,6 +62,9 @@ ISSUE_CODES: dict[str, str] = {
     "W_VALUE_BELOW_LOD": "warning",
     "E_DUPLICATE_RECORD": "error",
     "E_SAMPLE_CONFLICT": "error",
+    "I_EMPTY_AS_NOT_ANALYSED": "info",
+    "E_INVALID_DATE": "error",
+    "I_DATE_NORMALIZED": "info",
     # file
     "W_MIXED_QUANTITY_KINDS": "warning",
     "E_PUBLISHED_WITHOUT_REFERENCE": "error",
@@ -70,6 +75,18 @@ def issue(code: str, message: str, row: int | None = None, column: str | None = 
           field: str | None = None) -> Issue:
     """An Issue with the severity registered for ``code`` (KeyError if unregistered)."""
     return Issue(code, ISSUE_CODES[code], message, row, column, field)  # type: ignore[arg-type]
+
+
+def fmt_fr(value: float) -> str:
+    """A number for a French message: decimal comma, no exponent, 6 significant digits."""
+    if float(value).is_integer() and abs(value) < 1e15:
+        return str(int(value))
+    text = format(value, ".6g")
+    if "e" in text:
+        text = format(Decimal(text), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text.replace(".", ",")
 
 
 def has_errors(issues: Iterable[Issue]) -> bool:
