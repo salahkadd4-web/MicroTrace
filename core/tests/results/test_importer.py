@@ -36,6 +36,10 @@ def _find(result, code):
     return found
 
 
+def _err_codes(result):
+    return {i.code for i in result.issues if i.severity == "error"}
+
+
 def _wide_with_column(name):
     t = leslie_like_wide_table()
     rows = tuple({**r, name: "x"} for r in t.rows)
@@ -59,24 +63,32 @@ def test_traps_each_produce_expected_issue():
     # unit ppm
     m = leslie_like_mapping()
     bad = Mapping(m.mode, m.field_columns, m.polymer_columns, {**m.constants, "unit": "ppm"}, True)
-    got = _find(run_import(base, bad, ctx), "E_UNKNOWN_UNIT")[0]
+    res = run_import(base, bad, ctx)
+    assert _err_codes(res) == {"E_UNKNOWN_UNIT"}
+    got = _find(res, "E_UNKNOWN_UNIT")[0]
     assert (got.severity, got.row, got.column) == ("error", 2, "unit")
 
     # PII column
     t = _wide_with_column("Nom")
-    got = _find(run_import(t, leslie_like_mapping(t), ctx), "E_PII_COLUMN")
+    res = run_import(t, leslie_like_mapping(t), ctx)
+    assert _err_codes(res) == {"E_PII_COLUMN"}
+    got = _find(res, "E_PII_COLUMN")
     assert [(i.severity, i.column) for i in got] == [("error", "Nom")]
 
     # LOD 0.5 > LOQ 0.43 for PET
     limits = tuple(replace(dl, lod=0.5) if dl.polymer == "PET" else dl for dl in ctx.limits)
-    got = _find(run_import(base, leslie_like_mapping(), replace(ctx, limits=limits)), "E_LOD_GT_LOQ")
+    res = run_import(base, leslie_like_mapping(), replace(ctx, limits=limits))
+    assert _err_codes(res) == {"E_LOD_GT_LOQ"}
+    got = _find(res, "E_LOD_GT_LOQ")
     assert {(i.severity, i.column) for i in got} == {("error", "lod")}
     assert got[0].row == 2
 
     # duplicated 3a row (appended at spreadsheet row 42)
     assert base.rows[4]["Donor"] == "3a"
     dup = replace(base, rows=(*base.rows, dict(base.rows[4])), row_numbers=(*base.row_numbers, 42))
-    got = _find(run_import(dup, leslie_like_mapping(), ctx), "E_DUPLICATE_RECORD")
+    res = run_import(dup, leslie_like_mapping(), ctx)
+    assert _err_codes(res) == {"E_DUPLICATE_RECORD"}
+    got = _find(res, "E_DUPLICATE_RECORD")
     assert {(i.severity, i.row, i.column) for i in got} == {("error", 42, "sample_id")}
     assert len(got) == 5
 
@@ -86,6 +98,7 @@ def test_traps_needing_per_cell_columns_use_long_variant():
     # declared status <LOD with a numeric value
     t = _long(["Sample", "Polymer", "Value", "Status"], [["1", "PET", "1.2", "<LOD"]])
     r = run_import(t, _long_mapping(detection_status="Status"), ctx)
+    assert _err_codes(r) == {"E_STATUS_VALUE_CONFLICT"}
     got = _find(r, "E_STATUS_VALUE_CONFLICT")[0]
     assert (got.severity, got.row, got.column) == ("error", 2, "Value")
     assert r.has_errors and r.records == ()
@@ -96,6 +109,7 @@ def test_traps_needing_per_cell_columns_use_long_variant():
     m = Mapping("long", {"sample_id": "Sample", "polymer": "Polymer", "reported_value": "Value",
                          "unit": "Unit"}, constants={"matrix": "sang total", "method": PYGC})
     r = run_import(t, m, replace(ctx, limits=()))
+    assert _err_codes(r) == set()
     mixed = _find(r, "W_MIXED_QUANTITY_KINDS")
     assert [(i.severity, i.row) for i in mixed] == [("warning", None)]
     assert not r.has_errors and len(r.records) == 2
