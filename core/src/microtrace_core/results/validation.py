@@ -1,0 +1,308 @@
+"""Row validation: mapped rows -> measurement records plus located French issues.
+
+Scientific rules: no silent correction, no imputation. A row with at least one
+error yields no record. Issue ``column`` is the row's ``source_column`` for
+value problems (the polymer column in wide format); for every other field the
+standard field name is used, since the original column name is not known here.
+"""
+from __future__ import annotations
+
+import math
+
+from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
+from microtrace_core.results.censoring import (
+    infer_status,
+    parse_declared_status,
+    parse_reported_value,
+)
+from microtrace_core.results.issues import Issue
+from microtrace_core.results.mapping import MappedRow
+from microtrace_core.results.records import MeasurementRecord, StudyContext
+from microtrace_core.results.units import (
+    Unit,
+    UnitMismatchError,
+    convert,
+    parse_unit,
+    to_canonical,
+)
+from microtrace_core.results.vocab import (
+    PS_SUM,
+    DetectionStatus,
+    IdentificationStatus,
+    Matrix,
+    RecordType,
+    Technique,
+    default_identification,
+    fold,
+    normalize_result_polymer,
+    parse_matrix,
+)
+
+_REQUIRED = ("sample_id", "matrix", "polymer", "unit", "method")
+_NO_VALUE = (
+    DetectionStatus.below_lod, DetectionStatus.not_quantified, DetectionStatus.not_analysed,
+)
+
+
+def _enum_lookup(enum, text: str):
+    key = "_".join(fold(text).replace("-", " ").split())
+    for member in enum:
+        if member.value == key:
+            return member
+    return None
+
+
+def _plain_number(text: str) -> float | None:
+    r = parse_reported_value(text)
+    if r.ok and r.value is not None and r.hint is None:
+        return r.value
+    return None
+
+
+def _same(a: float, b: float) -> bool:
+    return math.isclose(a, b, rel_tol=1e-9, abs_tol=1e-12)
+
+
+def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpose
+    row: MappedRow, ctx: StudyContext, seen: set[tuple], issues: list[Issue],
+) -> MeasurementRecord | None:
+    n = row.source_row
+    f = {k: (v or "").strip(" \xa0\t\r\n") for k, v in row.fields.items()}
+    vcol = row.source_column or "reported_value"
+    errors = 0
+
+    def add(code: str, sev: str, msg: str, col: str) -> None:
+        nonlocal errors
+        if sev == "error":
+            errors += 1
+        issues.append(Issue(code, sev, msg, n, col))  # type: ignore[arg-type]
+
+    for name in _REQUIRED:
+        if not f.get(name):
+            add("E_REQUIRED_MISSING", "error", f"Champ obligatoire vide : {name}.", name)
+
+    # matrix
+    matrix = None
+    if f.get("matrix"):
+        matrix = parse_matrix(f["matrix"])
+        if matrix is None:
+            add("E_UNKNOWN_MATRIX", "error", f"Matrice inconnue : « {f['matrix']} ».", "matrix")
+        elif matrix is Matrix.other and not f.get("matrix_detail"):
+            add("E_MATRIX_DETAIL_MISSING", "error",
+                "Matrice « autre » : le détail de la matrice est obligatoire.", "matrix_detail")
+
+    # method
+    spec = None
+    if f.get("method"):
+        spec = next((m for m in ctx.methods if m.name == f["method"]), None)
+        if spec is None:
+            add("E_UNKNOWN_METHOD", "error",
+                f"Méthode « {f['method']} » absente du contexte de l'étude.", "method")
+    technique: Technique | None = spec.technique if spec else None
+
+    # record type / identification / declared status
+    record_type = RecordType.sample
+    if f.get("record_type"):
+        rt = _enum_lookup(RecordType, f["record_type"])
+        if rt is None:
+            add("E_UNKNOWN_RECORD_TYPE", "error",
+                f"Type d'enregistrement inconnu : « {f['record_type']} ».", "record_type")
+        else:
+            record_type = rt
+    ident: IdentificationStatus | None = None
+    if f.get("identification_status"):
+        ident = _enum_lookup(IdentificationStatus, f["identification_status"])
+        if ident is None:
+            add("E_UNKNOWN_IDENTIFICATION", "error",
+                f"Statut d'identification inconnu : « {f['identification_status']} ».",
+                "identification_status")
+    elif technique is not None:
+        ident = default_identification(technique)
+    declared: DetectionStatus | None = None
+    if f.get("detection_status"):
+        declared = parse_declared_status(f["detection_status"])
+        if declared is None:
+            add("E_UNKNOWN_STATUS", "error",
+                f"Statut de détection inconnu : « {f['detection_status']} ».", "detection_status")
+
+    # polymer
+    polymer = ""
+    tech_for_poly = technique or Technique.other
+    if f.get("polymer"):
+        polymer = normalize_result_polymer(f["polymer"], tech_for_poly)
+        if polymer == UNKNOWN:
+            add("E_POLYMER_MISSING", "error",
+                f"Polymère non renseigné ou illisible : « {f['polymer']} ».", "polymer")
+        elif polymer == OTHER:
+            add("W_POLYMER_OTHER", "warning",
+                f"Polymère « {f['polymer']} » non reconnu : conservé comme OTHER.", "polymer")
+        elif polymer == PS_SUM and normalize_polymer(f["polymer"]) == "PS":
+            add("I_PS_AS_SUM", "info",
+                "PS issu d'une technique thermoanalytique : enregistré comme PS_SUM "
+                "(somme PS, sans distinction de la forme).", "polymer")
+
+    # unit
+    unit: Unit | None = None
+    if f.get("unit"):
+        unit = parse_unit(f["unit"])
+        if unit is None:
+            add("E_UNKNOWN_UNIT", "error", f"Unité inconnue : « {f['unit']} ».", "unit")
+
+    # reported value
+    reported_text = f.get("reported_value", "")
+    r = parse_reported_value(reported_text)
+    value_ok = r.ok
+    if not r.ok:
+        add("E_UNPARSABLE_VALUE", "error", f"Valeur illisible : « {reported_text} ».", vcol)
+    elif (r.value is not None and r.value < 0) or (r.bound is not None and r.bound < 0):
+        value_ok = False
+        add("E_NEGATIVE_VALUE", "error", f"Valeur négative : « {reported_text} ».", vcol)
+
+    # sizes
+    sizes: dict[str, float | None] = {}
+    for name in ("size_min_um", "size_max_um"):
+        sizes[name] = None
+        if f.get(name):
+            sizes[name] = _plain_number(f[name])
+            if sizes[name] is None:
+                add("E_UNPARSABLE_VALUE", "error", f"Taille illisible : « {f[name]} ».", name)
+
+    # limits: row columns first, otherwise the study table (converted to the row unit)
+    row_lim: dict[str, float | None] = {"lod": None, "loq": None}
+    for name in ("lod", "loq"):
+        if f.get(name):
+            v = _plain_number(f[name])
+            if v is None:
+                add("E_UNPARSABLE_VALUE", "error",
+                    f"{name.upper()} illisible : « {f[name]} ».", name)
+            elif v < 0:
+                add("E_NEGATIVE_VALUE", "error",
+                    f"{name.upper()} négative : « {f[name]} ».", name)
+            else:
+                row_lim[name] = v
+    tab_lim: dict[str, float | None] = {"lod": None, "loq": None}
+    if unit is not None and polymer and polymer != UNKNOWN and f.get("method"):
+        for dl in ctx.limits:
+            if dl.method != f["method"]:
+                continue
+            if normalize_result_polymer(dl.polymer, tech_for_poly) != polymer:
+                continue
+            dl_unit = parse_unit(dl.unit_code)
+            try:
+                if dl_unit is None:
+                    raise UnitMismatchError(dl.unit_code)
+                for name, val in (("lod", dl.lod), ("loq", dl.loq)):
+                    if val is not None:
+                        tab_lim[name] = convert(val, dl_unit, unit)
+            except UnitMismatchError:
+                add("E_LIMIT_UNIT_MISMATCH", "error",
+                    f"Limite de l'étude en « {dl.unit_code} » incompatible avec l'unité "
+                    f"« {unit.code} » de la mesure (méthode {dl.method}, polymère {polymer}).",
+                    "lod")
+                tab_lim = {"lod": None, "loq": None}
+            break
+    lim: dict[str, float | None] = {}
+    for name in ("lod", "loq"):
+        rv, tv = row_lim[name], tab_lim[name]
+        if rv is not None and tv is not None and not _same(rv, tv):
+            add("W_LIMIT_CONFLICT", "warning",
+                f"{name.upper()} de la ligne ({rv:g}) différente de celle de l'étude "
+                f"({tv:g}) : celle de la ligne est utilisée.", name)
+        lim[name] = rv if rv is not None else tv
+    lod, loq = lim["lod"], lim["loq"]
+    if lod is not None and loq is not None and lod > loq:
+        add("E_LOD_GT_LOQ", "error", f"LOD ({lod:g}) supérieure à la LOQ ({loq:g}).", "lod")
+
+    # detection status (never changed by warnings)
+    status: DetectionStatus | None = None
+    value = r.value if value_ok else None
+    if value_ok:
+        inferred = infer_status(r, lod, loq)
+        if declared is not None:
+            status = declared
+            if declared in _NO_VALUE and r.value is not None and r.hint is None:
+                add("E_STATUS_VALUE_CONFLICT", "error",
+                    f"Statut déclaré « {declared.value} » incompatible avec la valeur "
+                    f"numérique « {reported_text} ».", vcol)
+            elif inferred is not None and inferred != declared:
+                add("W_STATUS_INCONSISTENT", "warning",
+                    f"Statut déclaré « {declared.value} » différent du statut déduit "
+                    f"« {inferred.value} » : le statut déclaré est conservé.", vcol)
+        elif r.hint is DetectionStatus.not_analysed:
+            status = r.hint  # empty cell or NA: not an error
+        elif r.hint is DetectionStatus.between_lod_loq:
+            status = r.hint
+            if (lod is not None and r.value < lod) or (loq is not None and r.value >= loq):
+                add("W_STATUS_INCONSISTENT", "warning",
+                    f"Valeur « {reported_text} » marquée entre LOD et LOQ mais hors de "
+                    "l'intervalle [LOD, LOQ).", vcol)
+        elif r.hint is not None:
+            status = r.hint
+        elif r.bound is not None:
+            status = inferred or DetectionStatus.not_quantified
+            if lod is None:
+                add("W_NO_LIMITS", "warning",
+                    f"Aucune LOD/LOQ disponible pour « {reported_text} » : "
+                    "statut non quantifié.", vcol)
+            if loq is not None and r.bound > loq:
+                add("W_STATUS_INCONSISTENT", "warning",
+                    f"Borne « {reported_text} » supérieure à la LOQ ({loq:g}) : "
+                    "statut non quantifié conservé.", vcol)
+        else:  # plain number
+            if lod is not None and r.value < lod:
+                status = DetectionStatus.below_lod
+                add("W_VALUE_BELOW_LOD", "warning",
+                    f"Valeur « {reported_text} » inférieure à la LOD ({lod:g}) : "
+                    "statut sous la limite de détection, valeur non conservée.", vcol)
+            elif inferred is not None:
+                status = inferred
+            else:
+                status = DetectionStatus.quantified
+                add("W_NO_LIMITS", "warning",
+                    f"LOD/LOQ absentes ou incomplètes pour « {reported_text} » : "
+                    "statut quantifié par défaut, sans vérification.", vcol)
+        if status in _NO_VALUE:
+            value = None
+
+    # duplicates (flagged on the second occurrence)
+    if f.get("sample_id") and polymer and f.get("method"):
+        key = (f["sample_id"], f.get("aliquot", ""), record_type, polymer, f["method"])
+        if key in seen:
+            add("E_DUPLICATE_RECORD", "error",
+                f"Enregistrement en double (échantillon {f['sample_id']}, aliquote "
+                f"« {f.get('aliquot', '')} », polymère {polymer}, méthode {f['method']}).",
+                "sample_id")
+        seen.add(key)
+
+    if (errors or matrix is None or technique is None or unit is None
+            or status is None or ident is None):
+        return None
+    if value is not None:
+        canonical_value, canonical_unit = to_canonical(value, unit)
+    else:
+        canonical_value, canonical_unit = None, to_canonical(0.0, unit)[1]
+    return MeasurementRecord(
+        sample_id=f["sample_id"], aliquot=f.get("aliquot", ""), record_type=record_type,
+        matrix=matrix, matrix_detail=f.get("matrix_detail", ""), polymer=polymer,
+        polymer_raw=f["polymer"], method=f["method"], technique=technique,
+        reported_value=reported_text, value=value, unit=unit,
+        canonical_value=canonical_value, canonical_unit=canonical_unit, status=status,
+        lod=lod, loq=loq, identification_status=ident,
+        size_min_um=sizes["size_min_um"], size_max_um=sizes["size_max_um"],
+        analysis_date=f.get("analysis_date", ""), batch=f.get("batch", ""),
+        lab=f.get("lab", ""), comment=f.get("comment", ""),
+        source_row=n, source_column=row.source_column,
+    )
+
+
+def validate_rows(
+    rows: list[MappedRow], context: StudyContext,
+) -> tuple[list[MeasurementRecord], list[Issue]]:
+    issues: list[Issue] = []
+    records: list[MeasurementRecord] = []
+    seen: set[tuple] = set()
+    for row in rows:
+        rec = _validate_row(row, context, seen, issues)
+        if rec is not None:
+            records.append(rec)
+    return records, issues
