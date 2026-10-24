@@ -36,24 +36,27 @@ _NAME_TOKENS = frozenset({"nom", "name"})
 _QUALIFIERS = frozenset({
     "sample", "echantillon", "polymer", "polymere", "product", "produit", "method", "methode",
     "lab", "labo", "study", "etude", "file", "fichier", "batch", "lot", "instrument",
-    "compound", "material", "materiau",
+    "compound", "material", "materiau", "species", "series",
 })
 _SPECTRO = frozenset({
     "spectra", "spectrum", "spectre", "spectroscopy", "spectroscopie", "signal", "band",
     "bande", "region", "range", "absorbance", "reflectance", "wavelength", "nm", "cm",
 })
-# Ambiguous words block by default; only these explicit scientific terms excuse them.
+# Ambiguous words block by default; only these explicit scientific terms excuse them
+# (the name qualifiers above never do).
 _BIRTH_EXCUSES = frozenset({
     "weight", "poids", "rate", "taux", "defect", "defaut", "order", "rang", "cohort", "cohorte",
 })
 _MOBILE_EXCUSES = frozenset({
-    "phase", "instrument", "lab", "laboratory", "labo", "unit", "unite", "device", "appareil",
-    "spectrometer", "spectrometre", "analyzer", "analyseur", "platform", "plateforme",
+    "phase", "instrument", "unit", "unite", "device", "appareil", "spectrometer", "spectrometre",
+    "analyzer", "analyseur", "platform", "plateforme", "ftir", "raman", "xrf", "nirs",
 })
+# compared after folding and removing every non-alphanumeric character ("N.A." -> "na")
 _PLACEHOLDERS = frozenset({
-    "na", "nd", "n/a", "inconnu", "unknown", "temoin", "controle", "control", "blank", "blanc",
-    "vide",
+    "na", "nd", "nr", "nc", "inconnu", "unknown", "temoin", "temoins", "controle", "controles",
+    "control", "controls", "blank", "blanks", "blanc", "blancs", "vide", "pool", "qc", "standard",
 })
+_NON_ALNUM = re.compile(r"[^a-z0-9]+")
 
 # an uppercase run followed by a lone lowercase "s" (IPPs, TELs) is not split
 _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z](?:s[a-z]|[a-rt-z]))")
@@ -96,9 +99,14 @@ def _header_verdict(header: str) -> str | None:
     if (any(s in joined for s in _JOINED_SUBSTRINGS)
             or "ssnumber" in joined or "socialsecurity" in joined):
         return "error"
-    if any(x.startswith("birth") for x in flat) and not flat & (_BIRTH_EXCUSES | _QUALIFIERS):
-        return "error"
-    if flat & {"mobile", "portable"} and not flat & (_MOBILE_EXCUSES | _QUALIFIERS):
+    if not flat & _BIRTH_EXCUSES:
+        for b in bases:
+            # "birthweight", "birthrates": one token, birth + an excuse word
+            if (any(x.startswith("birth") for x in b)
+                    and not any(x[5:] in _BIRTH_EXCUSES for x in b)):
+                return "error"
+    if (flat & {"mobile", "portable"} and not flat & _MOBILE_EXCUSES
+            and not any(x.startswith("spectro") for x in flat)):
         return "error"
     for i, t in enumerate(toks):
         if t in ("ne", "nee") and (toks[i + 1:i + 2] == ["le"] or toks[i + 1:i + 3] == ["e", "le"]):
@@ -109,7 +117,7 @@ def _header_verdict(header: str) -> str | None:
 
 
 def _name_like(text: str) -> bool:
-    if fold(text.strip(". ")) in _PLACEHOLDERS:
+    if _NON_ALNUM.sub("", fold(text)) in _PLACEHOLDERS:
         return False
     return (sum(c.isalpha() for c in text) >= 2
             and all(c.isalpha() or c in " -'’,._" for c in text))
@@ -129,9 +137,9 @@ _DATE_SPAN = re.compile(
     r"(?P<time>[ T\-](?P<h>\d{1,2})(?::(?P<mi>\d{2})(?::(?P<se>\d{2}))?|h(?P<mh>\d{2})))?(?!\d)")
 
 
-def _valid_date_spans(text: str) -> list[tuple[int, int]]:
-    """Spans of validated dates / datetimes (real calendar day, real clock time)."""
-    spans: list[tuple[int, int]] = []
+def _valid_date_spans(text: str) -> list[tuple[int, int, bool]]:
+    """(start, end, 4-digit year) of validated dates / datetimes (real day, real clock time)."""
+    spans: list[tuple[int, int, bool]] = []
     for m in _DATE_SPAN.finditer(text):
         if m.group("y1"):
             y, mo, d = int(m.group("y1")), int(m.group("m1")), int(m.group("d1"))
@@ -148,21 +156,31 @@ def _valid_date_spans(text: str) -> list[tuple[int, int]]:
             minute = m.group("mi") or m.group("mh") or "0"
             if int(m.group("h")) <= 23 and int(minute) <= 59 and int(m.group("se") or 0) <= 59:
                 end = m.end()
-        spans.append((m.start(), end))
+        spans.append((m.start(), end, len(m.group("y1") or m.group("y2")) == 4))
     return spans
+
+
+def _is_date(m: re.Match[str], french: bool, spans: list[tuple[int, int, bool]]) -> bool:
+    """A phone-shaped match entirely inside a validated date/datetime is a date; a French
+    match starting inside a 4-digit-year date ("05/06/2021 10 mL") is a dated measurement."""
+    return any((a <= m.start() and m.end() <= b) or (french and long_year and a <= m.start() < b)
+               for a, b, long_year in spans)
 
 
 def _has_contact(text: str) -> bool:
     if _EMAIL.search(text):
         return True
-    spans: list[tuple[int, int]] | None = None
+    spans: list[tuple[int, int, bool]] | None = None
     for pattern in _PHONES:
-        for m in pattern.finditer(text):
+        french = pattern is _PHONES[1]
+        pos = 0
+        while (m := pattern.search(text, pos)) is not None:
             if spans is None:
                 spans = _valid_date_spans(text)
-            # a phone-shaped match entirely inside a validated date/datetime is a date
-            if not any(a <= m.start() and m.end() <= b for a, b in spans):
+            if not _is_date(m, french, spans):
                 return True
+            # retry just after the start: a dropped match may overlap a real phone
+            pos = m.start() + 1
     return False
 
 

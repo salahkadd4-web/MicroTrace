@@ -228,3 +228,49 @@ def test_patient_names_with_separators(cell):
 def test_patient_placeholders_are_not_names(cell):
     t = _table(["Patient"], [[cell]])
     assert [i.code for i in detect_pii(t, Mapping("long", {}))] == ["W_POSSIBLE_PII_COLUMN"]
+
+
+@pytest.mark.parametrize("text", [
+    "01/06/2021 10h", "05/06/2021 15 particules", "prélevé le 05/06/2021 10 mL", "05/06/2021 10 µm",
+    "05/06/2021 20 °C", "01/06/2021-01", "05.06.2021-12", "01/06/2021 10 h",
+])
+def test_dated_measurements_are_not_phones(text):
+    t = _table(["comment"], [[text]])
+    assert [i for i in detect_pii(t, Mapping("long", {})) if i.code == "E_PII_VALUE"] == []
+
+
+@pytest.mark.parametrize("text", [
+    "01/06/2021 10:30 06 12 34 56 78", "05/06/2021 06 12 34 56 78", "05/06/2021 0612345678",
+])
+def test_phones_after_valid_dates_flagged(text):
+    t = _table(["Other"], [[text]])
+    assert _codes(detect_pii(t, Mapping("long", {"analysis_date": "Other"}))) == [
+        ("E_PII_VALUE", "error", 2, "Other")]
+
+
+@pytest.mark.parametrize("header", [
+    "Year of birth (study)", "Study year of birth", "Place of birth lot", "Mobile number lab",
+    "Lab mobile", "Laboratory mobile", "Birthing", "Birthday", "Birthplace",
+])
+def test_qualifiers_do_not_excuse_birth_or_mobile(header):
+    t = _table([header], [["1"]])
+    got = detect_pii(t, Mapping("long", {}))
+    assert [i.code for i in got if i.severity == "error"] == ["E_PII_COLUMN"]
+
+
+@pytest.mark.parametrize("header", [
+    "Portable XRF", "pXRF portable", "Portable FTIR", "Portable Raman", "Portable NIRS spectra",
+    "Portable spectrophotometer", "Birthweight", "Birthweight (g)", "Birthorder", "Birthrate",
+    "Birthrates", "Birthcohort", "Species name", "Series name",
+])
+def test_scientific_headers_excused(header):
+    t = _table([header], [["1"]])
+    assert detect_pii(t, Mapping("long", {})) == []
+
+
+@pytest.mark.parametrize("cell", ["n.a.", "N.A.", "na.", "NR", "nc", "N.C.", "Pool", "QC", "Standard",
+                                  "témoins", "Temoins", "controls", "contrôles", "Controles",
+                                  "blanks", "Blancs"])
+def test_more_patient_placeholders_are_not_names(cell):
+    t = _table(["Patient"], [[cell]])
+    assert [i.code for i in detect_pii(t, Mapping("long", {}))] == ["W_POSSIBLE_PII_COLUMN"]
