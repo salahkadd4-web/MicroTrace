@@ -61,6 +61,9 @@ def test_contact_values_flagged(text):
     "2021-06-01 10:30:00", "01/06/2021", "MT-2021-001-01", "S-001-002-003",
     "Lot 2021-06-01-001", "ISBN 978-3-16-148410-0", "10-20-30-40-50", "1 234 567 890",
     "1 000 000 000", "12.0612345678",
+    "01/06/2021 10:30", "02/06/2021 14:05:00", "01/06/2021 10:30:00", "05.06.2021 14:00",
+    "06/01/2021 12:45", "01-06-2021 09:15", "01/06/2021 10h30", "01/06/2021-10:30",
+    "2021-06-01T10:30:00",
 ])
 def test_ordinary_cells_are_not_phone_or_email(text):
     t = _table(["comment"], [[text]])
@@ -133,3 +136,43 @@ def test_adversarial_cells_scan_fast(cell):
     detect_pii(t, Mapping("long", {}))
     assert time.perf_counter() - start < 1.0
     assert MAX_SCAN_CHARS == 1000
+
+
+@pytest.mark.parametrize("header", [
+    "Noms", "Prénoms", "Names", "Adresses", "Addresses", "Emails", "E-mails", "Phones", "Nom1",
+    "Email1", "Tel2", "Prenom2", "DOBDate", "SSNumber", "IPPNumber", "NIRPatient", "Mobile",
+    "N° portable", "Tel mobile", "Birth date", "Date of birth", "Birth", "Né(e) le", "Née le",
+    "Ne le", "Sécu sociale", "N° sécu",
+])
+def test_robust_pii_headers(header):
+    t = _table([header], [["1"]])
+    got = detect_pii(t, Mapping("long", {}))
+    assert [(i.code, i.column) for i in got if i.severity == "error"] == [("E_PII_COLUMN", header)]
+
+
+@pytest.mark.parametrize("header", [
+    "Nombre", "Nombres", "Mobile phase", "Portable instrument", "Birth weight (g)",
+    "Sample names", "Plaquettes", "Platelets", "Monomers",
+])
+def test_robust_innocent_headers(header):
+    t = _table([header], [["1"]])
+    assert detect_pii(t, Mapping("long", {})) == []
+
+
+def test_patient_column_with_names_is_blocked():
+    t = _table(["Code patient"], [["Jean Dupont"], ["P001"], ["Marie-Claire"], ["O'Neil"], ["12a"]])
+    got = detect_pii(t, Mapping("long", {}))
+    values = [(i.row, i.column) for i in got if i.code == "E_PII_VALUE"]
+    assert values == [(2, "Code patient"), (4, "Code patient"), (5, "Code patient")]
+    assert any(i.code == "W_POSSIBLE_PII_COLUMN" for i in got)
+    assert all("Dupont" not in i.message and "Neil" not in i.message for i in got)
+
+
+def test_patient_column_with_codes_only_warns():
+    t = _table(["Patient"], [["P001"], ["12a"], [""], ["3"]])
+    assert [i.code for i in detect_pii(t, Mapping("long", {}))] == ["W_POSSIBLE_PII_COLUMN"]
+
+
+def test_other_columns_with_names_not_flagged():
+    t = _table(["Polymer"], [["Polyethylene"]])
+    assert detect_pii(t, Mapping("long", {})) == []
