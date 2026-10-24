@@ -175,7 +175,7 @@ def test_e_status_value_conflict():
     check(issues, "E_STATUS_VALUE_CONFLICT", "error", "Valeur")
 
 
-def test_w_status_inconsistent_keeps_declared():
+def test_w_status_inconsistent():
     recs, issues = run(row(reported_value="0,3", detection_status="quantified"))
     check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
     assert recs[0].status is DetectionStatus.quantified
@@ -235,3 +235,119 @@ def test_table_limit_converted_to_row_unit():
     recs, _ = run(row(reported_value="500", unit="ng/mL"), context=c)
     assert (recs[0].lod, recs[0].loq) == (130.0, 430.0)
     assert recs[0].status is DetectionStatus.quantified
+
+
+# ---- fix round 1 ----
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("declared", ["quantified", "between_lod_loq"])
+@pytest.mark.parametrize("rep", ["<0,5", "nd", "<LOD", ""])
+@pytest.mark.parametrize("limits", [None, ()])
+def test_e_status_value_conflict_declared_quantified_without_value(declared, rep, limits):
+    recs, issues = run(row(reported_value=rep, detection_status=declared),
+                       context=ctx(limits=limits))
+    assert recs == []
+    check(issues, "E_STATUS_VALUE_CONFLICT", "error", "Valeur")
+
+
+def test_partial_loq_only_not_quantified():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
+    recs, issues = run(row(reported_value="0,2"), context=c)
+    assert recs[0].status is DetectionStatus.not_quantified
+    assert not [i for i in issues if i.code == "W_NO_LIMITS"]
+
+
+def test_declared_quantified_below_lone_loq_inconsistent():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
+    recs, issues = run(row(reported_value="0,2", detection_status="quantified"), context=c)
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    assert recs[0].status is DetectionStatus.quantified
+
+
+def test_lod_only_value_above_warns_loq_missing():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.13, None, "ug/mL", "simulated"),))
+    recs, issues = run(row(), context=c)
+    i = check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    assert "LOQ" in i.message and recs[0].status is DetectionStatus.quantified
+
+
+def test_ps_and_ps_sum_duplicate():
+    _, issues = run(row(2, polymer="PS"), row(3, polymer="PS_SUM"), context=ctx(limits=()))
+    check(issues, "E_DUPLICATE_RECORD", "error", "sample_id", number=3)
+
+
+def test_ps_sum_limit_applies_to_ps_row():
+    c = ctx(limits=(DetectionLimit(PYGC, "PS_SUM", 0.1, 0.4, "ug/mL", "simulated"),))
+    recs, _ = run(row(polymer="PS"), context=c)
+    assert (recs[0].lod, recs[0].loq) == (0.1, 0.4)
+
+
+def test_other_polymers_distinct_keys():
+    recs, issues = run(row(2, polymer="polyfoo"), row(3, polymer="polybar"))
+    assert len(recs) == 2 and not [i for i in issues if i.code == "E_DUPLICATE_RECORD"]
+    _, issues = run(row(2, polymer="polyfoo"), row(3, polymer="PolyFoo"))
+    check(issues, "E_DUPLICATE_RECORD", "error", "sample_id", number=3)
+
+
+def test_negative_table_limit():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", -0.1, 0.4, "ug/mL", "simulated"),))
+    _, issues = run(row(), context=c)
+    check(issues, "E_NEGATIVE_VALUE", "error", "lod")
+
+
+def test_e_lod_gt_loq_from_table_even_if_row_overrides():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.5, 0.2, "ug/mL", "simulated"),))
+    _, issues = run(row(lod="0,1", loq="0,4"), context=c)
+    check(issues, "E_LOD_GT_LOQ", "error", "lod")
+
+
+def test_e_lod_gt_loq_from_table():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.5, 0.2, "ug/mL", "simulated"),))
+    _, issues = run(row(), context=c)
+    check(issues, "E_LOD_GT_LOQ", "error", "lod")
+
+
+def test_w_limit_conflict_between_table_entries():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.13, 0.43, "ug/mL", "simulated"),
+                    DetectionLimit(PYGC, "PET", 0.2, 0.43, "ug/mL", "simulated")))
+    recs, issues = run(row(), context=c)
+    i = check(issues, "W_LIMIT_CONFLICT", "warning", "lod")
+    assert recs[0].lod == 0.13 and "première" in i.message
+
+
+def test_negative_size():
+    _, issues = run(row(size_max_um="-3"))
+    check(issues, "E_NEGATIVE_VALUE", "error", "size_max_um")
+
+
+def test_negative_row_lod():
+    _, issues = run(row(lod="-0,1"))
+    check(issues, "E_NEGATIVE_VALUE", "error", "lod")
+
+
+def test_negative_bound():
+    _, issues = run(row(reported_value="<-1"))
+    check(issues, "E_NEGATIVE_VALUE", "error", "Valeur")
+
+
+def test_unknown_table_unit_message():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "furlongs", "simulated"),))
+    _, issues = run(row(), context=c)
+    assert "unité inconnue" in check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod").message
+
+
+def test_identification_default_and_override():
+    recs, _ = run(row(method="uFTIR"))
+    assert recs[0].identification_status is IdentificationStatus.confirmed
+    c = ctx(methods=(MethodSpec("X", Technique.other),))
+    recs, _ = run(row(method="X"), context=c)
+    assert recs[0].identification_status is IdentificationStatus.candidate
+    recs, _ = run(row(method="X", identification_status="confirmed"), context=c)
+    assert recs[0].identification_status is IdentificationStatus.confirmed
+
+
+def test_declared_status_on_bound_path():
+    recs, issues = run(row(reported_value="<0,5", detection_status="below_lod"))
+    assert recs[0].status is DetectionStatus.below_lod
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")

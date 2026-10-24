@@ -63,17 +63,21 @@ def infer_status(r: Reported, lod: float | None, loq: float | None) -> Detection
     """Detection status from the reported value and the limits, or None if undeterminable."""
     if r.hint is not None:
         return r.hint
+    if lod is None and loq is None:
+        return None
     if r.bound is not None:
-        if lod is None:
-            return None
-        return DetectionStatus.below_lod if r.bound <= lod else DetectionStatus.not_quantified
-    if r.value is not None and lod is not None and loq is not None:
-        if r.value >= loq:
-            return DetectionStatus.quantified
-        if r.value >= lod:
-            return DetectionStatus.between_lod_loq
+        if lod is not None and r.bound <= lod:
+            return DetectionStatus.below_lod
+        return DetectionStatus.not_quantified if loq is not None else None
+    if r.value is None:
+        return None
+    if lod is not None and r.value < lod:
         return DetectionStatus.below_lod
-    return None
+    if loq is None:
+        return None  # LOD only and value >= LOD: quantification cannot be checked
+    if r.value >= loq:
+        return DetectionStatus.quantified
+    return DetectionStatus.between_lod_loq if lod is not None else DetectionStatus.not_quantified
 
 
 def parse_declared_status(text: str) -> DetectionStatus | None:

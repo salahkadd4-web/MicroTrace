@@ -21,6 +21,7 @@ from microtrace_core.results.records import MeasurementRecord, StudyContext
 from microtrace_core.results.units import (
     Unit,
     UnitMismatchError,
+    canonical_unit as canonical_unit_of,
     convert,
     parse_unit,
     to_canonical,
@@ -57,6 +58,12 @@ def _plain_number(text: str) -> float | None:
     if r.ok and r.value is not None and r.hint is None:
         return r.value
     return None
+
+
+def _missing(lod: float | None, loq: float | None) -> str:
+    if lod is None and loq is None:
+        return "LOD et LOQ absentes"
+    return "LOQ absente" if loq is None else "LOD absente"
 
 
 def _same(a: float, b: float) -> bool:
@@ -166,6 +173,8 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
             sizes[name] = _plain_number(f[name])
             if sizes[name] is None:
                 add("E_UNPARSABLE_VALUE", "error", f"Taille illisible : « {f[name]} ».", name)
+            elif sizes[name] < 0:
+                add("E_NEGATIVE_VALUE", "error", f"Taille négative : « {f[name]} ».", name)
 
     # limits: row columns first, otherwise the study table (converted to the row unit)
     row_lim: dict[str, float | None] = {"lod": None, "loq": None}
@@ -181,26 +190,51 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
             else:
                 row_lim[name] = v
     tab_lim: dict[str, float | None] = {"lod": None, "loq": None}
+    gt_flagged = False
     if unit is not None and polymer and polymer != UNKNOWN and f.get("method"):
+        first = True
         for dl in ctx.limits:
             if dl.method != f["method"]:
                 continue
             if normalize_result_polymer(dl.polymer, tech_for_poly) != polymer:
                 continue
             dl_unit = parse_unit(dl.unit_code)
+            if dl_unit is None:
+                add("E_LIMIT_UNIT_MISMATCH", "error",
+                    f"Limite de l'étude : unité inconnue « {dl.unit_code} » "
+                    f"(méthode {dl.method}, polymère {polymer}).", "lod")
+                first = False
+                continue
             try:
-                if dl_unit is None:
-                    raise UnitMismatchError(dl.unit_code)
-                for name, val in (("lod", dl.lod), ("loq", dl.loq)):
-                    if val is not None:
-                        tab_lim[name] = convert(val, dl_unit, unit)
+                conv = {name: (convert(val, dl_unit, unit) if val is not None else None)
+                        for name, val in (("lod", dl.lod), ("loq", dl.loq))}
             except UnitMismatchError:
                 add("E_LIMIT_UNIT_MISMATCH", "error",
                     f"Limite de l'étude en « {dl.unit_code} » incompatible avec l'unité "
                     f"« {unit.code} » de la mesure (méthode {dl.method}, polymère {polymer}).",
                     "lod")
-                tab_lim = {"lod": None, "loq": None}
-            break
+                first = False
+                continue
+            for name in ("lod", "loq"):
+                if conv[name] is not None and conv[name] < 0:
+                    add("E_NEGATIVE_VALUE", "error",
+                        f"{name.upper()} de l'étude négative : {conv[name]:g}.", name)
+            if conv["lod"] is not None and conv["loq"] is not None                     and conv["lod"] > conv["loq"] and not gt_flagged:
+                gt_flagged = True
+                add("E_LOD_GT_LOQ", "error",
+                    f"LOD de l'étude ({conv['lod']:g}) supérieure à la LOQ "
+                    f"({conv['loq']:g}).", "lod")
+            if first:
+                tab_lim = conv
+                first = False
+            else:
+                for name in ("lod", "loq"):
+                    a_, b_ = tab_lim[name], conv[name]
+                    if a_ is not None and b_ is not None and not _same(a_, b_):
+                        add("W_LIMIT_CONFLICT", "warning",
+                            f"Plusieurs {name.upper()} différentes dans l'étude pour "
+                            f"{dl.method}/{polymer} ({a_:g} et {b_:g}) : la première "
+                            "entrée est conservée.", name)
     lim: dict[str, float | None] = {}
     for name in ("lod", "loq"):
         rv, tv = row_lim[name], tab_lim[name]
@@ -210,7 +244,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 f"({tv:g}) : celle de la ligne est utilisée.", name)
         lim[name] = rv if rv is not None else tv
     lod, loq = lim["lod"], lim["loq"]
-    if lod is not None and loq is not None and lod > loq:
+    if lod is not None and loq is not None and lod > loq and not gt_flagged:
         add("E_LOD_GT_LOQ", "error", f"LOD ({lod:g}) supérieure à la LOQ ({loq:g}).", "lod")
 
     # detection status (never changed by warnings)
@@ -224,6 +258,10 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 add("E_STATUS_VALUE_CONFLICT", "error",
                     f"Statut déclaré « {declared.value} » incompatible avec la valeur "
                     f"numérique « {reported_text} ».", vcol)
+            elif declared in (DetectionStatus.quantified, DetectionStatus.between_lod_loq)                     and r.value is None:
+                add("E_STATUS_VALUE_CONFLICT", "error",
+                    f"Statut déclaré « {declared.value} » sans valeur numérique "
+                    f"(valeur rapportée : « {reported_text} »).", vcol)
             elif inferred is not None and inferred != declared:
                 add("W_STATUS_INCONSISTENT", "warning",
                     f"Statut déclaré « {declared.value} » différent du statut déduit "
@@ -240,17 +278,17 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
             status = r.hint
         elif r.bound is not None:
             status = inferred or DetectionStatus.not_quantified
-            if lod is None:
+            if inferred is None:
                 add("W_NO_LIMITS", "warning",
-                    f"Aucune LOD/LOQ disponible pour « {reported_text} » : "
+                    f"{_missing(lod, loq)} pour « {reported_text} » : "
                     "statut non quantifié.", vcol)
             if loq is not None and r.bound > loq:
                 add("W_STATUS_INCONSISTENT", "warning",
                     f"Borne « {reported_text} » supérieure à la LOQ ({loq:g}) : "
                     "statut non quantifié conservé.", vcol)
         else:  # plain number
-            if lod is not None and r.value < lod:
-                status = DetectionStatus.below_lod
+            if inferred is DetectionStatus.below_lod:
+                status = inferred
                 add("W_VALUE_BELOW_LOD", "warning",
                     f"Valeur « {reported_text} » inférieure à la LOD ({lod:g}) : "
                     "statut sous la limite de détection, valeur non conservée.", vcol)
@@ -259,14 +297,15 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
             else:
                 status = DetectionStatus.quantified
                 add("W_NO_LIMITS", "warning",
-                    f"LOD/LOQ absentes ou incomplètes pour « {reported_text} » : "
+                    f"{_missing(lod, loq)} pour « {reported_text} » : "
                     "statut quantifié par défaut, sans vérification.", vcol)
         if status in _NO_VALUE:
             value = None
 
     # duplicates (flagged on the second occurrence)
     if f.get("sample_id") and polymer and f.get("method"):
-        key = (f["sample_id"], f.get("aliquot", ""), record_type, polymer, f["method"])
+        poly_key = polymer if polymer != OTHER else "OTHER:" + " ".join(fold(f["polymer"]).split())
+        key = (f["sample_id"], f.get("aliquot", ""), record_type, poly_key, f["method"])
         if key in seen:
             add("E_DUPLICATE_RECORD", "error",
                 f"Enregistrement en double (échantillon {f['sample_id']}, aliquote "
@@ -280,7 +319,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if value is not None:
         canonical_value, canonical_unit = to_canonical(value, unit)
     else:
-        canonical_value, canonical_unit = None, to_canonical(0.0, unit)[1]
+        canonical_value, canonical_unit = None, canonical_unit_of(unit.kind, unit.basis)
     return MeasurementRecord(
         sample_id=f["sample_id"], aliquot=f.get("aliquot", ""), record_type=record_type,
         matrix=matrix, matrix_detail=f.get("matrix_detail", ""), polymer=polymer,

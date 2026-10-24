@@ -106,8 +106,17 @@ def parse_technique(text: str) -> Technique | None:
     return _TECHNIQUE_SYNONYMS.get(key)
 
 
+_PS_SUM_LABELS = frozenset({"ps_sum", "ps sum", "ps (sum)", "styrenics", "styreniques"})
+
+
+def _fold_key(text: str) -> str:
+    return " ".join(fold(text).split())
+
+
 def normalize_result_polymer(label: str | None, technique: Technique) -> str:
     """Canonical polymer code; PS becomes PS_SUM for thermoanalytical techniques."""
+    if label is not None and _fold_key(label) in _PS_SUM_LABELS:
+        return PS_SUM
     code = normalize_polymer(label)
     if code == "PS" and technique in THERMOANALYTICAL:
         return PS_SUM

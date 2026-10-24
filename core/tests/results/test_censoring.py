@@ -48,3 +48,13 @@ def test_infer_status(text, lod, loq, status):
 def test_parse_declared_status(text, status):
     s = parse_declared_status(text)
     assert (s.value if s else None) == status
+
+
+@pytest.mark.parametrize("text,lod,loq,status", [
+    ("0.2", None, 0.43, "not_quantified"), ("0.5", None, 0.43, "quantified"),
+    ("<0.2", None, 0.43, "not_quantified"),
+    ("0.05", 0.13, None, "below_lod"), ("0.5", 0.13, None, None),
+    ("<0.1", 0.13, None, "below_lod"), ("<0.5", 0.13, None, None)])
+def test_infer_status_partial_limits(text, lod, loq, status):
+    s = infer_status(parse_reported_value(text), lod, loq)
+    assert (s.value if s else None) == status

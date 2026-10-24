@@ -47,3 +47,9 @@ def test_parse_matrix_and_technique():
     assert parse_matrix("urine") is None
     assert parse_technique("Py-GC/MS") is Technique.py_gc_ms and parse_technique("µFTIR") is Technique.micro_ftir
     assert default_identification(Technique.other) is IdentificationStatus.candidate
+
+
+@pytest.mark.parametrize("label", ["PS_SUM", "ps sum", "PS (sum)", "Styrenics", "Styréniques"])
+@pytest.mark.parametrize("tech", [Technique.py_gc_ms, Technique.micro_ftir])
+def test_ps_sum_labels(label, tech):
+    assert normalize_result_polymer(label, tech) == "PS_SUM"
