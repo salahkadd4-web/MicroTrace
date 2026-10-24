@@ -191,6 +191,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 row_lim[name] = v
     tab_lim: dict[str, float | None] = {"lod": None, "loq": None}
     gt_flagged = False
+    unit_err = False
     if unit is not None and polymer and polymer != UNKNOWN and f.get("method"):
         first = True
         for dl in ctx.limits:
@@ -203,7 +204,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 add("E_LIMIT_UNIT_MISMATCH", "error",
                     f"Limite de l'étude : unité inconnue « {dl.unit_code} » "
                     f"(méthode {dl.method}, polymère {polymer}).", "lod")
-                first = False
+                unit_err = True
                 continue
             try:
                 conv = {name: (convert(val, dl_unit, unit) if val is not None else None)
@@ -213,13 +214,14 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                     f"Limite de l'étude en « {dl.unit_code} » incompatible avec l'unité "
                     f"« {unit.code} » de la mesure (méthode {dl.method}, polymère {polymer}).",
                     "lod")
-                first = False
+                unit_err = True
                 continue
             for name in ("lod", "loq"):
                 if conv[name] is not None and conv[name] < 0:
                     add("E_NEGATIVE_VALUE", "error",
                         f"{name.upper()} de l'étude négative : {conv[name]:g}.", name)
-            if conv["lod"] is not None and conv["loq"] is not None                     and conv["lod"] > conv["loq"] and not gt_flagged:
+            if (conv["lod"] is not None and conv["loq"] is not None
+                    and conv["lod"] > conv["loq"] and not gt_flagged):
                 gt_flagged = True
                 add("E_LOD_GT_LOQ", "error",
                     f"LOD de l'étude ({conv['lod']:g}) supérieure à la LOQ "
@@ -258,11 +260,15 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 add("E_STATUS_VALUE_CONFLICT", "error",
                     f"Statut déclaré « {declared.value} » incompatible avec la valeur "
                     f"numérique « {reported_text} ».", vcol)
-            elif declared in (DetectionStatus.quantified, DetectionStatus.between_lod_loq)                     and r.value is None:
+            elif (declared in (DetectionStatus.quantified, DetectionStatus.between_lod_loq)
+                    and r.value is None):
                 add("E_STATUS_VALUE_CONFLICT", "error",
                     f"Statut déclaré « {declared.value} » sans valeur numérique "
                     f"(valeur rapportée : « {reported_text} »).", vcol)
-            elif inferred is not None and inferred != declared:
+            elif (inferred is not None and inferred != declared
+                    and not (lod is None and inferred is DetectionStatus.not_quantified
+                             and declared in (DetectionStatus.between_lod_loq,
+                                              DetectionStatus.below_lod))):
                 add("W_STATUS_INCONSISTENT", "warning",
                     f"Statut déclaré « {declared.value} » différent du statut déduit "
                     f"« {inferred.value} » : le statut déclaré est conservé.", vcol)
@@ -278,7 +284,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
             status = r.hint
         elif r.bound is not None:
             status = inferred or DetectionStatus.not_quantified
-            if inferred is None:
+            if inferred is None and not unit_err:
                 add("W_NO_LIMITS", "warning",
                     f"{_missing(lod, loq)} pour « {reported_text} » : "
                     "statut non quantifié.", vcol)
@@ -294,6 +300,12 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                     "statut sous la limite de détection, valeur non conservée.", vcol)
             elif inferred is not None:
                 status = inferred
+                if inferred is DetectionStatus.not_quantified and lod is None:
+                    add("W_NO_LIMITS", "warning",
+                        f"LOD absente : « {reported_text} » est sous la LOQ, statut non "
+                        "quantifié, valeur non conservée.", vcol)
+            elif unit_err:
+                status = DetectionStatus.quantified
             else:
                 status = DetectionStatus.quantified
                 add("W_NO_LIMITS", "warning",

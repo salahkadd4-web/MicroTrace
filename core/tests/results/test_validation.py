@@ -1,4 +1,6 @@
 """Row validation tests (all data is synthetic, simulated)."""
+import pytest
+
 from microtrace_core.results.mapping import MappedRow
 from microtrace_core.results.records import DetectionLimit, MethodSpec, StudyContext
 from microtrace_core.results.validation import validate_rows
@@ -238,7 +240,6 @@ def test_table_limit_converted_to_row_unit():
 
 
 # ---- fix round 1 ----
-import pytest  # noqa: E402
 
 
 @pytest.mark.parametrize("declared", ["quantified", "between_lod_loq"])
@@ -255,7 +256,31 @@ def test_partial_loq_only_not_quantified():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
     recs, issues = run(row(reported_value="0,2"), context=c)
     assert recs[0].status is DetectionStatus.not_quantified
-    assert not [i for i in issues if i.code == "W_NO_LIMITS"]
+    i = check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    assert "LOD absente" in i.message and "valeur non conservée" in i.message
+    assert recs[0].value is None
+
+
+@pytest.mark.parametrize("declared", ["between_lod_loq", "below_lod"])
+def test_loq_only_declared_compatible_no_inconsistency(declared):
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
+    _, issues = run(row(reported_value="0,2" if declared == "between_lod_loq" else "<0,2",
+                        detection_status=declared), context=c)
+    assert not [i for i in issues if i.code == "W_STATUS_INCONSISTENT"]
+
+
+def test_bad_unit_entry_does_not_block_later_valid_entry():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "particles/mL", "simulated"),
+                    DetectionLimit(PYGC, "PET", 0.13, 0.43, "ug/mL", "simulated")))
+    recs, issues = run(row(), context=c)
+    check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod")
+    assert not [i for i in issues if i.code in ("W_LIMIT_CONFLICT", "W_NO_LIMITS")]
+
+
+def test_no_w_no_limits_when_unit_mismatch_raised():
+    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "particles/mL", "simulated"),))
+    _, issues = run(row(), context=c)
+    assert {i.code for i in issues} == {"E_LIMIT_UNIT_MISMATCH"}
 
 
 def test_declared_quantified_below_lone_loq_inconsistent():
