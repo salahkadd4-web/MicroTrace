@@ -33,13 +33,25 @@ _SCHEMA = pa.schema([
 ])
 
 
+def _git(*args: str) -> str:
+    res = subprocess.run(
+        ["git", *args], cwd=Path(__file__).resolve().parent,
+        capture_output=True, text=True, timeout=10, check=True)
+    return res.stdout
+
+
 def _git_commit() -> str:
     """HEAD commit of the repository containing this package, or "unknown"."""
     try:
-        res = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parent,
-            capture_output=True, text=True, timeout=10, check=True)
-        return res.stdout.strip() or "unknown"
+        return _git("rev-parse", "HEAD").strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+def _git_dirty() -> bool | str:
+    """True if the working tree has uncommitted changes, "unknown" if git fails."""
+    try:
+        return bool(_git("status", "--porcelain").strip())
     except Exception:
         return "unknown"
 
@@ -74,6 +86,11 @@ def build_catalog(datasets_root: Path, out_dir: Path) -> dict:
                 "extra": json.dumps(s.extra, sort_keys=True),
             })
     messages = [str(w.message) for w in caught]
+    messages += [
+        f"{r['spectrum_id']}: coverage 0 on the {r['technique']} grid "
+        "(off-grid spectrum, probable unit error)"
+        for r in rows if r["coverage"] == 0.0
+    ]
 
     out_dir.mkdir(parents=True, exist_ok=True)
     table = pa.Table.from_pylist(rows, schema=_SCHEMA)
@@ -84,6 +101,7 @@ def build_catalog(datasets_root: Path, out_dir: Path) -> dict:
         "grids": _grids_meta(),
         "data_nature": DATA_NATURE,
         "git_commit": _git_commit(),
+        "git_dirty": _git_dirty(),
         "counts": {
             "by_source": dict(Counter(r["source"] for r in rows)),
             "by_technique": dict(Counter(r["technique"] for r in rows)),

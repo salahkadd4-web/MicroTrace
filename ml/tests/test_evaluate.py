@@ -75,6 +75,52 @@ def test_evaluation_excludes_unknown_and_other(catalog, tmp_path):
         for method in ("correlation@0", "correlation@0.7", "pca_svm"):
             assert method in pooled
 
+def test_exclusions_are_broken_down_by_source(catalog, tmp_path):
+    res = run_baseline(catalog, tmp_path / "out")
+    by_src = res["techniques"]["ftir_atr"]["excluded"]["by_source"]
+    assert by_src["SRC_A"] == {"UNKNOWN": 1, "OTHER": 1, "low_coverage": 1, "total": 3}
+    assert by_src["SRC_B"] == {"UNKNOWN": 0, "OTHER": 0, "low_coverage": 0, "total": 0}
+    assert set(by_src) == {"SRC_A", "SRC_B", "SRC_C", "ONLY"}
+    text = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "Spectres exclus par source" in text
+    assert "| SRC_A | 1 | 1 | 1 | 3 |" in text
+
+
+def test_groups_and_loso_share_are_reported(catalog, tmp_path):
+    res = run_baseline(catalog, tmp_path / "out")
+    tech = res["techniques"]["ftir_atr"]
+    assert tech["groups_by_source"]["SRC_A"] == 9
+    assert tech["groups_by_source"]["ONLY"] == 2
+    share = tech["protocols"]["loso"]["pooled_share_by_source"]
+    # 54 in-library queries in total, 18 per SRC_* source; ONLY is out of library
+    assert share == {"ONLY": 0.0, "SRC_A": 18 / 54, "SRC_B": 18 / 54, "SRC_C": 18 / 54}
+
+
+def test_top_confusions():
+    from microtrace_ml.evaluate import top_confusions
+    conf = {"PE": {"PE": 5, "PP": 3, "NO_MATCH": 1}, "PP": {"PP": 4, "PE": 3}, "PS": {"PS": 2}}
+    assert top_confusions(conf, k=2) == [("PE", "PP", 3), ("PP", "PE", 3)]
+    assert top_confusions(conf)[-1] == ("PE", "NO_MATCH", 1)
+
+
+def test_report_is_honest_about_limits(catalog, tmp_path):
+    (catalog.parent / "catalog_meta.json").write_text(
+        json.dumps({"git_commit": "abc1234", "git_dirty": False, "data_nature": "x"}),
+        encoding="utf-8")
+    run_baseline(catalog, tmp_path / "out")
+    text = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "évitent toute fuite" not in text
+    assert "Aucun groupe d'échantillons connu n'est partagé" in text
+    assert "RaSPI = identifiant sans la lettre finale" in text
+    assert "modifications non commitées : non" in text
+    assert "taux de réponse" in text and "| coverage |" not in text
+    assert "Principales confusions" in text
+    limits = text.split("## Limites")[1]
+    for needle in ("KnowItAll", "intervalle de confiance", "abstention",
+                   "empreinte digitale", "SRC_A", "groupes"):
+        assert needle in limits, needle
+
+
 def test_loso_out_of_library_counted(catalog, tmp_path):
     res = run_baseline(catalog, tmp_path / "out")
     loso = res["techniques"]["ftir_atr"]["protocols"]["loso"]
@@ -165,7 +211,8 @@ def test_catalog_meta_is_reported(catalog, tmp_path):
     assert "abc1234" in text and "test nature" in text
     (catalog.parent / "catalog_meta.json").unlink()
     res = run_baseline(catalog, tmp_path / "without")
-    assert res["catalog"] == {"git_commit": "unknown", "data_nature": "unknown"}
+    assert res["catalog"] == {"git_commit": "unknown", "git_dirty": "unknown",
+                              "data_nature": "unknown"}
     text = (tmp_path / "without" / "report.md").read_text(encoding="utf-8")
     assert "unknown" in text
 

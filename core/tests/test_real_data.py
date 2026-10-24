@@ -31,11 +31,49 @@ def test_real_counts(real_catalog):
     sel = df[(df.source == "mpx") & (df.technique == "raman") & (df.polymer == "PE")
              & (df.state == "weathered")]
     assert len(sel) > 0
+    assert set(sel["laser_nm"]) == {532.0}
+    frac = _peak_fraction(sel, [(2800, 2950)])
+    assert frac >= 0.8, f"only {frac:.0%} of PE weathered peaks in 2800-2950"
+
+
+def _peak_fraction(sel, windows) -> float:
+    """Share of rows whose y_grid argmax lies in one of the windows; all-NaN rows fail."""
     grid = GRIDS["raman"]
     y = grid_matrix(sel)
-    peak = grid[np.nanargmax(np.where(np.isfinite(y), y, -np.inf), axis=1)]
-    frac = np.mean((peak >= 2800) & (peak <= 2950))
-    assert frac >= 0.8, f"only {frac:.0%} of PE weathered peaks in 2800-2950"
+    finite = np.isfinite(y).any(axis=1)
+    peak = grid[np.argmax(np.where(np.isfinite(y), y, -np.inf), axis=1)]
+    hit = np.zeros(len(y), dtype=bool)
+    for lo, hi in windows:
+        hit |= (peak >= lo) & (peak <= hi)
+    return float(np.mean(hit & finite))
+
+
+def test_mpx_raman_is_on_grid(real_catalog):
+    _, df = real_catalog
+    mpx = df[(df.source == "mpx") & (df.technique == "raman")]
+    assert len(mpx) > 0
+    low = mpx[~(mpx["coverage"] >= 0.5)]
+    assert low.empty, f"{len(low)} MPX Raman spectra with coverage < 0.5: {list(low.spectrum_id[:5])}"
+    assert not [w for w in real_catalog[0]["warnings"] if "coverage 0" in w]
+
+
+def test_mpx_785_pp_bands(real_catalog):
+    _, df = real_catalog
+    sel = df[(df.source == "mpx") & (df.technique == "raman") & (df.laser_nm == 785.0)
+             & (df.polymer == "PP")]
+    assert len(sel) > 0
+    frac = _peak_fraction(sel, [(390, 410), (790, 850)])
+    assert frac >= 0.8, f"only {frac:.0%} of 785 nm PP peaks at ~398 or 808/841 cm-1"
+
+
+def test_peak_fraction_counts_all_nan_rows_as_failures():
+    import pandas as pd
+    n = len(GRIDS["raman"])
+    good = np.zeros(n, np.float32)
+    good[int(np.argmin(np.abs(GRIDS["raman"] - 2850)))] = 1.0
+    sel = pd.DataFrame({"technique": ["raman"] * 2,
+                        "y_grid": [good, np.full(n, np.nan, np.float32)]})
+    assert _peak_fraction(sel, [(2800, 2950)]) == 0.5
 
 
 @pytest.mark.parametrize("polymer", ["PE", "PET"])

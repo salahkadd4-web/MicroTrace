@@ -124,14 +124,43 @@ def _pool(y: np.ndarray, results: list) -> dict:
     return m
 
 
-def _exclusions(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    counts = {"UNKNOWN": int((df["polymer"] == "UNKNOWN").sum()),
-              "OTHER": int((df["polymer"] == "OTHER").sum())}
-    kept = df[~df["polymer"].isin(EVAL_EXCLUDED)]
-    low = ~(kept["coverage"] >= MIN_COVERAGE)  # NaN coverage is excluded too
-    counts["low_coverage"] = int(low.sum())
+def _exclusion_reasons(df: pd.DataFrame) -> pd.Series:
+    """Per row: "UNKNOWN", "OTHER", "low_coverage" or "" (kept)."""
+    reason = pd.Series("", index=df.index, dtype=object)
+    bad_label = df["polymer"].isin(EVAL_EXCLUDED)
+    reason[bad_label] = df.loc[bad_label, "polymer"]
+    low = ~bad_label & ~(df["coverage"] >= MIN_COVERAGE)  # NaN coverage is excluded too
+    reason[low] = "low_coverage"
+    return reason
+
+
+def _count_reasons(reason: pd.Series) -> dict:
+    counts = {k: int((reason == k).sum()) for k in ("UNKNOWN", "OTHER", "low_coverage")}
     counts["total"] = sum(counts.values())
-    return kept[~low].reset_index(drop=True), counts
+    return counts
+
+
+def _exclusions(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    reason = _exclusion_reasons(df)
+    counts = _count_reasons(reason)
+    counts["by_source"] = {
+        src: _count_reasons(reason[df["source"] == src]) for src in sorted(set(df["source"]))
+    }
+    return df[reason == ""].reset_index(drop=True), counts
+
+
+def _pooled_share(per_source: dict, method: str = "correlation@0") -> dict:
+    """Share of the pooled LOSO in-library queries contributed by each held-out source."""
+    n_eval = {src: m[method].get("n_evaluated", 0) for src, m in per_source.items()}
+    total = sum(n_eval.values())
+    return {src: (n / total if total else 0.0) for src, n in n_eval.items()}
+
+
+def top_confusions(confusion: dict, k: int = 10) -> list[tuple[str, str, int]]:
+    """Largest off-diagonal (true, predicted, count) cells, ties broken by name."""
+    pairs = [(t, p, int(c)) for t, row in confusion.items() for p, c in row.items()
+             if p != t and c > 0]
+    return sorted(pairs, key=lambda x: (-x[2], x[0], x[1]))[:k]
 
 
 def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
@@ -140,6 +169,10 @@ def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
         "excluded": excluded,
         "n": int(len(df)),
         "by_source": {k: int(v) for k, v in df["source"].value_counts().sort_index().items()},
+        "groups_by_source": {
+            k: int(v)
+            for k, v in df.groupby("source")["sample_group"].nunique().sort_index().items()
+        },
         "by_polymer": {k: int(v) for k, v in df["polymer"].value_counts().sort_index().items()},
         "protocols": {},
     }
@@ -166,6 +199,7 @@ def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
     protocols["loso"] = {
         "per_source": per_source,
         "pooled": {name: _pool(y, res[name]) for name in methods},
+        "pooled_share_by_source": _pooled_share(per_source),
     }
 
     # Grouped k-fold on polymers with enough distinct sample groups.
@@ -214,6 +248,7 @@ def _catalog_meta(catalog_path: Path) -> dict:
         meta = {}
     return {
         "git_commit": meta.get("git_commit", "unknown"),
+        "git_dirty": meta.get("git_dirty", "unknown"),
         "data_nature": meta.get("data_nature", DEFAULT_DATA_NATURE),
     }
 
@@ -251,7 +286,8 @@ def _fmt(v, digits: int = 3) -> str:
 
 
 def _metrics_table(methods: dict) -> list[str]:
-    lines = ["| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |",
+    lines = ["| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse "
+             "| out_of_library |",
              "|---|---|---|---|---|---|---|"]
     notes = []
     for name, m in methods.items():
@@ -281,9 +317,75 @@ def _recall_table(methods: dict) -> list[str]:
 
 
 ACCURACY_NOTE = (
-    "Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes "
+    "Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes "
     "présentes dans la bibliothèque (n_evaluated = n − out_of_library)."
 )
+
+GROUPS_NOTE = (
+    "Aucun groupe d'échantillons connu n'est partagé entre apprentissage et test. "
+    "Les groupes sont définis par source : MPX = produit (champ Polymer) ; "
+    "RaSPI = identifiant sans la lettre finale ; FLOPP, FLOPP-e, SLoPP, SLoPP-E et "
+    "raman_weathered = un groupe par spectre (les spectres répétés d'un même objet, "
+    "s'il y en a, ne sont pas regroupés)."
+)
+
+
+def _dirty_text(v) -> str:
+    if v is True:
+        return "oui"
+    if v is False:
+        return "non"
+    return "inconnu"
+
+
+def _excluded_table(by_source: dict, min_cov: float) -> list[str]:
+    lines = [f"| Source | UNKNOWN | OTHER | couverture < {min_cov} | Total |",
+             "|---|---|---|---|---|"]
+    for src, c in by_source.items():
+        lines.append(f"| {src} | {c['UNKNOWN']} | {c['OTHER']} | {c['low_coverage']} "
+                     f"| {c['total']} |")
+    return lines
+
+
+def _confusion_table(m: dict) -> list[str]:
+    if "skipped" in m:
+        return []
+    pairs = top_confusions(m["confusion"])
+    if not pairs:
+        return ["Aucune confusion.", ""]
+    return ["| Polymère réel | Prédiction | Nombre |", "|---|---|---|",
+            *[f"| {t} | {p} | {c} |" for t, p, c in pairs], ""]
+
+
+def _pct(v: float) -> str:
+    return f"{100 * v:.0f} %"
+
+
+def _technique_limits(r: dict) -> list[str]:
+    """Computed bullets: effective sample size and LOSO source share, per technique."""
+    size, share = [], []
+    for tech, t in r["techniques"].items():
+        if t["by_source"]:
+            src = max(sorted(t["by_source"]), key=lambda k: t["by_source"][k])
+            size.append(f"{tech} : {src} = {t['by_source'][src]} spectres issus de "
+                        f"{t['groups_by_source'][src]} groupes")
+        sh = t["protocols"].get("loso", {}).get("pooled_share_by_source")
+        if sh:
+            src = max(sorted(sh), key=lambda k: sh[k])
+            share.append(f"{tech} : {src} = {_pct(sh[src])} des requêtes évaluées")
+    out = []
+    if size:
+        out.append(
+            "- Taille effective de l'échantillon : `n` compte des spectres, pas des "
+            "échantillons indépendants (" + " ; ".join(size) + "). Certains rappels par "
+            "polymère reflètent essentiellement un seul produit. Aucun intervalle de "
+            "confiance n'est calculé.")
+    if share:
+        out.append(
+            "- Le LOSO cumulé est dominé par une source (" + " ; ".join(share) + ") : "
+            "le chiffre cumulé décrit surtout cette source ; lire aussi les résultats "
+            "par source tenue à part.")
+    return out
 
 _PROTOCOL_TITLES = {
     "loso": "Leave-one-source-out (LOSO)",
@@ -298,22 +400,27 @@ def _render_report(r: dict) -> str:
         "# MicroTrace : rapport de la baseline d'identification des polymères",
         "",
         f"- Date : {r['date']}",
-        f"- Catalogue (git_commit) : `{r['catalog']['git_commit']}`",
-        f"- Nature des données : {r['catalog']['data_nature']}",
+        f"- Catalogue (git_commit) : `{r['catalog']['git_commit']}` "
+        f"(modifications non commitées : {_dirty_text(r['catalog'].get('git_dirty'))})",
+        "- Nature des données (valeur `data_nature` du catalogue) : "
+        f"{r['catalog']['data_nature']}",
         f"- Seuil de corrélation testé : {thr}",
         f"- Durée du calcul : {r['runtime_seconds']} s",
         "",
         "Ce rapport mesure dans quelle mesure le polymère d'un échantillon peut être "
-        "retrouvé à partir de son spectre, avec des séparations qui évitent toute fuite "
-        "de données entre apprentissage et test. Trois méthodes sont comparées : "
+        "retrouvé à partir de son spectre, avec des séparations par groupe "
+        "d'échantillons entre apprentissage et test. Trois méthodes sont comparées : "
         "`correlation@0` (le spectre de référence le plus proche est toujours retenu), "
         f"`correlation@{thr}` (la réponse est NO_MATCH si la corrélation est inférieure "
         "au seuil) et `pca_svm` (réduction PCA puis machine à vecteurs de support).",
         "",
+        GROUPS_NOTE,
+        "",
         "Lecture des colonnes : `n` = requêtes testées ; `accuracy` = part de bonnes "
         "réponses (un NO_MATCH compte comme une erreur) ; `macro-F1` = moyenne du F1 "
-        "par polymère, qui donne le même poids aux polymères rares ; `coverage` = part des "
-        "requêtes pour lesquelles une réponse est donnée ; `out_of_library` = requêtes dont "
+        "par polymère, qui donne le même poids aux polymères rares ; `taux de réponse` "
+        "(clé `coverage` dans metrics.json) = part des requêtes pour lesquelles une "
+        "réponse est donnée ; `out_of_library` = requêtes dont "
         "le polymère n'existe pas dans la bibliothèque d'apprentissage (comptées à part, "
         "exclues de accuracy et macro-F1).",
         "",
@@ -325,9 +432,12 @@ def _render_report(r: dict) -> str:
             f"Spectres évalués après exclusions : {t['n']}. Exclus avant toute séparation : "
             f"{ex['total']} (polymère UNKNOWN : {ex['UNKNOWN']}, polymère OTHER : {ex['OTHER']}, "
             f"couverture < {r['min_coverage']} : {ex['low_coverage']}).", "",
+            "### Spectres exclus par source", "",
+            *_excluded_table(ex["by_source"], r["min_coverage"]), "",
             "### Effectifs par source", "",
-            "| Source | Spectres |", "|---|---|",
-            *[f"| {k} | {v} |" for k, v in t["by_source"].items()], "",
+            "| Source | Spectres | Groupes d'échantillons |", "|---|---|---|",
+            *[f"| {k} | {v} | {t['groups_by_source'][k]} |"
+              for k, v in t["by_source"].items()], "",
             "### Effectifs par polymère", "",
             "| Polymère | Spectres |", "|---|---|",
             *[f"| {k} | {v} |" for k, v in t["by_polymer"].items()], "",
@@ -348,6 +458,9 @@ def _render_report(r: dict) -> str:
                     L += _metrics_table(methods) + [""]
                 L += ["Rappel par polymère (LOSO cumulé) :", ""]
                 L += _recall_table(p["pooled"]) + [""]
+                L += ["Principales confusions (LOSO cumulé, correlation@0, polymère réel "
+                      "→ prédiction, 10 premières) :", ""]
+                L += _confusion_table(p["pooled"]["correlation@0"])
                 continue
             if proto == "group_kfold":
                 e = p["excluded"]
@@ -372,6 +485,18 @@ def _render_report(r: dict) -> str:
         "clinique.",
         "- Les protocoles diffèrent par leur difficulté : ne comparer les chiffres qu'à "
         "l'intérieur d'un même protocole.",
+        "- Provenance des étiquettes : celles de raman_weathered viennent de scores de "
+        "recherche en bibliothèque KnowItAll (certaines « identifiées subjectivement ») ; "
+        "celles des échantillons environnementaux de FLOPP-e et SLoPP-E proviennent "
+        "probablement d'une comparaison spectrale. Sur ces sources, les scores mesurent "
+        "l'accord avec une identification de référence, pas une vérité terrain.",
+        *_technique_limits(r),
+        "- Le macro-F1 favorise l'abstention : un NO_MATCH n'est jamais un faux positif "
+        "pour aucune classe. Comparer les seuils sur l'accuracy et le taux de réponse, "
+        "pas sur le seul macro-F1.",
+        f"- Règle de couverture : un spectre couvrant moins de {r['min_coverage']} de la "
+        "grille est exclu. Les spectres limités surtout à la région d'empreinte digitale "
+        "(p. ex. de nombreux spectres SLoPP, ~100–2000 cm⁻¹) ne sont donc pas évalués.",
         "",
     ]
     return "\n".join(L)

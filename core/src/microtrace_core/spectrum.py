@@ -7,6 +7,7 @@ from typing import Literal, get_args
 import numpy as np
 
 Technique = Literal["ftir_atr", "raman"]
+XUnit = Literal["cm-1", "nm"]
 YUnit = Literal["absorbance", "transmittance_pct", "intensity"]
 State = Literal["pristine", "weathered", "biofouled", "unknown"]
 
@@ -22,7 +23,7 @@ class Spectrum:
     technique: Technique
     x: np.ndarray
     y: np.ndarray
-    x_unit: Literal["cm-1", "nm"]
+    x_unit: XUnit
     polymer: str
     polymer_raw: str
     state: State
@@ -46,6 +47,10 @@ class Spectrum:
             raise ValueError(f"invalid technique: {self.technique!r}")
         if self.state not in get_args(State):
             raise ValueError(f"invalid state: {self.state!r}")
+        if self.x_unit not in get_args(XUnit):
+            raise ValueError(f"invalid x_unit: {self.x_unit!r}")
+        if self.x_unit == "nm" and self.technique != "raman":
+            raise ValueError(f"x_unit 'nm' is only valid for raman, got {self.technique!r}")
         if self.y_unit not in get_args(YUnit):
             raise ValueError(f"invalid y_unit: {self.y_unit!r}")
         if self.technique == "ftir_atr" and self.y_unit not in ("absorbance", "transmittance_pct"):

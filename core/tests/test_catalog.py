@@ -107,11 +107,46 @@ def test_grid_matrix_shape(tmp_path):
     assert m.dtype == np.float32 and m.shape == (len(raman), len(GRIDS["raman"]))
 
 
+def test_off_grid_spectrum_is_reported_in_meta_warnings(tmp_path, monkeypatch):
+    def spec(sid, x0):
+        return Spectrum(
+            spectrum_id=sid, source="mpx", technique="raman",
+            x=np.arange(x0, x0 + 600.0, 10.0), y=np.ones(60), x_unit="cm-1",
+            polymer="PP", polymer_raw="PP", state="weathered", sample_group="g",
+            file="a.csv")
+    (tmp_path / "a.csv").write_text("x", encoding="utf-8")
+    monkeypatch.setattr(readers, "iter_all",
+                        lambda root: iter([spec("ok:1", 400.0), spec("off:1", 6000.0)]))
+    meta = build_catalog(tmp_path, tmp_path / "out")
+    df = load_catalog(tmp_path / "out" / "spectra_catalog.parquet")
+    assert df.set_index("spectrum_id").loc["off:1", "coverage"] == 0.0
+    flagged = [w for w in meta["warnings"] if "coverage" in w]
+    assert len(flagged) == 1 and "off:1" in flagged[0]
+
+
 def test_git_commit_unknown_on_failure(monkeypatch):
     def boom(*a, **k):
         raise OSError("no git")
     monkeypatch.setattr(catalog.subprocess, "run", boom)
     assert catalog._git_commit() == "unknown"
+    assert catalog._git_dirty() == "unknown"
+
+
+def test_git_dirty_reflects_porcelain(monkeypatch):
+    class Res:
+        def __init__(self, out):
+            self.stdout = out
+    monkeypatch.setattr(catalog.subprocess, "run", lambda *a, **k: Res(""))
+    assert catalog._git_dirty() is False
+    monkeypatch.setattr(catalog.subprocess, "run", lambda *a, **k: Res(" M core/x.py\n"))
+    assert catalog._git_dirty() is True
+
+
+def test_meta_records_git_dirty(tmp_path):
+    ds = tmp_path / "ds"
+    make_tree(ds)
+    meta = build_catalog(ds, tmp_path / "out")
+    assert meta["git_dirty"] in (True, False, "unknown")
 
 
 def test_cli_build_catalog(tmp_path):

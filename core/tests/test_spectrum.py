@@ -53,6 +53,13 @@ def test_raman_nm_requires_laser():
     assert make(technique="raman", x_unit="nm", laser_nm=532.0).laser_nm == 532.0
 
 
+def test_nm_axis_only_valid_for_raman():
+    with pytest.raises(ValueError, match="nm"):
+        make(technique="ftir_atr", x_unit="nm")
+    with pytest.raises(ValueError, match="x_unit"):
+        make(x_unit="um")
+
+
 def test_y_unit_defaults_and_validation():
     assert make(technique="raman", y_unit="intensity").y_unit == "intensity"
     assert make(y_unit="transmittance_pct").y_unit == "transmittance_pct"

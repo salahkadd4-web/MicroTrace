@@ -111,17 +111,18 @@ def _band():
 def test_preprocess_transmittance_is_converted_to_absorbance():
     x, a = _band()
     t = 100.0 * 10.0 ** (-a)
-    t[:30] = 0.0
-    t[-30:] = 0.0
+    pad = (x < 800.0) | (x > 3800.0)  # zero padding overlapping both grid ends
+    t[pad] = 0.0
     t_in = t.copy()
     s = _ftir(t, "transmittance_pct")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         out = preprocess(s)
     grid = GRIDS["ftir_atr"]
-    assert int(np.argmax(out)) == int(np.argmin(np.abs(grid - 1716.0)))
-    assert np.isnan(out[grid < x[30]]).all() and np.isnan(out[grid > x[-31]]).all()
-    assert np.isfinite(out[(grid > 700) & (grid < 3900)]).all()
+    assert int(np.nanargmax(out)) == int(np.argmin(np.abs(grid - 1716.0)))
+    padded = (grid < 800.0) | (grid > 3800.0)
+    assert padded.sum() > 0 and np.isnan(out[padded]).all()
+    assert np.isfinite(out[(grid >= 800) & (grid <= 3800)]).all()
     np.testing.assert_array_equal(s.y, t_in)
 
 

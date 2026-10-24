@@ -5,7 +5,11 @@ import pytest
 
 from conftest import make_mpx, make_raspi, mpx_record, synthetic_points
 from microtrace_core.readers import iter_all
-from microtrace_core.readers.mpx import MPX_RAMAN_LASER_NM, read_mpx
+import numpy as np
+
+from microtrace_core.readers.mpx import (
+    MPX_RAMAN_LASER_GREEN_NM, MPX_RAMAN_LASER_NIR_NM, infer_mpx_raman_laser, read_mpx,
+)
 from microtrace_core.readers.raspi import read_raspi
 
 
@@ -19,12 +23,38 @@ def test_mpx_reads_units_per_record(tmp_path):
     make_mpx(tmp_path, recs, {"a_nm.csv": pts, "b_cm.csv": pts, "c_atr.csv": pts})
     got = {s.spectrum_id: s for s in read_mpx(tmp_path)}
     assert got["mpx:a_nm"].x_unit == "nm" and got["mpx:a_nm"].laser_nm == 532.0
-    assert got["mpx:b_cm"].x_unit == "cm-1" and got["mpx:b_cm"].laser_nm == MPX_RAMAN_LASER_NM
+    assert got["mpx:b_cm"].x_unit == "cm-1" and got["mpx:b_cm"].laser_nm == MPX_RAMAN_LASER_GREEN_NM
     assert got["mpx:c_atr"].technique == "ftir_atr" and got["mpx:c_atr"].laser_nm is None
     assert got["mpx:a_nm"].technique == "raman"
     assert got["mpx:c_atr"].y_unit == "absorbance"
     assert got["mpx:a_nm"].y_unit == got["mpx:b_cm"].y_unit == "intensity"
     assert got["mpx:c_atr"].file.endswith("dataset/c_atr.csv")
+
+
+def test_infer_mpx_raman_laser_from_wavelength_axis():
+    assert infer_mpx_raman_laser(np.array([474.0, 600.0, 663.2])) == MPX_RAMAN_LASER_GREEN_NM
+    assert infer_mpx_raman_laser(np.array([782.7, 900.0, 1068.0])) == MPX_RAMAN_LASER_NIR_NM
+    assert MPX_RAMAN_LASER_GREEN_NM == 532.0 and MPX_RAMAN_LASER_NIR_NM == 785.0
+    with pytest.raises(ValueError):
+        infer_mpx_raman_laser(np.array([650.0, 760.0]))
+
+
+def test_mpx_raman_laser_is_chosen_per_record(tmp_path):
+    recs = [
+        mpx_record("green.csv", Analysis="Raman", x_unit="nm", y_unit="Intensity"),
+        mpx_record("nir.csv", Analysis="Raman", x_unit="nm", y_unit="Intensity"),
+    ]
+    make_mpx(tmp_path, recs, {"green.csv": synthetic_points(12, 480.0, 10.0),
+                              "nir.csv": synthetic_points(12, 790.0, 20.0)})
+    got = {s.spectrum_id: s.laser_nm for s in read_mpx(tmp_path)}
+    assert got == {"mpx:green": 532.0, "mpx:nir": 785.0}
+
+
+def test_mpx_ambiguous_raman_axis_raises_naming_file(tmp_path):
+    recs = [mpx_record("amb.csv", Analysis="Raman", x_unit="nm", y_unit="Intensity")]
+    make_mpx(tmp_path, recs, {"amb.csv": synthetic_points(12, 650.0, 10.0)})
+    with pytest.raises(ValueError, match="amb.csv"):
+        list(read_mpx(tmp_path))
 
 
 def test_mpx_groups_by_product(tmp_path):
@@ -40,6 +70,18 @@ def test_mpx_groups_by_product(tmp_path):
     assert a.state == "biofouled" and b.state == "weathered"
     assert a.extra["Region"] == "VLFR" and a.extra["Exposure_days"] == "30"
     assert a.extra["State"] == "dry"
+    assert a.extra["ATRcorrection"] == "" and a.extra["BaselineCorrection"] == ""
+    assert a.extra["Replicate"] == "1" and a.extra["Product_ID"] == ""
+
+
+def test_mpx_extra_keeps_processing_flags(tmp_path):
+    recs = [mpx_record("p.csv", ATRcorrection=1, BaselineCorrection=1, Replicate="B",
+                       Product_ID="Lot 7")]
+    make_mpx(tmp_path, recs, {"p.csv": synthetic_points()})
+    (s,) = list(read_mpx(tmp_path))
+    assert {k: s.extra[k] for k in ("ATRcorrection", "BaselineCorrection", "Replicate",
+                                    "Product_ID")} == {
+        "ATRcorrection": "1", "BaselineCorrection": "1", "Replicate": "B", "Product_ID": "Lot 7"}
 
 
 def test_mpx_missing_file_warns(tmp_path):
