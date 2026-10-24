@@ -14,6 +14,12 @@ GRIDS: dict[Technique, np.ndarray] = {
     "raman": np.arange(250, 3201, 4.0),
 }
 
+# Spectral window (cm-1, bounds included) on which identification coverage is judged.
+DIAGNOSTIC_WINDOWS: dict[Technique, tuple[float, float]] = {
+    "raman": (400.0, 1800.0),
+    "ftir_atr": (600.0, 1800.0),
+}
+
 _ALS_PARAMS: dict[Technique, tuple[float, float]] = {
     "raman": (1e5, 0.01),
     "ftir_atr": (1e6, 0.01),
@@ -105,6 +111,18 @@ def coverage(y_grid: np.ndarray) -> float:
     if y_grid.size == 0:
         return 0.0
     return float(np.isfinite(y_grid).sum() / y_grid.size)
+
+
+def diagnostic_coverage(y_grid: np.ndarray, technique: Technique) -> float:
+    """Fraction of finite points within the technique's diagnostic window."""
+    y_grid = np.asarray(y_grid)
+    grid = GRIDS[technique]
+    if y_grid.shape != grid.shape:
+        raise ValueError(
+            f"y_grid has {y_grid.size} points, the {technique} grid has {grid.size}")
+    lo, hi = DIAGNOSTIC_WINDOWS[technique]
+    in_window = (grid >= lo) & (grid <= hi)
+    return float(np.isfinite(y_grid[in_window]).sum() / in_window.sum())
 
 
 def preprocess(s: Spectrum) -> np.ndarray:

@@ -7,7 +7,9 @@ from microtrace_core.preprocess import (
     GRIDS,
     als_baseline,
     clean,
+    DIAGNOSTIC_WINDOWS,
     coverage,
+    diagnostic_coverage,
     minmax,
     nm_to_raman_shift,
     preprocess,
@@ -130,3 +132,33 @@ def test_preprocess_absorbance_gives_same_argmax():
     _, a = _band()
     out = preprocess(_ftir(a, "absorbance"))
     assert int(np.argmax(out)) == int(np.argmin(np.abs(GRIDS["ftir_atr"] - 1716.0)))
+
+
+def test_diagnostic_windows_values():
+    assert DIAGNOSTIC_WINDOWS == {"raman": (400.0, 1800.0), "ftir_atr": (600.0, 1800.0)}
+
+
+def test_diagnostic_coverage_fingerprint_only_raman_is_full():
+    g = GRIDS["raman"]
+    y = np.where((g >= 100) & (g <= 2000), 0.5, np.nan)
+    assert diagnostic_coverage(y, "raman") == 1.0
+
+
+def test_diagnostic_coverage_outside_window_is_zero():
+    g = GRIDS["raman"]
+    y = np.where((g >= 2000) & (g <= 3200), 0.5, np.nan)
+    assert diagnostic_coverage(y, "raman") == 0.0
+
+
+def test_diagnostic_coverage_partial_and_bounds_inclusive():
+    g = GRIDS["ftir_atr"]
+    y = np.where(g <= 1200, 0.5, np.nan)  # covers 600..1200 of window 600..1800
+    in_win = (g >= 600) & (g <= 1800)
+    assert diagnostic_coverage(y, "ftir_atr") == pytest.approx(
+        np.isfinite(y)[in_win].mean())
+    assert in_win.sum() == 301
+
+
+def test_diagnostic_coverage_wrong_length():
+    with pytest.raises(ValueError):
+        diagnostic_coverage(np.zeros(10), "raman")

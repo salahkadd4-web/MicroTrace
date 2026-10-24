@@ -15,7 +15,7 @@ import pyarrow.parquet as pq
 
 from microtrace_core import readers
 from microtrace_core.readers.common import sha256_file
-from microtrace_core.preprocess import GRIDS, PREPROCESS_VERSION, coverage, preprocess
+from microtrace_core.preprocess import GRIDS, PREPROCESS_VERSION, coverage, diagnostic_coverage, preprocess
 
 CATALOG_NAME = "spectra_catalog.parquet"
 META_NAME = "catalog_meta.json"
@@ -27,7 +27,7 @@ _SCHEMA = pa.schema([
     ("sample_group", pa.string()), ("file", pa.string()), ("file_sha256", pa.string()),
     ("laser_nm", pa.float64()), ("x_unit", pa.string()), ("y_unit", pa.string()),
     ("label_note", pa.string()),
-    ("coverage", pa.float64()),
+    ("coverage", pa.float64()), ("diagnostic_coverage", pa.float64()),
     ("x_raw", pa.list_(pa.float64())), ("y_raw", pa.list_(pa.float64())),
     ("y_grid", pa.list_(pa.float32())), ("extra", pa.string()),
 ])
@@ -81,6 +81,7 @@ def build_catalog(datasets_root: Path, out_dir: Path) -> dict:
                 "laser_nm": None if s.laser_nm is None else float(s.laser_nm),
                 "x_unit": s.x_unit, "y_unit": s.y_unit, "label_note": s.label_note,
                 "coverage": coverage(y_grid),
+                "diagnostic_coverage": diagnostic_coverage(y_grid, s.technique),
                 "x_raw": s.x.tolist(), "y_raw": s.y.tolist(),
                 "y_grid": y_grid.tolist(),
                 "extra": json.dumps(s.extra, sort_keys=True),

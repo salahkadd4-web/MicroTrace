@@ -13,12 +13,13 @@ def _grid_len():
     return len(GRIDS["ftir_atr"])
 
 
-def _row(i, src, polymer, group, state, y, coverage=1.0):
+def _row(i, src, polymer, group, state, y, coverage=1.0, diagnostic_coverage=None):
     return {
         "spectrum_id": f"{src}:{i}", "source": src, "technique": "ftir_atr",
         "polymer": polymer, "polymer_raw": polymer, "state": state,
         "sample_group": group, "file": "f", "file_sha256": "0", "laser_nm": float("nan"),
         "x_unit": "cm-1", "label_note": "", "coverage": coverage,
+        "diagnostic_coverage": coverage if diagnostic_coverage is None else diagnostic_coverage,
         "x_raw": [0.0], "y_raw": [0.0], "y_grid": y.astype(np.float32).tolist(),
         "extra": "{}",
     }
@@ -243,3 +244,34 @@ def test_correlation_threshold_abstains_on_low_score(tmp_path):
 def test_threshold_zero_rejected(catalog, tmp_path):
     with pytest.raises(ValueError):
         run_baseline(catalog, tmp_path / "out", threshold=0.0)
+
+
+def test_fingerprint_only_row_is_kept_and_out_of_window_row_excluded(tmp_path, catalog):
+    df = pd.read_parquet(catalog)
+    low = df["sample_group"] == "SRC_A-lowcov"
+    df.loc[low, "diagnostic_coverage"] = 1.0  # whole-grid coverage stays 0.3
+    out = run_baseline(_write_df(tmp_path / "fp.parquet", df), tmp_path / "fp")
+    assert out["techniques"]["ftir_atr"]["excluded"]["low_coverage"] == 0
+    df.loc[low, "diagnostic_coverage"] = 0.0
+    df.loc[df["sample_group"] == "SRC_B-PE-1", "coverage"] = 1.0
+    out = run_baseline(_write_df(tmp_path / "ow.parquet", df), tmp_path / "ow")
+    assert out["techniques"]["ftir_atr"]["excluded"]["low_coverage"] == 1
+
+
+def test_old_catalog_without_diagnostic_coverage_raises(tmp_path, catalog):
+    df = pd.read_parquet(catalog).drop(columns=["diagnostic_coverage"])
+    with pytest.raises(ValueError, match="build-catalog"):
+        run_baseline(_write_df(tmp_path / "old.parquet", df), tmp_path / "old")
+
+
+def test_metrics_and_report_state_the_coverage_window(tmp_path, catalog):
+    out = run_baseline(catalog, tmp_path / "rep")
+    assert out["min_coverage"] == 0.8
+    assert out["techniques"]["ftir_atr"]["coverage_window"] == [600.0, 1800.0]
+    text = (tmp_path / "rep" / "report.md").read_text(encoding="utf-8")
+    assert "fenêtre diagnostique" in text and "2 800–3 100" in text
+
+
+def _write_df(path, df):
+    df.to_parquet(path)
+    return path

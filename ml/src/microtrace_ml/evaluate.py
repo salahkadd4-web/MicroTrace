@@ -14,6 +14,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 
 from microtrace_core.catalog import grid_matrix, load_catalog
+from microtrace_core.preprocess import DIAGNOSTIC_WINDOWS
 from microtrace_ml.classifier import make_pca_svm
 from microtrace_ml.matching import NO_MATCH, CorrelationMatcher
 from microtrace_ml.splits import group_kfold, leave_one_source_out, pristine_to_aged
@@ -129,7 +130,7 @@ def _exclusion_reasons(df: pd.DataFrame) -> pd.Series:
     reason = pd.Series("", index=df.index, dtype=object)
     bad_label = df["polymer"].isin(EVAL_EXCLUDED)
     reason[bad_label] = df.loc[bad_label, "polymer"]
-    low = ~bad_label & ~(df["coverage"] >= MIN_COVERAGE)  # NaN coverage is excluded too
+    low = ~bad_label & ~(df["diagnostic_coverage"] >= MIN_COVERAGE)  # NaN coverage is excluded too
     reason[low] = "low_coverage"
     return reason
 
@@ -163,7 +164,7 @@ def top_confusions(confusion: dict, k: int = 10) -> list[tuple[str, str, int]]:
     return sorted(pairs, key=lambda x: (-x[2], x[0], x[1]))[:k]
 
 
-def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
+def _evaluate_technique(df: pd.DataFrame, threshold: float, technique: str) -> dict:
     df, excluded = _exclusions(df)
     result: dict = {
         "excluded": excluded,
@@ -174,6 +175,7 @@ def _evaluate_technique(df: pd.DataFrame, threshold: float) -> dict:
             for k, v in df.groupby("source")["sample_group"].nunique().sort_index().items()
         },
         "by_polymer": {k: int(v) for k, v in df["polymer"].value_counts().sort_index().items()},
+        "coverage_window": list(DIAGNOSTIC_WINDOWS[technique]),
         "protocols": {},
     }
     if df.empty:
@@ -258,6 +260,10 @@ def run_baseline(catalog_path: Path, out_dir: Path, threshold: float = 0.7) -> d
     catalog_path, out_dir = Path(catalog_path), Path(out_dir)
     t0 = time.time()
     df = load_catalog(catalog_path)
+    if "diagnostic_coverage" not in df.columns:
+        raise ValueError(
+            "the catalogue has no 'diagnostic_coverage' column (old catalogue): "
+            "rebuild it with `python -m microtrace_core build-catalog`")
     df["sample_group"] = df["sample_group"].fillna(df["spectrum_id"])
     result: dict = {
         "date": date.today().isoformat(),
@@ -268,7 +274,7 @@ def run_baseline(catalog_path: Path, out_dir: Path, threshold: float = 0.7) -> d
     }
     for technique in sorted(set(df["technique"])):
         result["techniques"][technique] = _evaluate_technique(
-            df[df["technique"] == technique].reset_index(drop=True), threshold
+            df[df["technique"] == technique].reset_index(drop=True), threshold, technique
         )
     result["runtime_seconds"] = round(time.time() - t0, 1)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -339,7 +345,7 @@ def _dirty_text(v) -> str:
 
 
 def _excluded_table(by_source: dict, min_cov: float) -> list[str]:
-    lines = [f"| Source | UNKNOWN | OTHER | couverture < {min_cov} | Total |",
+    lines = [f"| Source | UNKNOWN | OTHER | couverture diagnostique < {min_cov} | Total |",
              "|---|---|---|---|---|"]
     for src, c in by_source.items():
         lines.append(f"| {src} | {c['UNKNOWN']} | {c['OTHER']} | {c['low_coverage']} "
@@ -431,7 +437,7 @@ def _render_report(r: dict) -> str:
             f"## Technique : {tech}", "",
             f"Spectres évalués après exclusions : {t['n']}. Exclus avant toute séparation : "
             f"{ex['total']} (polymère UNKNOWN : {ex['UNKNOWN']}, polymère OTHER : {ex['OTHER']}, "
-            f"couverture < {r['min_coverage']} : {ex['low_coverage']}).", "",
+            f"couverture diagnostique < {r['min_coverage']} : {ex['low_coverage']}).", "",
             "### Spectres exclus par source", "",
             *_excluded_table(ex["by_source"], r["min_coverage"]), "",
             "### Effectifs par source", "",
@@ -494,9 +500,11 @@ def _render_report(r: dict) -> str:
         "- Le macro-F1 favorise l'abstention : un NO_MATCH n'est jamais un faux positif "
         "pour aucune classe. Comparer les seuils sur l'accuracy et le taux de réponse, "
         "pas sur le seul macro-F1.",
-        f"- Règle de couverture : un spectre couvrant moins de {r['min_coverage']} de la "
-        "grille est exclu. Les spectres limités surtout à la région d'empreinte digitale "
-        "(p. ex. de nombreux spectres SLoPP, ~100–2000 cm⁻¹) ne sont donc pas évalués.",
+        "- Règle de couverture : un spectre est évalué si sa couverture est ≥ "
+        f"{str(r['min_coverage']).replace('.', ',')} de la fenêtre diagnostique "
+        "(Raman 400–1 800 cm⁻¹, FTIR 600–1 800 cm⁻¹). Les spectres limités à la région "
+        "d'empreinte digitale sont donc désormais évalués ; la région C–H "
+        "(2 800–3 100 cm⁻¹) n'est pas exigée.",
         "",
     ]
     return "\n".join(L)

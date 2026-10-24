@@ -16,7 +16,9 @@ from conftest import (
 
 from microtrace_core import catalog, readers
 from microtrace_core.catalog import build_catalog, grid_matrix, load_catalog
-from microtrace_core.preprocess import GRIDS, PREPROCESS_VERSION
+from microtrace_core.preprocess import (
+    GRIDS, PREPROCESS_VERSION, diagnostic_coverage,
+)
 from microtrace_core.readers.common import sha256_file
 from microtrace_core.spectrum import Spectrum
 
@@ -60,10 +62,15 @@ def test_build_catalog_roundtrip(tmp_path):
     assert {r.spectrum_id: r.y_unit for r in df.itertuples()} == {
         sid: s.y_unit for sid, s in originals.items()}
     assert set(df["y_unit"]) >= {"transmittance_pct", "intensity"}
+    for row in df.itertuples():
+        assert row.diagnostic_coverage == diagnostic_coverage(
+            np.asarray(row.y_grid), row.technique)
+    assert list(df.columns).index("diagnostic_coverage") == (
+        list(df.columns).index("coverage") + 1)
     assert set(df.columns) == {
         "spectrum_id", "source", "technique", "polymer", "polymer_raw", "state",
         "sample_group", "file", "file_sha256", "laser_nm", "x_unit", "y_unit", "label_note",
-        "coverage", "x_raw", "y_raw", "y_grid", "extra"}
+        "coverage", "diagnostic_coverage", "x_raw", "y_raw", "y_grid", "extra"}
 
 
 def test_build_catalog_rejects_duplicate_ids(tmp_path, monkeypatch):
