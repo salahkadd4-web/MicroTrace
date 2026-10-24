@@ -74,7 +74,7 @@ def suggest_mapping(table: RawTable) -> Mapping:
     return Mapping("long", field_columns)
 
 
-_SUFFIX = re.compile(r"^(.+?)([a-z])$")
+_SUFFIX = re.compile(r"^(.*\d)([a-z])$")  # a digit must precede the letter
 
 
 def _error(code: str, message: str, column: str | None = None) -> Issue:
@@ -104,12 +104,12 @@ def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
                 mapping.field_columns[name]))
     if mapping.mode == "wide":
         for name in ("reported_value", "polymer"):
-            if name in mapping.field_columns:
+            if name in mapping.field_columns or name in mapping.constants:
                 issues.append(_error(
                     "E_MAPPING_CONFLICT",
                     f"En format large, « {name} » provient des colonnes de polymères "
-                    "et ne peut pas être associé à une colonne.",
-                    mapping.field_columns[name]))
+                    "et ne peut être ni associé à une colonne ni fixé par une constante.",
+                    mapping.field_columns.get(name)))
         if not mapping.polymer_columns:
             issues.append(_error("E_MAPPING_CONFLICT",
                                  "Le format large exige au moins une colonne de polymère."))

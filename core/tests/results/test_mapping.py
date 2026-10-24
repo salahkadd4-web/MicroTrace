@@ -77,3 +77,19 @@ def test_wide_rejects_value_column():
 
 def test_has_errors():
     assert not has_errors([Issue("W", "warning", "m")])
+
+
+def test_split_requires_digit_before_letter():
+    t = _table(["Donor", "Valeur"], [["Control", "1"], ["blank", "2"], ["3b", "3"], ["a", "4"]])
+    m = Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}, split_aliquot_suffix=True)
+    rows, _ = apply_mapping(t, m)
+    assert [(r.fields["sample_id"], r.fields["aliquot"]) for r in rows] == [
+        ("Control", ""), ("blank", ""), ("3", "b"), ("a", "")]
+
+
+def test_wide_rejects_constant_polymer_or_value():
+    t = _table(["Donor", "PE", "PP"], [["1", "1", "2"]])
+    for name in ("polymer", "reported_value"):
+        m = Mapping("wide", {"sample_id": "Donor"}, {"PE": "PE", "PP": "PP"}, {name: "x"})
+        rows, issues = apply_mapping(t, m)
+        assert rows == [] and [i.code for i in issues] == ["E_MAPPING_CONFLICT"]
