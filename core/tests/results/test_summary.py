@@ -1,6 +1,8 @@
 """Honest aggregation, frequencies and statistics (all data simulated)."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from microtrace_core.results.importer import run_import
@@ -40,6 +42,33 @@ def rec(sample="S1", aliquot="a", status=S.quantified, value=1.0, polymer="PET",
         size_max_um=None, analysis_date="", batch="", lab="", comment="",
         source_row=2, source_column=polymer,
     )
+
+
+def rec_m(method, **kw):
+    return replace(rec(**kw), method=method)
+
+
+def test_describe_never_pools_methods():
+    recs = [rec_m("M1", value=1.0), rec_m("M2", value=3.0)]
+    stats = describe(recs)
+    assert [(s.method, s.n_quantified, s.mean) for s in stats] == [("M1", 1, 1.0), ("M2", 1, 3.0)]
+    assert all(sum(s.counts_by_status.values()) == 1 for s in stats)
+
+
+def test_frequency_partial_fraction():
+    recs = [rec(sample="S1"), rec(sample="S2", status=S.below_lod, value=None),
+            rec(sample="S3", polymer="PE")]
+    f = {x.polymer: x for x in quantification_frequency(recs)}
+    assert (f["PET"].n_quantified, f["PET"].n_samples) == (1, 3)
+    assert f["PET"].fraction == pytest.approx(1 / 3)
+
+
+def test_status_rank_ordering():
+    recs = [rec(aliquot="a", status=S.not_quantified, value=None),
+            rec(aliquot="b", status=S.below_lod, value=None),
+            rec(aliquot="c", status=S.between_lod_loq, value=0.3)]
+    assert aggregate_aliquots(recs)[0].status == S.between_lod_loq
+    assert aggregate_aliquots(recs[:2])[0].status == S.not_quantified
 
 
 def test_rule_text():

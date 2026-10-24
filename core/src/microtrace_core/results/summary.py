@@ -49,6 +49,7 @@ class Frequency:
 @dataclass(frozen=True)
 class PolymerStats:
     polymer: str
+    method: str
     kind: QuantityKind
     basis: Basis
     canonical_unit: Unit
@@ -94,6 +95,12 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
 
 
 def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequency]:
+    """Per-polymer detection frequency across methods and units.
+
+    A sample counts as quantified for a polymer if any aliquot, under any
+    method or unit, is quantified; the denominator is every distinct sample of
+    the import, including samples where that polymer was not measured.
+    """
     rows = _samples(records)
     n = len({r.sample_id for r in rows})
     by_polymer: dict[str, set[str]] = defaultdict(set)
@@ -115,13 +122,13 @@ def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequ
 
 def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
     rows = _samples(records)
-    groups: dict[tuple[str, str, str], list[SampleResult]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str], list[SampleResult]] = defaultdict(list)
     for s in aggregate_aliquots(rows):
-        groups[(s.polymer, s.kind.value, s.basis.value)].append(s)
-    measurements: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+        groups[(s.polymer, s.method, s.kind.value, s.basis.value)].append(s)
+    measurements: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
     for r in rows:
         if _is_quantified(r) and r.canonical_value is not None:
-            measurements[(r.polymer, r.kind.value, r.basis.value)].append(r.canonical_value)
+            measurements[(r.polymer, r.method, r.kind.value, r.basis.value)].append(r.canonical_value)
     out: list[PolymerStats] = []
     for key in sorted(groups):
         items = groups[key]
@@ -131,7 +138,7 @@ def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
         values = [s.value for s in items if s.value is not None]
         meas = measurements.get(key, [])
         out.append(PolymerStats(
-            polymer=key[0], kind=items[0].kind, basis=items[0].basis,
+            polymer=key[0], method=key[1], kind=items[0].kind, basis=items[0].basis,
             canonical_unit=items[0].canonical_unit, counts_by_status=counts,
             n_quantified=len(values),
             min=min(values) if values else None,
