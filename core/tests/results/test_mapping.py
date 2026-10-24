@@ -50,7 +50,8 @@ def test_apply_split_aliquot_suffix():
     m = Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}, split_aliquot_suffix=True)
     rows, _ = apply_mapping(t, m)
     assert [(r.fields["sample_id"], r.fields["aliquot"]) for r in rows] == [("12", "a"), ("7", "")]
-    assert rows[0] == MappedRow(rows[0].fields, 2, "Valeur")
+    assert rows[0] == MappedRow(rows[0].fields, 2, "Valeur",
+                                {"sample_id": "Donor", "aliquot": "Donor", "reported_value": "Valeur"})
 
 
 def test_split_skipped_when_aliquot_mapped():
@@ -93,3 +94,29 @@ def test_wide_rejects_constant_polymer_or_value():
         m = Mapping("wide", {"sample_id": "Donor"}, {"PE": "PE", "PP": "PP"}, {name: "x"})
         rows, issues = apply_mapping(t, m)
         assert rows == [] and [i.code for i in issues] == ["E_MAPPING_CONFLICT"]
+
+
+# ---- final review ----
+
+
+def test_wide_without_polymer_columns_has_its_own_code():
+    t = _table(["Donor", "PE"], [["1", "1"]])
+    _, issues = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"}))
+    assert [(i.code, i.field, i.column) for i in issues] == [
+        ("E_MAPPING_NO_POLYMER_COLUMNS", "polymer", None)]
+
+
+def test_mapping_issue_fields_and_columns():
+    t = _table(["Donor", "Unit"], [["1", "x"]])
+    m = Mapping("long", {"sample_id": "Donor", "unit": "Unit", "polymer": "Absent"},
+                constants={"unit": "ng/mL"})
+    got = {i.code: (i.field, i.column) for i in apply_mapping(t, m)[1]}
+    assert got == {"E_MAPPING_CONFLICT": ("unit", "Unit"),
+                   "E_MAPPING_UNKNOWN_COLUMN": ("polymer", None)}
+
+
+def test_mapped_row_columns_long_and_wide():
+    t = _table(["Donor", "PE", "PP"], [["1", "1", "2"]])
+    rows, _ = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"}, {"PE": "PE", "PP": "PP"},
+                                       {"unit": "µg/mL"}))
+    assert rows[1].columns == {"sample_id": "Donor", "polymer": "PP", "reported_value": "PP"}

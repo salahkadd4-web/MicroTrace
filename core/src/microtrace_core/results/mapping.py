@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
-from microtrace_core.results.issues import Issue
+from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.schema import FIELD_NAMES
 from microtrace_core.results.tables import RawTable
 
@@ -23,9 +23,13 @@ class Mapping:
 
 @dataclass(frozen=True)
 class MappedRow:
+    """One measurement cell with its row fields; ``columns`` maps each standard field read
+    from the file to its file column (fields set by a constant are absent)."""
+
     fields: dict[str, str]
     source_row: int
     source_column: str
+    columns: dict[str, str] = field(default_factory=dict)
 
 
 def _norm(text: str) -> str:
@@ -77,42 +81,48 @@ def suggest_mapping(table: RawTable) -> Mapping:
 _SUFFIX = re.compile(r"^(.*\d)([a-z])$")  # a digit must precede the letter
 
 
-def _error(code: str, message: str, column: str | None = None) -> Issue:
-    return Issue(code, "error", message, column=column)
-
-
 def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
+    """Mapping errors; ``column`` is set only for columns that exist in the file."""
     issues: list[Issue] = []
     known = set(table.columns)
+
+    def present(col: str | None) -> str | None:
+        return col if col in known else None
+
     for name, col in mapping.field_columns.items():
         if name not in FIELD_NAMES:
-            issues.append(_error("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} ».", col))
+            issues.append(issue("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} ».",
+                                column=present(col)))
         if col not in known:
-            issues.append(_error("E_MAPPING_UNKNOWN_COLUMN",
-                                 f"La colonne « {col} » associée à « {name} » est absente du tableau.", col))
+            issues.append(issue(
+                "E_MAPPING_UNKNOWN_COLUMN",
+                f"La colonne « {col} » associée à « {name} » est absente du tableau.",
+                field=name if name in FIELD_NAMES else None))
     for col in mapping.polymer_columns:
         if col not in known:
-            issues.append(_error("E_MAPPING_UNKNOWN_COLUMN",
-                                 f"La colonne de polymère « {col} » est absente du tableau.", col))
+            issues.append(issue("E_MAPPING_UNKNOWN_COLUMN",
+                                f"La colonne de polymère « {col} » est absente du tableau.",
+                                field="reported_value"))
     for name in mapping.constants:
         if name not in FIELD_NAMES:
-            issues.append(_error("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} »."))
+            issues.append(issue("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} »."))
         if name in mapping.field_columns:
-            issues.append(_error(
+            issues.append(issue(
                 "E_MAPPING_CONFLICT",
                 f"Le champ « {name} » est associé à la fois à une colonne et à une constante.",
-                mapping.field_columns[name]))
+                column=present(mapping.field_columns[name]), field=name))
     if mapping.mode == "wide":
         for name in ("reported_value", "polymer"):
             if name in mapping.field_columns or name in mapping.constants:
-                issues.append(_error(
+                issues.append(issue(
                     "E_MAPPING_CONFLICT",
                     f"En format large, « {name} » provient des colonnes de polymères "
                     "et ne peut être ni associé à une colonne ni fixé par une constante.",
-                    mapping.field_columns.get(name)))
+                    column=present(mapping.field_columns.get(name)), field=name))
         if not mapping.polymer_columns:
-            issues.append(_error("E_MAPPING_CONFLICT",
-                                 "Le format large exige au moins une colonne de polymère."))
+            issues.append(issue("E_MAPPING_NO_POLYMER_COLUMNS",
+                                "Le format large exige au moins une colonne de polymère.",
+                                field="polymer"))
     return issues
 
 
@@ -122,6 +132,9 @@ def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], l
         return [], issues
     split = (mapping.split_aliquot_suffix and "sample_id" in mapping.field_columns
              and "aliquot" not in mapping.field_columns and "aliquot" not in mapping.constants)
+    columns = dict(mapping.field_columns)
+    if split:
+        columns["aliquot"] = columns["sample_id"]
     out: list[MappedRow] = []
     for row, number in zip(table.rows, table.row_numbers, strict=True):
         base: dict[str, str] = dict(mapping.constants)
@@ -134,9 +147,11 @@ def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], l
             else:
                 base["aliquot"] = ""
         if mapping.mode == "long":
-            out.append(MappedRow(base, number, mapping.field_columns.get("reported_value", "")))
+            out.append(MappedRow(base, number, mapping.field_columns.get("reported_value", ""),
+                                 columns))
         else:
             for col, label in mapping.polymer_columns.items():
                 out.append(MappedRow({**base, "polymer": label, "reported_value": row.get(col, "")},
-                                     number, col))
+                                     number, col,
+                                     {**columns, "polymer": col, "reported_value": col}))
     return out, issues

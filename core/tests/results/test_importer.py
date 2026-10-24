@@ -66,7 +66,7 @@ def test_traps_each_produce_expected_issue():
     res = run_import(base, bad, ctx)
     assert _err_codes(res) == {"E_UNKNOWN_UNIT"}
     got = _find(res, "E_UNKNOWN_UNIT")[0]
-    assert (got.severity, got.row, got.column) == ("error", 2, "unit")
+    assert (got.severity, got.row, got.field, got.column) == ("error", 2, "unit", None)
 
     # PII column
     t = _wide_with_column("Nom")
@@ -80,7 +80,7 @@ def test_traps_each_produce_expected_issue():
     res = run_import(base, leslie_like_mapping(), replace(ctx, limits=limits))
     assert _err_codes(res) == {"E_LOD_GT_LOQ"}
     got = _find(res, "E_LOD_GT_LOQ")
-    assert {(i.severity, i.column) for i in got} == {("error", "lod")}
+    assert {(i.severity, i.field, i.column) for i in got} == {("error", "lod", None)}
     assert got[0].row == 2
 
     # duplicated 3a row (appended at spreadsheet row 42)
@@ -89,7 +89,8 @@ def test_traps_each_produce_expected_issue():
     res = run_import(dup, leslie_like_mapping(), ctx)
     assert _err_codes(res) == {"E_DUPLICATE_RECORD"}
     got = _find(res, "E_DUPLICATE_RECORD")
-    assert {(i.severity, i.row, i.column) for i in got} == {("error", 42, "sample_id")}
+    assert {(i.severity, i.row, i.field, i.column) for i in got} == {
+        ("error", 42, "sample_id", "Donor")}
     assert len(got) == 5
 
 
@@ -100,7 +101,8 @@ def test_traps_needing_per_cell_columns_use_long_variant():
     r = run_import(t, _long_mapping(detection_status="Status"), ctx)
     assert _err_codes(r) == {"E_STATUS_VALUE_CONFLICT"}
     got = _find(r, "E_STATUS_VALUE_CONFLICT")[0]
-    assert (got.severity, got.row, got.column) == ("error", 2, "Value")
+    assert (got.severity, got.row, got.field, got.column) == (
+        "error", 2, "reported_value", "Value")
     assert r.has_errors and r.records == ()
 
     # a particles/mL row added to a mass table

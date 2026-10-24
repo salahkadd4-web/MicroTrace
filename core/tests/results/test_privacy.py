@@ -274,3 +274,14 @@ def test_scientific_headers_excused(header):
 def test_more_patient_placeholders_are_not_names(cell):
     t = _table(["Patient"], [[cell]])
     assert [i.code for i in detect_pii(t, Mapping("long", {}))] == ["W_POSSIBLE_PII_COLUMN"]
+
+
+# ---- final review ----
+
+
+def test_pii_issue_field_is_the_mapped_standard_field():
+    t = _table(["Code patient", "comment"], [["Jean Dupont", "a@b.fr"]])
+    got = detect_pii(t, Mapping("long", {"sample_id": "Code patient"}))
+    assert {(i.code, i.column, i.field) for i in got} == {
+        ("W_POSSIBLE_PII_COLUMN", "Code patient", "sample_id"),
+        ("E_PII_VALUE", "Code patient", "sample_id"), ("E_PII_VALUE", "comment", None)}

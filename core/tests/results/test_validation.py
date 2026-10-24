@@ -35,9 +35,15 @@ def unchecked_limit(**over):
     return dl
 
 
+def col(name):
+    """File column of a field in ``row()``: the value column, else "[field]"."""
+    return "Valeur" if name == "reported_value" else f"[{name}]"
+
+
 def row(number=2, col="Valeur", **over):
-    fields = {**BASE, **over}
-    return MappedRow({k: v for k, v in fields.items() if v is not None}, number, col)
+    fields = {k: v for k, v in {**BASE, **over}.items() if v is not None}
+    columns = {k: (col if k == "reported_value" else f"[{k}]") for k in fields}
+    return MappedRow(fields, number, col, columns)
 
 
 def run(*rows, context=None):
@@ -50,9 +56,14 @@ def only(issues, code):
     return found[0]
 
 
-def check(issues, code, severity, column, number=2):
+FROM_FIELD = object()
+
+
+def check(issues, code, severity, field, number=2, column=FROM_FIELD):
+    """``column`` defaults to the row's file column for ``field``; None = study context."""
     i = only(issues, code)
-    assert (i.severity, i.row, i.column) == (severity, number, column)
+    expected = col(field) if column is FROM_FIELD else column
+    assert (i.severity, i.row, i.field, i.column) == (severity, number, field, expected)
     assert i.message
     return i
 
@@ -93,7 +104,7 @@ def test_e_unknown_matrix():
 
 def test_e_matrix_detail_missing():
     _, issues = run(row(matrix="autre"))
-    check(issues, "E_MATRIX_DETAIL_MISSING", "error", "matrix_detail")
+    check(issues, "E_MATRIX_DETAIL_MISSING", "error", "matrix_detail", column=None)
 
 
 def test_e_unknown_method():
@@ -109,12 +120,12 @@ def test_e_unknown_unit():
 def test_e_unparsable_value():
     recs, issues = run(row(reported_value="beaucoup"))
     assert recs == []
-    check(issues, "E_UNPARSABLE_VALUE", "error", "Valeur")
+    check(issues, "E_UNPARSABLE_VALUE", "error", "reported_value")
 
 
 def test_e_negative_value():
     _, issues = run(row(reported_value="-1"))
-    check(issues, "E_NEGATIVE_VALUE", "error", "Valeur")
+    check(issues, "E_NEGATIVE_VALUE", "error", "reported_value")
 
 
 def test_e_unknown_record_type():
@@ -153,7 +164,7 @@ def test_e_limit_unit_mismatch():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "particles/mL", "simulated"),))
     recs, issues = run(row(), context=c)
     assert recs == []
-    check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod")
+    check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod", column=None)
 
 
 def test_e_lod_gt_loq():
@@ -169,43 +180,43 @@ def test_w_limit_conflict():
 
 def test_w_no_limits():
     recs, issues = run(row(), context=ctx(limits=()))
-    check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    check(issues, "W_NO_LIMITS", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.quantified
 
 
 def test_w_no_limits_bound_is_not_quantified():
     recs, issues = run(row(reported_value="< 0,5"), context=ctx(limits=()))
-    check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    check(issues, "W_NO_LIMITS", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.not_quantified and recs[0].value is None
 
 
 def test_e_status_value_conflict():
     recs, issues = run(row(detection_status="below_lod"))
     assert recs == []
-    check(issues, "E_STATUS_VALUE_CONFLICT", "error", "Valeur")
+    check(issues, "E_STATUS_VALUE_CONFLICT", "error", "reported_value")
 
 
 def test_w_status_inconsistent():
     recs, issues = run(row(reported_value="0,3", detection_status="quantified"))
-    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.quantified
 
 
 def test_w_status_inconsistent_bound_above_loq():
     recs, issues = run(row(reported_value="<1"))
-    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.not_quantified
 
 
 def test_w_status_inconsistent_star_outside_interval():
     recs, issues = run(row(reported_value="*2"))
-    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.between_lod_loq
 
 
 def test_w_value_below_lod():
     recs, issues = run(row(reported_value="0,05"))
-    check(issues, "W_VALUE_BELOW_LOD", "warning", "Valeur")
+    check(issues, "W_VALUE_BELOW_LOD", "warning", "reported_value")
     r = recs[0]
     assert r.status is DetectionStatus.below_lod and r.value is None
     assert r.reported_value == "0,05" and r.canonical_value is None
@@ -257,14 +268,14 @@ def test_e_status_value_conflict_declared_quantified_without_value(declared, rep
     recs, issues = run(row(reported_value=rep, detection_status=declared),
                        context=ctx(limits=limits))
     assert recs == []
-    check(issues, "E_STATUS_VALUE_CONFLICT", "error", "Valeur")
+    check(issues, "E_STATUS_VALUE_CONFLICT", "error", "reported_value")
 
 
 def test_partial_loq_only_not_quantified():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
     recs, issues = run(row(reported_value="0,2"), context=c)
     assert recs[0].status is DetectionStatus.not_quantified
-    i = check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    i = check(issues, "W_NO_LIMITS", "warning", "reported_value")
     assert "LOD absente" in i.message and "valeur non conservée" in i.message
     assert recs[0].value is None
 
@@ -281,7 +292,7 @@ def test_bad_unit_entry_does_not_block_later_valid_entry():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "particles/mL", "simulated"),
                     DetectionLimit(PYGC, "PET", 0.13, 0.43, "ug/mL", "simulated")))
     recs, issues = run(row(), context=c)
-    check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod")
+    check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod", column=None)
     assert not [i for i in issues if i.code in ("W_LIMIT_CONFLICT", "W_NO_LIMITS")]
 
 
@@ -294,14 +305,14 @@ def test_no_w_no_limits_when_unit_mismatch_raised():
 def test_declared_quantified_below_lone_loq_inconsistent():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", None, 0.43, "ug/mL", "simulated"),))
     recs, issues = run(row(reported_value="0,2", detection_status="quantified"), context=c)
-    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "reported_value")
     assert recs[0].status is DetectionStatus.quantified
 
 
 def test_lod_only_value_above_warns_loq_missing():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.13, None, "ug/mL", "simulated"),))
     recs, issues = run(row(), context=c)
-    i = check(issues, "W_NO_LIMITS", "warning", "Valeur")
+    i = check(issues, "W_NO_LIMITS", "warning", "reported_value")
     assert "LOQ" in i.message and recs[0].status is DetectionStatus.quantified
 
 
@@ -326,26 +337,26 @@ def test_other_polymers_distinct_keys():
 def test_negative_table_limit():
     c = ctx(limits=(unchecked_limit(lod=-0.1, loq=0.4),))
     _, issues = run(row(), context=c)
-    check(issues, "E_NEGATIVE_VALUE", "error", "lod")
+    check(issues, "E_NEGATIVE_VALUE", "error", "lod", column=None)
 
 
 def test_e_lod_gt_loq_from_table_even_if_row_overrides():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.5, 0.2, "ug/mL", "simulated"),))
     _, issues = run(row(lod="0,1", loq="0,4"), context=c)
-    check(issues, "E_LOD_GT_LOQ", "error", "lod")
+    check(issues, "E_LOD_GT_LOQ", "error", "lod", column=None)
 
 
 def test_e_lod_gt_loq_from_table():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.5, 0.2, "ug/mL", "simulated"),))
     _, issues = run(row(), context=c)
-    check(issues, "E_LOD_GT_LOQ", "error", "lod")
+    check(issues, "E_LOD_GT_LOQ", "error", "lod", column=None)
 
 
 def test_w_limit_conflict_between_table_entries():
     c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.13, 0.43, "ug/mL", "simulated"),
                     DetectionLimit(PYGC, "PET", 0.2, 0.43, "ug/mL", "simulated")))
     recs, issues = run(row(), context=c)
-    i = check(issues, "W_LIMIT_CONFLICT", "warning", "lod")
+    i = check(issues, "W_LIMIT_CONFLICT", "warning", "lod", column=None)
     assert recs[0].lod == 0.13 and "première" in i.message
 
 
@@ -361,13 +372,13 @@ def test_negative_row_lod():
 
 def test_negative_bound():
     _, issues = run(row(reported_value="<-1"))
-    check(issues, "E_NEGATIVE_VALUE", "error", "Valeur")
+    check(issues, "E_NEGATIVE_VALUE", "error", "reported_value")
 
 
 def test_unknown_table_unit_message():
     c = ctx(limits=(unchecked_limit(lod=0.1, loq=0.4, unit_code="furlongs"),))
     _, issues = run(row(), context=c)
-    assert "unité inconnue" in check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod").message
+    assert "unité inconnue" in check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod", column=None).message
 
 
 def test_identification_default_and_override():
@@ -383,7 +394,7 @@ def test_identification_default_and_override():
 def test_declared_status_on_bound_path():
     recs, issues = run(row(reported_value="<0,5", detection_status="below_lod"))
     assert recs[0].status is DetectionStatus.below_lod
-    check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+    check(issues, "W_STATUS_INCONSISTENT", "warning", "reported_value")
 
 
 # ---- final review ----
@@ -397,7 +408,8 @@ def test_e_sample_conflict_one_issue_per_sample():
         row(7, sample_id="S3", matrix="sang total"),
         row(8, sample_id="S4"), row(9, sample_id="S4", polymer="PE"))
     got = [i for i in issues if i.code == "E_SAMPLE_CONFLICT"]
-    assert [(i.severity, i.row) for i in got] == [("error", None)] * 3
+    assert [(i.severity, i.row, i.field, i.column) for i in got] == [
+        ("error", None, "sample_id", "[sample_id]")] * 3
     assert "S1" in got[0].message and "2, 3" in got[0].message and "matrice" in got[0].message
     assert "S2" in got[1].message and "4, 5" in got[1].message and "type" in got[1].message
     assert "S3" in got[2].message and "matrice" in got[2].message and "type" in got[2].message

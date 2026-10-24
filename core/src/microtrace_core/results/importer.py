@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from microtrace_core.results.issues import Issue, has_errors
+from microtrace_core.results.issues import Issue, has_errors, issue
 from microtrace_core.results.mapping import Mapping, apply_mapping
 from microtrace_core.results.privacy import detect_pii
 from microtrace_core.results.records import MeasurementRecord, StudyContext
@@ -32,14 +32,14 @@ class ImportResult:
 def _file_rules(records: list[MeasurementRecord], context: StudyContext) -> list[Issue]:
     issues: list[Issue] = []
     if len({(r.kind, r.basis) for r in records}) > 1:
-        issues.append(Issue(
-            "W_MIXED_QUANTITY_KINDS", "warning",
+        issues.append(issue(
+            "W_MIXED_QUANTITY_KINDS",
             "Le fichier mêle plusieurs grandeurs ou bases (masse et nombre, par volume et "
             "par masse) : elles ne seront jamais agrégées ensemble."))
     if context.data_nature is DataNature.published and not (
             (context.reference_doi or "").strip() and (context.reference_license or "").strip()):
-        issues.append(Issue(
-            "E_PUBLISHED_WITHOUT_REFERENCE", "error",
+        issues.append(issue(
+            "E_PUBLISHED_WITHOUT_REFERENCE",
             "Des données publiées exigent un DOI de référence et une licence."))
     return issues
 

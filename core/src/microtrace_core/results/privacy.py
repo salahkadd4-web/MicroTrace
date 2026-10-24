@@ -2,7 +2,8 @@
 
 Issue codes: E_PII_COLUMN (error), E_PII_VALUE (error), W_POSSIBLE_PII_COLUMN
 (warning, a "patient" header: check that it is a pseudonymised code) and
-W_POSSIBLE_BIRTHDATE (warning, one per column).
+W_POSSIBLE_BIRTHDATE (warning, one per column). ``column`` is the file column and
+``field`` the standard field it is mapped to, if any.
 
 Messages never repeat the offending cell value, so that personal data does not
 leak into reports or logs. Header checks are token based and never disabled by a
@@ -15,7 +16,7 @@ import re
 import unicodedata
 from datetime import date
 
-from microtrace_core.results.issues import Issue
+from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.mapping import Mapping
 from microtrace_core.results.tables import RawTable
 from microtrace_core.results.vocab import fold
@@ -199,20 +200,23 @@ def _has_full_date(text: str) -> bool:
 def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
     issues: list[Issue] = []
     patient_cols: set[str] = set()
+    fields: dict[str, str] = {}  # file column -> standard field it is mapped to
+    for name, mapped in mapping.field_columns.items():
+        fields.setdefault(mapped, name)
     for col in table.columns:
         verdict = _header_verdict(col)
         if verdict == "warning":
             patient_cols.add(col)
         if verdict == "error":
-            issues.append(Issue(
-                "E_PII_COLUMN", "error",
+            issues.append(issue(
+                "E_PII_COLUMN",
                 f"La colonne « {col} » semble contenir des données personnelles : "
-                "retirez-la du fichier avant l'import.", column=col))
+                "retirez-la du fichier avant l'import.", column=col, field=fields.get(col)))
         elif verdict == "warning":
-            issues.append(Issue(
-                "W_POSSIBLE_PII_COLUMN", "warning",
+            issues.append(issue(
+                "W_POSSIBLE_PII_COLUMN",
                 f"La colonne « {col} » mentionne un patient : vérifier qu'il s'agit d'un "
-                "code pseudonymisé et non d'une identité.", column=col))
+                "code pseudonymisé et non d'une identité.", column=col, field=fields.get(col)))
     date_col = mapping.field_columns.get("analysis_date")
     birth_counts: dict[str, int] = {}
     for row, number in zip(table.rows, table.row_numbers, strict=True):
@@ -222,20 +226,23 @@ def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
                 continue
             text = text[:MAX_SCAN_CHARS]
             if _has_contact(text):
-                issues.append(Issue(
-                    "E_PII_VALUE", "error",
+                issues.append(issue(
+                    "E_PII_VALUE",
                     "Une cellule contient une adresse e-mail ou un numéro de téléphone : "
-                    "retirez cette donnée personnelle avant l'import.", number, col))
+                    "retirez cette donnée personnelle avant l'import.", number, col,
+                    fields.get(col)))
             if col in patient_cols and _name_like(text.strip()):
-                issues.append(Issue(
-                    "E_PII_VALUE", "error",
+                issues.append(issue(
+                    "E_PII_VALUE",
                     "Une colonne « patient » contient une valeur qui ressemble à un nom de "
-                    "personne : remplacez-la par un code pseudonymisé.", number, col))
+                    "personne : remplacez-la par un code pseudonymisé.", number, col,
+                    fields.get(col)))
             if col != date_col and _has_full_date(text):
                 birth_counts[col] = birth_counts.get(col, 0) + 1
     for col, n in birth_counts.items():
-        issues.append(Issue(
-            "W_POSSIBLE_BIRTHDATE", "warning",
+        issues.append(issue(
+            "W_POSSIBLE_BIRTHDATE",
             f"La colonne « {col} » contient {n} cellule(s) avec une date complète pouvant être "
-            "une date de naissance : vérifiez qu'elle n'identifie pas une personne.", column=col))
+            "une date de naissance : vérifiez qu'elle n'identifie pas une personne.", column=col,
+            field=fields.get(col)))
     return issues

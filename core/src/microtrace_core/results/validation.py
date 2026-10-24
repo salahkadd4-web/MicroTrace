@@ -1,9 +1,10 @@
 """Row validation: mapped rows -> measurement records plus located French issues.
 
 Scientific rules: no silent correction, no imputation. A row with at least one
-error yields no record. Issue ``column`` is the row's ``source_column`` for
-value problems (the polymer column in wide format); for every other field the
-standard field name is used, since the original column name is not known here.
+error yields no record. Issue ``field`` is the standard field concerned and
+``column`` its file column (``MappedRow.columns``; the polymer column in wide
+format); ``column`` is None when the value comes from a constant or from the
+study context (limits table).
 """
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from microtrace_core.results.censoring import (
     parse_declared_status,
     parse_reported_value,
 )
-from microtrace_core.results.issues import Issue
+from microtrace_core.results.issues import ISSUE_CODES, Issue, issue
 from microtrace_core.results.mapping import MappedRow
 from microtrace_core.results.records import MeasurementRecord, StudyContext
 from microtrace_core.results.units import (
@@ -40,6 +41,7 @@ from microtrace_core.results.vocab import (
 )
 
 _REQUIRED = ("sample_id", "matrix", "polymer", "unit", "method")
+_FROM_ROW = object()  # sentinel: the issue's column is the row's file column for its field
 _NO_VALUE = (
     DetectionStatus.below_lod, DetectionStatus.not_quantified, DetectionStatus.not_analysed,
 )
@@ -75,27 +77,31 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
 ) -> MeasurementRecord | None:
     n = row.source_row
     f = {k: (v or "").strip(" \xa0\t\r\n") for k, v in row.fields.items()}
-    vcol = row.source_column or "reported_value"
+    cols = dict(row.columns)
+    if "reported_value" not in cols and row.source_column:
+        cols["reported_value"] = row.source_column
     errors = 0
 
-    def add(code: str, sev: str, msg: str, col: str) -> None:
+    def add(code: str, msg: str, name: str, column: object = _FROM_ROW) -> None:
+        """Record an issue on field ``name``; ``column=None`` for study-context problems."""
         nonlocal errors
-        if sev == "error":
+        if ISSUE_CODES[code] == "error":
             errors += 1
-        issues.append(Issue(code, sev, msg, n, col))  # type: ignore[arg-type]
+        col = cols.get(name) if column is _FROM_ROW else column
+        issues.append(issue(code, msg, n, col, name))  # type: ignore[arg-type]
 
     for name in _REQUIRED:
         if not f.get(name):
-            add("E_REQUIRED_MISSING", "error", f"Champ obligatoire vide : {name}.", name)
+            add("E_REQUIRED_MISSING", f"Champ obligatoire vide : {name}.", name)
 
     # matrix
     matrix = None
     if f.get("matrix"):
         matrix = parse_matrix(f["matrix"])
         if matrix is None:
-            add("E_UNKNOWN_MATRIX", "error", f"Matrice inconnue : « {f['matrix']} ».", "matrix")
+            add("E_UNKNOWN_MATRIX", f"Matrice inconnue : « {f['matrix']} ».", "matrix")
         elif matrix is Matrix.other and not f.get("matrix_detail"):
-            add("E_MATRIX_DETAIL_MISSING", "error",
+            add("E_MATRIX_DETAIL_MISSING",
                 "Matrice « autre » : le détail de la matrice est obligatoire.", "matrix_detail")
 
     # method
@@ -103,7 +109,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("method"):
         spec = next((m for m in ctx.methods if m.name == f["method"]), None)
         if spec is None:
-            add("E_UNKNOWN_METHOD", "error",
+            add("E_UNKNOWN_METHOD",
                 f"Méthode « {f['method']} » absente du contexte de l'étude.", "method")
     technique: Technique | None = spec.technique if spec else None
 
@@ -112,7 +118,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("record_type"):
         rt = _enum_lookup(RecordType, f["record_type"])
         if rt is None:
-            add("E_UNKNOWN_RECORD_TYPE", "error",
+            add("E_UNKNOWN_RECORD_TYPE",
                 f"Type d'enregistrement inconnu : « {f['record_type']} ».", "record_type")
         else:
             record_type = rt
@@ -120,7 +126,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("identification_status"):
         ident = _enum_lookup(IdentificationStatus, f["identification_status"])
         if ident is None:
-            add("E_UNKNOWN_IDENTIFICATION", "error",
+            add("E_UNKNOWN_IDENTIFICATION",
                 f"Statut d'identification inconnu : « {f['identification_status']} ».",
                 "identification_status")
     elif technique is not None:
@@ -129,7 +135,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("detection_status"):
         declared = parse_declared_status(f["detection_status"])
         if declared is None:
-            add("E_UNKNOWN_STATUS", "error",
+            add("E_UNKNOWN_STATUS",
                 f"Statut de détection inconnu : « {f['detection_status']} ».", "detection_status")
 
     # polymer
@@ -138,13 +144,13 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("polymer"):
         polymer = normalize_result_polymer(f["polymer"], tech_for_poly)
         if polymer == UNKNOWN:
-            add("E_POLYMER_MISSING", "error",
+            add("E_POLYMER_MISSING",
                 f"Polymère non renseigné ou illisible : « {f['polymer']} ».", "polymer")
         elif polymer == OTHER:
-            add("W_POLYMER_OTHER", "warning",
+            add("W_POLYMER_OTHER",
                 f"Polymère « {f['polymer']} » non reconnu : conservé comme OTHER.", "polymer")
         elif polymer == PS_SUM and normalize_polymer(f["polymer"]) == "PS":
-            add("I_PS_AS_SUM", "info",
+            add("I_PS_AS_SUM",
                 "PS issu d'une technique thermoanalytique : enregistré comme PS_SUM "
                 "(somme PS, sans distinction de la forme).", "polymer")
 
@@ -153,17 +159,17 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     if f.get("unit"):
         unit = parse_unit(f["unit"])
         if unit is None:
-            add("E_UNKNOWN_UNIT", "error", f"Unité inconnue : « {f['unit']} ».", "unit")
+            add("E_UNKNOWN_UNIT", f"Unité inconnue : « {f['unit']} ».", "unit")
 
     # reported value
     reported_text = f.get("reported_value", "")
     r = parse_reported_value(reported_text)
     value_ok = r.ok
     if not r.ok:
-        add("E_UNPARSABLE_VALUE", "error", f"Valeur illisible : « {reported_text} ».", vcol)
+        add("E_UNPARSABLE_VALUE", f"Valeur illisible : « {reported_text} ».", "reported_value")
     elif (r.value is not None and r.value < 0) or (r.bound is not None and r.bound < 0):
         value_ok = False
-        add("E_NEGATIVE_VALUE", "error", f"Valeur négative : « {reported_text} ».", vcol)
+        add("E_NEGATIVE_VALUE", f"Valeur négative : « {reported_text} ».", "reported_value")
 
     # sizes
     sizes: dict[str, float | None] = {}
@@ -172,9 +178,9 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
         if f.get(name):
             sizes[name] = _plain_number(f[name])
             if sizes[name] is None:
-                add("E_UNPARSABLE_VALUE", "error", f"Taille illisible : « {f[name]} ».", name)
+                add("E_UNPARSABLE_VALUE", f"Taille illisible : « {f[name]} ».", name)
             elif sizes[name] < 0:
-                add("E_NEGATIVE_VALUE", "error", f"Taille négative : « {f[name]} ».", name)
+                add("E_NEGATIVE_VALUE", f"Taille négative : « {f[name]} ».", name)
 
     # limits: row columns first, otherwise the study table (converted to the row unit)
     row_lim: dict[str, float | None] = {"lod": None, "loq": None}
@@ -182,11 +188,9 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
         if f.get(name):
             v = _plain_number(f[name])
             if v is None:
-                add("E_UNPARSABLE_VALUE", "error",
-                    f"{name.upper()} illisible : « {f[name]} ».", name)
+                add("E_UNPARSABLE_VALUE", f"{name.upper()} illisible : « {f[name]} ».", name)
             elif v < 0:
-                add("E_NEGATIVE_VALUE", "error",
-                    f"{name.upper()} négative : « {f[name]} ».", name)
+                add("E_NEGATIVE_VALUE", f"{name.upper()} négative : « {f[name]} ».", name)
             else:
                 row_lim[name] = v
     tab_lim: dict[str, float | None] = {"lod": None, "loq": None}
@@ -201,31 +205,31 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 continue
             dl_unit = parse_unit(dl.unit_code)
             if dl_unit is None:
-                add("E_LIMIT_UNIT_MISMATCH", "error",
+                add("E_LIMIT_UNIT_MISMATCH",
                     f"Limite de l'étude : unité inconnue « {dl.unit_code} » "
-                    f"(méthode {dl.method}, polymère {polymer}).", "lod")
+                    f"(méthode {dl.method}, polymère {polymer}).", "lod", None)
                 unit_err = True
                 continue
             try:
                 conv = {name: (convert(val, dl_unit, unit) if val is not None else None)
                         for name, val in (("lod", dl.lod), ("loq", dl.loq))}
             except UnitMismatchError:
-                add("E_LIMIT_UNIT_MISMATCH", "error",
+                add("E_LIMIT_UNIT_MISMATCH",
                     f"Limite de l'étude en « {dl.unit_code} » incompatible avec l'unité "
                     f"« {unit.code} » de la mesure (méthode {dl.method}, polymère {polymer}).",
-                    "lod")
+                    "lod", None)
                 unit_err = True
                 continue
             for name in ("lod", "loq"):
                 if conv[name] is not None and conv[name] < 0:
-                    add("E_NEGATIVE_VALUE", "error",
-                        f"{name.upper()} de l'étude négative : {conv[name]:g}.", name)
+                    add("E_NEGATIVE_VALUE",
+                        f"{name.upper()} de l'étude négative : {conv[name]:g}.", name, None)
             if (conv["lod"] is not None and conv["loq"] is not None
                     and conv["lod"] > conv["loq"] and not gt_flagged):
                 gt_flagged = True
-                add("E_LOD_GT_LOQ", "error",
+                add("E_LOD_GT_LOQ",
                     f"LOD de l'étude ({conv['lod']:g}) supérieure à la LOQ "
-                    f"({conv['loq']:g}).", "lod")
+                    f"({conv['loq']:g}).", "lod", None)
             if first:
                 tab_lim = conv
                 first = False
@@ -233,21 +237,22 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 for name in ("lod", "loq"):
                     a_, b_ = tab_lim[name], conv[name]
                     if a_ is not None and b_ is not None and not _same(a_, b_):
-                        add("W_LIMIT_CONFLICT", "warning",
+                        add("W_LIMIT_CONFLICT",
                             f"Plusieurs {name.upper()} différentes dans l'étude pour "
                             f"{dl.method}/{polymer} ({a_:g} et {b_:g}) : la première "
-                            "entrée est conservée.", name)
+                            "entrée est conservée.", name, None)
     lim: dict[str, float | None] = {}
     for name in ("lod", "loq"):
         rv, tv = row_lim[name], tab_lim[name]
         if rv is not None and tv is not None and not _same(rv, tv):
-            add("W_LIMIT_CONFLICT", "warning",
+            add("W_LIMIT_CONFLICT",
                 f"{name.upper()} de la ligne ({rv:g}) différente de celle de l'étude "
                 f"({tv:g}) : celle de la ligne est utilisée.", name)
         lim[name] = rv if rv is not None else tv
     lod, loq = lim["lod"], lim["loq"]
     if lod is not None and loq is not None and lod > loq and not gt_flagged:
-        add("E_LOD_GT_LOQ", "error", f"LOD ({lod:g}) supérieure à la LOQ ({loq:g}).", "lod")
+        add("E_LOD_GT_LOQ", f"LOD ({lod:g}) supérieure à la LOQ ({loq:g}).", "lod",
+            cols.get("lod") if row_lim["lod"] is not None else None)
 
     # detection status (never changed by warnings)
     status: DetectionStatus | None = None
@@ -257,60 +262,60 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
         if declared is not None:
             status = declared
             if declared in _NO_VALUE and r.value is not None and r.hint is None:
-                add("E_STATUS_VALUE_CONFLICT", "error",
+                add("E_STATUS_VALUE_CONFLICT",
                     f"Statut déclaré « {declared.value} » incompatible avec la valeur "
-                    f"numérique « {reported_text} ».", vcol)
+                    f"numérique « {reported_text} ».", "reported_value")
             elif (declared in (DetectionStatus.quantified, DetectionStatus.between_lod_loq)
                     and r.value is None):
-                add("E_STATUS_VALUE_CONFLICT", "error",
+                add("E_STATUS_VALUE_CONFLICT",
                     f"Statut déclaré « {declared.value} » sans valeur numérique "
-                    f"(valeur rapportée : « {reported_text} »).", vcol)
+                    f"(valeur rapportée : « {reported_text} »).", "reported_value")
             elif (inferred is not None and inferred != declared
                     and not (lod is None and inferred is DetectionStatus.not_quantified
                              and declared in (DetectionStatus.between_lod_loq,
                                               DetectionStatus.below_lod))):
-                add("W_STATUS_INCONSISTENT", "warning",
+                add("W_STATUS_INCONSISTENT",
                     f"Statut déclaré « {declared.value} » différent du statut déduit "
-                    f"« {inferred.value} » : le statut déclaré est conservé.", vcol)
+                    f"« {inferred.value} » : le statut déclaré est conservé.", "reported_value")
         elif r.hint is DetectionStatus.not_analysed:
             status = r.hint  # empty cell or NA: not an error
         elif r.hint is DetectionStatus.between_lod_loq:
             status = r.hint
             if (lod is not None and r.value < lod) or (loq is not None and r.value >= loq):
-                add("W_STATUS_INCONSISTENT", "warning",
+                add("W_STATUS_INCONSISTENT",
                     f"Valeur « {reported_text} » marquée entre LOD et LOQ mais hors de "
-                    "l'intervalle [LOD, LOQ).", vcol)
+                    "l'intervalle [LOD, LOQ).", "reported_value")
         elif r.hint is not None:
             status = r.hint
         elif r.bound is not None:
             status = inferred or DetectionStatus.not_quantified
             if inferred is None and not unit_err:
-                add("W_NO_LIMITS", "warning",
+                add("W_NO_LIMITS",
                     f"{_missing(lod, loq)} pour « {reported_text} » : "
-                    "statut non quantifié.", vcol)
+                    "statut non quantifié.", "reported_value")
             if loq is not None and r.bound > loq:
-                add("W_STATUS_INCONSISTENT", "warning",
+                add("W_STATUS_INCONSISTENT",
                     f"Borne « {reported_text} » supérieure à la LOQ ({loq:g}) : "
-                    "statut non quantifié conservé.", vcol)
+                    "statut non quantifié conservé.", "reported_value")
         else:  # plain number
             if inferred is DetectionStatus.below_lod:
                 status = inferred
-                add("W_VALUE_BELOW_LOD", "warning",
+                add("W_VALUE_BELOW_LOD",
                     f"Valeur « {reported_text} » inférieure à la LOD ({lod:g}) : "
-                    "statut sous la limite de détection, valeur non conservée.", vcol)
+                    "statut sous la limite de détection, valeur non conservée.", "reported_value")
             elif inferred is not None:
                 status = inferred
                 if inferred is DetectionStatus.not_quantified and lod is None:
-                    add("W_NO_LIMITS", "warning",
+                    add("W_NO_LIMITS",
                         f"LOD absente : « {reported_text} » est sous la LOQ, statut non "
-                        "quantifié, valeur non conservée.", vcol)
+                        "quantifié, valeur non conservée.", "reported_value")
             elif unit_err:
                 status = DetectionStatus.quantified
             else:
                 status = DetectionStatus.quantified
-                add("W_NO_LIMITS", "warning",
+                add("W_NO_LIMITS",
                     f"{_missing(lod, loq)} pour « {reported_text} » : "
-                    "statut quantifié par défaut, sans vérification.", vcol)
+                    "statut quantifié par défaut, sans vérification.", "reported_value")
         if status in _NO_VALUE:
             value = None
 
@@ -319,7 +324,7 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
         poly_key = polymer if polymer != OTHER else "OTHER:" + " ".join(fold(f["polymer"]).split())
         key = (f["sample_id"], f.get("aliquot", ""), record_type, poly_key, f["method"])
         if key in seen:
-            add("E_DUPLICATE_RECORD", "error",
+            add("E_DUPLICATE_RECORD",
                 f"Enregistrement en double (échantillon {f['sample_id']}, aliquote "
                 f"« {f.get('aliquot', '')} », polymère {polymer}, méthode {f['method']}).",
                 "sample_id")
@@ -352,15 +357,17 @@ def validate_rows(
     issues: list[Issue] = []
     records: list[MeasurementRecord] = []
     seen: set[tuple] = set()
+    sample_column: str | None = None
     for row in rows:
         rec = _validate_row(row, context, seen, issues)
         if rec is not None:
             records.append(rec)
-    issues.extend(_sample_conflicts(records))
+            sample_column = sample_column or row.columns.get("sample_id")
+    issues.extend(_sample_conflicts(records, sample_column))
     return records, issues
 
 
-def _sample_conflicts(records: list[MeasurementRecord]) -> list[Issue]:
+def _sample_conflicts(records: list[MeasurementRecord], column: str | None) -> list[Issue]:
     """One error per sample carrying several matrices or record types in one import."""
     by_sample: dict[str, list[MeasurementRecord]] = {}
     for r in records:
@@ -376,9 +383,9 @@ def _sample_conflicts(records: list[MeasurementRecord]) -> list[Issue]:
             parts.append(f"plusieurs types d'enregistrement ({', '.join(types)})")
         if parts:
             lines = ", ".join(str(n) for n in sorted({r.source_row for r in recs}))
-            out.append(Issue(
-                "E_SAMPLE_CONFLICT", "error",
+            out.append(issue(
+                "E_SAMPLE_CONFLICT",
                 f"Échantillon « {sid} » : {' et '.join(parts)} dans un même import "
                 f"(lignes {lines}). Un échantillon a une seule matrice et un seul type.",
-                column="sample_id"))
+                column=column, field="sample_id"))
     return out
