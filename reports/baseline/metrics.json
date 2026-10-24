@@ -1,7 +1,7 @@
 {
   "date": "2026-10-24",
   "catalog": {
-    "git_commit": "f4ccfd11ed4908dd9e65ef924181f8464ef07077",
+    "git_commit": "70b18f76e80b9046fb554fc4946731a29c4b19da",
     "git_dirty": false,
     "data_nature": "reference/environmental polymers — not human biological matrices"
   },
@@ -64,6 +64,10 @@
         "PVC": 18,
         "RUBBER": 15
       },
+      "coverage_window": [
+        600.0,
+        1800.0
+      ],
       "protocols": {
         "loso": {
           "per_source": {
@@ -1624,14 +1628,14 @@
       "excluded": {
         "UNKNOWN": 14,
         "OTHER": 7,
-        "low_coverage": 109,
-        "total": 130,
+        "low_coverage": 0,
+        "total": 21,
         "by_source": {
           "mpx": {
             "UNKNOWN": 0,
             "OTHER": 0,
-            "low_coverage": 2,
-            "total": 2
+            "low_coverage": 0,
+            "total": 0
           },
           "raman_weathered": {
             "UNKNOWN": 8,
@@ -1648,140 +1652,149 @@
           "slopp": {
             "UNKNOWN": 0,
             "OTHER": 0,
-            "low_coverage": 77,
-            "total": 77
+            "low_coverage": 0,
+            "total": 0
           },
           "slopp_e": {
             "UNKNOWN": 0,
             "OTHER": 7,
-            "low_coverage": 30,
-            "total": 37
+            "low_coverage": 0,
+            "total": 7
           }
         }
       },
-      "n": 2683,
+      "n": 2792,
       "by_source": {
-        "mpx": 1975,
+        "mpx": 1977,
         "raman_weathered": 165,
         "raspi": 396,
-        "slopp": 71,
-        "slopp_e": 76
+        "slopp": 148,
+        "slopp_e": 106
       },
       "groups_by_source": {
         "mpx": 19,
         "raman_weathered": 165,
         "raspi": 272,
-        "slopp": 71,
-        "slopp_e": 76
+        "slopp": 148,
+        "slopp_e": 106
       },
       "by_polymer": {
-        "ABS": 17,
-        "ACRYLIC": 1,
-        "CA": 1,
-        "CELLULOSE": 7,
+        "ABS": 25,
+        "ACRYLIC": 13,
+        "CA": 7,
+        "CELLULOSE": 21,
         "EVA": 5,
         "NC": 1,
-        "PA": 37,
-        "PC": 25,
-        "PE": 830,
-        "PET": 594,
+        "PA": 45,
+        "PC": 26,
+        "PE": 837,
+        "PET": 618,
         "PLA": 218,
-        "PMMA": 24,
+        "PMMA": 26,
         "POM": 21,
-        "PP": 529,
-        "PS": 242,
+        "PP": 542,
+        "PS": 246,
         "PTFE": 41,
-        "PU": 29,
-        "PVC": 34,
-        "RUBBER": 2,
+        "PU": 31,
+        "PVC": 40,
+        "RUBBER": 4,
         "SILICONE": 25
       },
+      "coverage_window": [
+        400.0,
+        1800.0
+      ],
       "protocols": {
         "loso": {
           "per_source": {
             "mpx": {
               "correlation@0": {
-                "n": 1975,
-                "accuracy": 0.8662492885600456,
-                "macro_f1": 0.9084128788367762,
+                "n": 1977,
+                "accuracy": 0.8925525866969869,
+                "macro_f1": 0.9292478779313154,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "PE": 0.8808373590982287,
+                  "PE": 0.8860353130016051,
                   "PET": 0.9344569288389513,
-                  "PP": 0.7382716049382716,
-                  "PS": 0.8984771573604061
+                  "PP": 0.8469135802469135,
+                  "PS": 0.8934010152284264
                 },
                 "confusion": {
                   "PE": {
                     "ABS": 1,
-                    "CELLULOSE": 9,
+                    "ACRYLIC": 1,
+                    "CELLULOSE": 8,
                     "EVA": 2,
                     "PA": 8,
-                    "PE": 547,
-                    "PET": 5,
+                    "PE": 552,
+                    "PET": 4,
                     "PP": 11,
-                    "PS": 2,
+                    "PS": 1,
                     "PTFE": 7,
-                    "PU": 7,
-                    "PVC": 16,
-                    "RUBBER": 2,
+                    "PU": 6,
+                    "PVC": 11,
+                    "RUBBER": 7,
                     "SILICONE": 4
                   },
                   "PET": {
-                    "CELLULOSE": 3,
-                    "PE": 9,
+                    "CA": 1,
+                    "CELLULOSE": 4,
+                    "PE": 7,
                     "PET": 499,
+                    "PMMA": 1,
                     "PP": 1,
-                    "PS": 3,
-                    "PTFE": 9,
+                    "PS": 2,
+                    "PTFE": 7,
                     "PU": 3,
-                    "PVC": 3,
-                    "SILICONE": 4
+                    "PVC": 6,
+                    "SILICONE": 3
                   },
                   "PP": {
-                    "CELLULOSE": 2,
+                    "ABS": 1,
+                    "ACRYLIC": 2,
+                    "CELLULOSE": 4,
                     "PA": 4,
                     "PE": 1,
-                    "PET": 6,
-                    "PP": 299,
-                    "PS": 7,
-                    "PTFE": 16,
-                    "PU": 18,
-                    "PVC": 36,
-                    "RUBBER": 2,
-                    "SILICONE": 14
+                    "PET": 2,
+                    "PP": 343,
+                    "PS": 5,
+                    "PTFE": 12,
+                    "PU": 14,
+                    "PVC": 6,
+                    "RUBBER": 4,
+                    "SILICONE": 7
                   },
                   "PS": {
-                    "ABS": 4,
-                    "CELLULOSE": 4,
+                    "ABS": 5,
+                    "CELLULOSE": 3,
                     "PE": 3,
                     "PET": 1,
-                    "PS": 177,
-                    "PVC": 6,
-                    "RUBBER": 2
+                    "PS": 176,
+                    "PVC": 3,
+                    "RUBBER": 6
                   }
                 },
-                "n_evaluated": 1757,
+                "n_evaluated": 1759,
                 "out_of_library": 218
               },
               "correlation@0.7": {
-                "n": 1975,
-                "accuracy": 0.749003984063745,
-                "macro_f1": 0.8419527925464785,
-                "coverage": 0.7791690381331816,
+                "n": 1977,
+                "accuracy": 0.8271745309835133,
+                "macro_f1": 0.9017042358987838,
+                "coverage": 0.8573052870949404,
                 "per_class_recall": {
-                  "PE": 0.8502415458937198,
-                  "PET": 0.7902621722846442,
-                  "PP": 0.48148148148148145,
+                  "PE": 0.8571428571428571,
+                  "PET": 0.8314606741573034,
+                  "PP": 0.7555555555555555,
                   "PS": 0.868020304568528
                 },
                 "confusion": {
                   "PE": {
                     "CELLULOSE": 4,
                     "EVA": 2,
-                    "NO_MATCH": 69,
+                    "NO_MATCH": 65,
                     "PA": 5,
-                    "PE": 528,
+                    "PE": 534,
                     "PET": 1,
                     "PP": 7,
                     "PS": 1,
@@ -1791,8 +1804,8 @@
                   },
                   "PET": {
                     "CELLULOSE": 2,
-                    "NO_MATCH": 103,
-                    "PET": 422,
+                    "NO_MATCH": 81,
+                    "PET": 444,
                     "PS": 1,
                     "PTFE": 1,
                     "PU": 3,
@@ -1801,101 +1814,105 @@
                   },
                   "PP": {
                     "CELLULOSE": 1,
-                    "NO_MATCH": 193,
+                    "NO_MATCH": 83,
                     "PA": 4,
-                    "PP": 195,
-                    "PU": 10,
+                    "PP": 306,
+                    "PU": 9,
                     "PVC": 1,
                     "RUBBER": 1
                   },
                   "PS": {
                     "CELLULOSE": 2,
-                    "NO_MATCH": 23,
+                    "NO_MATCH": 22,
                     "PS": 171,
-                    "RUBBER": 1
+                    "RUBBER": 2
                   }
                 },
-                "n_evaluated": 1757,
+                "n_evaluated": 1759,
                 "out_of_library": 218
               },
               "pca_svm": {
-                "n": 1975,
-                "accuracy": 0.749003984063745,
-                "macro_f1": 0.8047790130494872,
+                "n": 1977,
+                "accuracy": 0.7851051733939739,
+                "macro_f1": 0.8502891420546183,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "PE": 0.8985507246376812,
-                  "PET": 0.7322097378277154,
-                  "PP": 0.4839506172839506,
-                  "PS": 0.868020304568528
+                  "PE": 0.8892455858747994,
+                  "PET": 0.6722846441947565,
+                  "PP": 0.7283950617283951,
+                  "PS": 0.8781725888324873
                 },
                 "confusion": {
                   "PE": {
-                    "CELLULOSE": 5,
-                    "EVA": 19,
-                    "PA": 18,
-                    "PE": 558,
+                    "ABS": 1,
+                    "CELLULOSE": 4,
+                    "EVA": 20,
+                    "PA": 23,
+                    "PE": 554,
                     "PET": 1,
-                    "PP": 1,
+                    "PP": 3,
                     "PS": 4,
-                    "PU": 7,
-                    "PVC": 8
+                    "PU": 4,
+                    "PVC": 8,
+                    "SILICONE": 1
                   },
                   "PET": {
-                    "CELLULOSE": 1,
+                    "CELLULOSE": 2,
                     "PA": 1,
-                    "PE": 71,
-                    "PET": 391,
-                    "PS": 2,
-                    "PU": 63,
-                    "PVC": 4,
+                    "PE": 42,
+                    "PET": 359,
+                    "PS": 3,
+                    "PU": 121,
+                    "PVC": 5,
                     "SILICONE": 1
                   },
                   "PP": {
-                    "CELLULOSE": 5,
-                    "PA": 3,
-                    "PE": 76,
-                    "PP": 196,
-                    "PS": 10,
-                    "PTFE": 3,
-                    "PU": 104,
+                    "ABS": 3,
+                    "CELLULOSE": 1,
+                    "PA": 5,
+                    "PE": 59,
+                    "PMMA": 1,
+                    "PP": 295,
+                    "PS": 7,
+                    "PTFE": 2,
+                    "PU": 23,
                     "PVC": 6,
                     "RUBBER": 1,
-                    "SILICONE": 1
+                    "SILICONE": 2
                   },
                   "PS": {
-                    "ABS": 5,
+                    "ABS": 4,
                     "CELLULOSE": 2,
-                    "PA": 1,
-                    "PE": 14,
-                    "PS": 171,
-                    "PU": 3,
+                    "PE": 12,
+                    "PP": 1,
+                    "PS": 173,
+                    "PU": 4,
                     "RUBBER": 1
                   }
                 },
-                "n_evaluated": 1757,
+                "n_evaluated": 1759,
                 "out_of_library": 218
               }
             },
             "raman_weathered": {
               "correlation@0": {
                 "n": 165,
-                "accuracy": 0.7560975609756098,
-                "macro_f1": 0.5863465238465237,
+                "accuracy": 0.7865853658536586,
+                "macro_f1": 0.7642827602505021,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "ABS": 0.0,
+                  "ABS": 1.0,
                   "PA": 0.16666666666666666,
                   "PC": 1.0,
                   "PE": 1.0,
-                  "PET": 0.6875,
+                  "PET": 0.9375,
                   "PP": 0.5555555555555556,
                   "PS": 0.5,
                   "PVC": 0.5555555555555556
                 },
                 "confusion": {
                   "ABS": {
-                    "PS": 1
+                    "ABS": 1
                   },
                   "PA": {
                     "PA": 1,
@@ -1909,9 +1926,8 @@
                     "PE": 74
                   },
                   "PET": {
-                    "PA": 4,
                     "PE": 1,
-                    "PET": 11
+                    "PET": 15
                   },
                   "PP": {
                     "PE": 24,
@@ -1931,22 +1947,22 @@
               },
               "correlation@0.7": {
                 "n": 165,
-                "accuracy": 0.7560975609756098,
-                "macro_f1": 0.5909034837405623,
-                "coverage": 0.9695121951219512,
+                "accuracy": 0.7865853658536586,
+                "macro_f1": 0.7665669928718134,
+                "coverage": 0.975609756097561,
                 "per_class_recall": {
-                  "ABS": 0.0,
+                  "ABS": 1.0,
                   "PA": 0.16666666666666666,
                   "PC": 1.0,
                   "PE": 1.0,
-                  "PET": 0.6875,
+                  "PET": 0.9375,
                   "PP": 0.5555555555555556,
                   "PS": 0.5,
                   "PVC": 0.5555555555555556
                 },
                 "confusion": {
                   "ABS": {
-                    "PS": 1
+                    "ABS": 1
                   },
                   "PA": {
                     "NO_MATCH": 1,
@@ -1961,9 +1977,8 @@
                     "PE": 74
                   },
                   "PET": {
-                    "NO_MATCH": 2,
-                    "PA": 3,
-                    "PET": 11
+                    "NO_MATCH": 1,
+                    "PET": 15
                   },
                   "PP": {
                     "PE": 24,
@@ -1984,16 +1999,16 @@
               },
               "pca_svm": {
                 "n": 165,
-                "accuracy": 0.774390243902439,
-                "macro_f1": 0.6474111676214849,
+                "accuracy": 0.7804878048780488,
+                "macro_f1": 0.6466900816113119,
                 "coverage": 1.0,
                 "per_class_recall": {
                   "ABS": 0.0,
                   "PA": 0.3333333333333333,
                   "PC": 1.0,
-                  "PE": 0.9459459459459459,
+                  "PE": 0.972972972972973,
                   "PET": 0.9375,
-                  "PP": 0.5925925925925926,
+                  "PP": 0.5740740740740741,
                   "PS": 0.5,
                   "PVC": 0.5555555555555556
                 },
@@ -2011,16 +2026,16 @@
                     "PC": 2
                   },
                   "PE": {
-                    "EVA": 4,
-                    "PE": 70
+                    "EVA": 2,
+                    "PE": 72
                   },
                   "PET": {
                     "PE": 1,
                     "PET": 15
                   },
                   "PP": {
-                    "PE": 22,
-                    "PP": 32
+                    "PE": 23,
+                    "PP": 31
                   },
                   "PS": {
                     "PE": 1,
@@ -2040,24 +2055,23 @@
               "correlation@0": {
                 "n": 396,
                 "accuracy": 0.9449838187702265,
-                "macro_f1": 0.9279482728672495,
+                "macro_f1": 0.9283552732742498,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "ABS": 0.9230769230769231,
+                  "ABS": 1.0,
                   "PA": 0.8,
                   "PC": 1.0,
                   "PE": 1.0,
                   "PET": 1.0,
                   "PMMA": 0.9545454545454546,
                   "PP": 0.9777777777777777,
-                  "PS": 0.9629629629629629,
+                  "PS": 0.9259259259259259,
                   "PU": 0.6842105263157895,
                   "PVC": 0.8823529411764706
                 },
                 "confusion": {
                   "ABS": {
-                    "ABS": 12,
-                    "PS": 1
+                    "ABS": 13
                   },
                   "PA": {
                     "PA": 20,
@@ -2084,8 +2098,8 @@
                     "PP": 44
                   },
                   "PS": {
-                    "ABS": 1,
-                    "PS": 26
+                    "ABS": 2,
+                    "PS": 25
                   },
                   "PU": {
                     "PE": 1,
@@ -2104,24 +2118,23 @@
               "correlation@0.7": {
                 "n": 396,
                 "accuracy": 0.9255663430420712,
-                "macro_f1": 0.929522328871108,
+                "macro_f1": 0.9294184651033787,
                 "coverage": 0.9676375404530745,
                 "per_class_recall": {
-                  "ABS": 0.9230769230769231,
+                  "ABS": 1.0,
                   "PA": 0.8,
                   "PC": 1.0,
                   "PE": 0.9666666666666667,
                   "PET": 1.0,
                   "PMMA": 0.9545454545454546,
                   "PP": 0.9777777777777777,
-                  "PS": 0.8518518518518519,
+                  "PS": 0.8148148148148148,
                   "PU": 0.6842105263157895,
                   "PVC": 0.8823529411764706
                 },
                 "confusion": {
                   "ABS": {
-                    "ABS": 12,
-                    "PS": 1
+                    "ABS": 13
                   },
                   "PA": {
                     "NO_MATCH": 1,
@@ -2149,8 +2162,9 @@
                     "PP": 44
                   },
                   "PS": {
+                    "ABS": 1,
                     "NO_MATCH": 4,
-                    "PS": 23
+                    "PS": 22
                   },
                   "PU": {
                     "NO_MATCH": 2,
@@ -2167,18 +2181,18 @@
               },
               "pca_svm": {
                 "n": 396,
-                "accuracy": 0.9320388349514563,
-                "macro_f1": 0.9218081985134565,
+                "accuracy": 0.919093851132686,
+                "macro_f1": 0.9008593379736883,
                 "coverage": 1.0,
                 "per_class_recall": {
                   "ABS": 1.0,
-                  "PA": 0.88,
+                  "PA": 0.8,
                   "PC": 1.0,
-                  "PE": 0.9333333333333333,
+                  "PE": 0.9444444444444444,
                   "PET": 1.0,
                   "PMMA": 0.9545454545454546,
                   "PP": 0.9777777777777777,
-                  "PS": 0.9259259259259259,
+                  "PS": 0.8148148148148148,
                   "PU": 0.7368421052631579,
                   "PVC": 0.8235294117647058
                 },
@@ -2187,7 +2201,8 @@
                     "ABS": 13
                   },
                   "PA": {
-                    "PA": 22,
+                    "EVA": 2,
+                    "PA": 20,
                     "PET": 1,
                     "PU": 2
                   },
@@ -2195,8 +2210,7 @@
                     "PC": 15
                   },
                   "PE": {
-                    "PA": 1,
-                    "PE": 84,
+                    "PE": 85,
                     "PP": 2,
                     "PVC": 3
                   },
@@ -2212,9 +2226,8 @@
                     "PP": 44
                   },
                   "PS": {
-                    "ABS": 1,
-                    "PP": 1,
-                    "PS": 25
+                    "ABS": 5,
+                    "PS": 22
                   },
                   "PU": {
                     "PP": 4,
@@ -2222,8 +2235,7 @@
                     "PVC": 1
                   },
                   "PVC": {
-                    "PA": 2,
-                    "PP": 1,
+                    "PA": 3,
                     "PVC": 14
                   }
                 },
@@ -2233,48 +2245,66 @@
             },
             "slopp": {
               "correlation@0": {
-                "n": 71,
-                "accuracy": 0.9076923076923077,
-                "macro_f1": 0.8700158321210953,
+                "n": 148,
+                "accuracy": 0.8741258741258742,
+                "macro_f1": 0.8673184306787547,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "ABS": 1.0,
-                  "CELLULOSE": 0.2,
-                  "PA": 1.0,
+                  "ABS": 0.6,
+                  "ACRYLIC": 0.9,
+                  "CA": 0.5,
+                  "CELLULOSE": 0.5625,
+                  "PA": 0.8571428571428571,
                   "PC": 1.0,
                   "PE": 1.0,
                   "PET": 1.0,
+                  "PMMA": 1.0,
                   "PP": 1.0,
                   "PS": 1.0,
                   "PU": 0.8333333333333334,
-                  "PVC": 0.8
+                  "PVC": 0.8181818181818182
                 },
                 "confusion": {
                   "ABS": {
-                    "ABS": 2
+                    "ABS": 6,
+                    "PS": 4
+                  },
+                  "ACRYLIC": {
+                    "ACRYLIC": 9,
+                    "PU": 1
+                  },
+                  "CA": {
+                    "CA": 2,
+                    "PE": 2
                   },
                   "CELLULOSE": {
-                    "CELLULOSE": 1,
-                    "PE": 1,
-                    "PP": 3
+                    "CELLULOSE": 9,
+                    "PE": 3,
+                    "PET": 1,
+                    "PLA": 1,
+                    "PP": 2
                   },
                   "PA": {
-                    "PA": 2
+                    "PA": 6,
+                    "PE": 1
                   },
                   "PC": {
-                    "PC": 6
+                    "PC": 7
                   },
                   "PE": {
-                    "PE": 19
+                    "PE": 24
                   },
                   "PET": {
-                    "PET": 5
+                    "PET": 19
+                  },
+                  "PMMA": {
+                    "PMMA": 1
                   },
                   "PP": {
-                    "PP": 8
+                    "PP": 17
                   },
                   "PS": {
-                    "PS": 7
+                    "PS": 11
                   },
                   "PU": {
                     "PA": 1,
@@ -2282,56 +2312,76 @@
                   },
                   "PVC": {
                     "CELLULOSE": 1,
-                    "PVC": 4
+                    "PP": 1,
+                    "PVC": 9
                   }
                 },
-                "n_evaluated": 65,
-                "out_of_library": 6
+                "n_evaluated": 143,
+                "out_of_library": 5
               },
               "correlation@0.7": {
-                "n": 71,
-                "accuracy": 0.8923076923076924,
-                "macro_f1": 0.8366824987877619,
-                "coverage": 0.9846153846153847,
+                "n": 148,
+                "accuracy": 0.8531468531468531,
+                "macro_f1": 0.8634395889548284,
+                "coverage": 0.951048951048951,
                 "per_class_recall": {
                   "ABS": 0.5,
-                  "CELLULOSE": 0.2,
-                  "PA": 1.0,
+                  "ACRYLIC": 0.8,
+                  "CA": 0.5,
+                  "CELLULOSE": 0.5,
+                  "PA": 0.8571428571428571,
                   "PC": 1.0,
                   "PE": 1.0,
                   "PET": 1.0,
+                  "PMMA": 1.0,
                   "PP": 1.0,
                   "PS": 1.0,
                   "PU": 0.8333333333333334,
-                  "PVC": 0.8
+                  "PVC": 0.8181818181818182
                 },
                 "confusion": {
                   "ABS": {
-                    "ABS": 1,
-                    "NO_MATCH": 1
+                    "ABS": 5,
+                    "NO_MATCH": 1,
+                    "PS": 4
+                  },
+                  "ACRYLIC": {
+                    "ACRYLIC": 8,
+                    "NO_MATCH": 2
+                  },
+                  "CA": {
+                    "CA": 2,
+                    "NO_MATCH": 1,
+                    "PE": 1
                   },
                   "CELLULOSE": {
-                    "CELLULOSE": 1,
-                    "PE": 1,
-                    "PP": 3
+                    "CELLULOSE": 8,
+                    "NO_MATCH": 2,
+                    "PE": 3,
+                    "PLA": 1,
+                    "PP": 2
                   },
                   "PA": {
-                    "PA": 2
+                    "PA": 6,
+                    "PE": 1
                   },
                   "PC": {
-                    "PC": 6
+                    "PC": 7
                   },
                   "PE": {
-                    "PE": 19
+                    "PE": 24
                   },
                   "PET": {
-                    "PET": 5
+                    "PET": 19
+                  },
+                  "PMMA": {
+                    "PMMA": 1
                   },
                   "PP": {
-                    "PP": 8
+                    "PP": 17
                   },
                   "PS": {
-                    "PS": 7
+                    "PS": 11
                   },
                   "PU": {
                     "PA": 1,
@@ -2339,99 +2389,134 @@
                   },
                   "PVC": {
                     "CELLULOSE": 1,
-                    "PVC": 4
+                    "NO_MATCH": 1,
+                    "PVC": 9
                   }
                 },
-                "n_evaluated": 65,
-                "out_of_library": 6
+                "n_evaluated": 143,
+                "out_of_library": 5
               },
               "pca_svm": {
-                "n": 71,
-                "accuracy": 0.8615384615384616,
-                "macro_f1": 0.7926000899685111,
+                "n": 148,
+                "accuracy": 0.7552447552447552,
+                "macro_f1": 0.7078149414687877,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "ABS": 1.0,
-                  "CELLULOSE": 0.0,
-                  "PA": 1.0,
-                  "PC": 1.0,
-                  "PE": 0.9473684210526315,
+                  "ABS": 0.2,
+                  "ACRYLIC": 0.9,
+                  "CA": 0.75,
+                  "CELLULOSE": 0.5,
+                  "PA": 0.8571428571428571,
+                  "PC": 0.8571428571428571,
+                  "PE": 0.7916666666666666,
                   "PET": 1.0,
-                  "PP": 1.0,
-                  "PS": 0.7142857142857143,
+                  "PMMA": 1.0,
+                  "PP": 0.8823529411764706,
+                  "PS": 0.8181818181818182,
                   "PU": 1.0,
-                  "PVC": 0.8
+                  "PVC": 0.45454545454545453
                 },
                 "confusion": {
                   "ABS": {
-                    "ABS": 2
+                    "ABS": 2,
+                    "PS": 7,
+                    "PU": 1
+                  },
+                  "ACRYLIC": {
+                    "ACRYLIC": 9,
+                    "PU": 1
+                  },
+                  "CA": {
+                    "CA": 3,
+                    "CELLULOSE": 1
                   },
                   "CELLULOSE": {
+                    "ACRYLIC": 2,
+                    "CA": 3,
+                    "CELLULOSE": 8,
                     "PA": 2,
-                    "PE": 1,
-                    "PLA": 2
+                    "PE": 1
                   },
                   "PA": {
-                    "PA": 2
+                    "CELLULOSE": 1,
+                    "PA": 6
                   },
                   "PC": {
+                    "CELLULOSE": 1,
                     "PC": 6
                   },
                   "PE": {
-                    "PE": 18,
+                    "PA": 4,
+                    "PE": 19,
                     "PU": 1
                   },
                   "PET": {
-                    "PET": 5
+                    "PET": 19
+                  },
+                  "PMMA": {
+                    "PMMA": 1
                   },
                   "PP": {
-                    "PP": 8
+                    "PMMA": 2,
+                    "PP": 15
                   },
                   "PS": {
                     "ABS": 2,
-                    "PS": 5
+                    "PS": 9
                   },
                   "PU": {
                     "PU": 6
                   },
                   "PVC": {
                     "CELLULOSE": 1,
-                    "PVC": 4
+                    "PA": 2,
+                    "PTFE": 3,
+                    "PVC": 5
                   }
                 },
-                "n_evaluated": 65,
-                "out_of_library": 6
+                "n_evaluated": 143,
+                "out_of_library": 5
               }
             },
             "slopp_e": {
               "correlation@0": {
-                "n": 76,
-                "accuracy": 0.8493150684931506,
-                "macro_f1": 0.7312335340082289,
+                "n": 106,
+                "accuracy": 0.8725490196078431,
+                "macro_f1": 0.840222696077302,
                 "coverage": 1.0,
                 "per_class_recall": {
-                  "ABS": 0.0,
-                  "CELLULOSE": 0.5,
+                  "ABS": 1.0,
+                  "ACRYLIC": 1.0,
+                  "CA": 0.6666666666666666,
+                  "CELLULOSE": 0.6,
                   "PA": 1.0,
                   "PC": 1.0,
                   "PE": 0.9230769230769231,
                   "PET": 1.0,
                   "PMMA": 1.0,
-                  "PP": 0.8823529411764706,
+                  "PP": 0.9047619047619048,
                   "PS": 0.8888888888888888,
-                  "PU": 0.25,
+                  "PU": 0.3333333333333333,
                   "PVC": 0.6666666666666666
                 },
                 "confusion": {
                   "ABS": {
-                    "PS": 1
+                    "ABS": 1
+                  },
+                  "ACRYLIC": {
+                    "ACRYLIC": 3
+                  },
+                  "CA": {
+                    "CA": 2,
+                    "CELLULOSE": 1
                   },
                   "CELLULOSE": {
-                    "CELLULOSE": 1,
+                    "CA": 1,
+                    "CELLULOSE": 3,
                     "PVC": 1
                   },
                   "PA": {
-                    "PA": 4
+                    "PA": 7
                   },
                   "PC": {
                     "PC": 2
@@ -2442,14 +2527,14 @@
                     "PVC": 1
                   },
                   "PET": {
-                    "PET": 3
+                    "PET": 13
                   },
                   "PMMA": {
-                    "PMMA": 2
+                    "PMMA": 3
                   },
                   "PP": {
                     "PE": 1,
-                    "PP": 15,
+                    "PP": 19,
                     "PVC": 1
                   },
                   "PS": {
@@ -2459,45 +2544,56 @@
                   "PU": {
                     "PA": 1,
                     "PE": 1,
+                    "PET": 1,
                     "PP": 1,
-                    "PU": 1
+                    "PU": 2
                   },
                   "PVC": {
                     "PA": 1,
                     "PVC": 2
                   }
                 },
-                "n_evaluated": 73,
-                "out_of_library": 3
+                "n_evaluated": 102,
+                "out_of_library": 4
               },
               "correlation@0.7": {
-                "n": 76,
-                "accuracy": 0.8493150684931506,
-                "macro_f1": 0.7417410871956327,
-                "coverage": 0.958904109589041,
+                "n": 106,
+                "accuracy": 0.8627450980392157,
+                "macro_f1": 0.8351199117256948,
+                "coverage": 0.9509803921568627,
                 "per_class_recall": {
-                  "ABS": 0.0,
-                  "CELLULOSE": 0.5,
+                  "ABS": 1.0,
+                  "ACRYLIC": 1.0,
+                  "CA": 0.6666666666666666,
+                  "CELLULOSE": 0.6,
                   "PA": 1.0,
                   "PC": 1.0,
                   "PE": 0.9230769230769231,
                   "PET": 1.0,
                   "PMMA": 1.0,
-                  "PP": 0.8823529411764706,
+                  "PP": 0.9047619047619048,
                   "PS": 0.8888888888888888,
-                  "PU": 0.25,
+                  "PU": 0.16666666666666666,
                   "PVC": 0.6666666666666666
                 },
                 "confusion": {
                   "ABS": {
-                    "PS": 1
+                    "ABS": 1
+                  },
+                  "ACRYLIC": {
+                    "ACRYLIC": 3
+                  },
+                  "CA": {
+                    "CA": 2,
+                    "CELLULOSE": 1
                   },
                   "CELLULOSE": {
-                    "CELLULOSE": 1,
+                    "CA": 1,
+                    "CELLULOSE": 3,
                     "PVC": 1
                   },
                   "PA": {
-                    "PA": 4
+                    "PA": 7
                   },
                   "PC": {
                     "PC": 2
@@ -2508,14 +2604,14 @@
                     "PP": 1
                   },
                   "PET": {
-                    "PET": 3
+                    "PET": 13
                   },
                   "PMMA": {
-                    "PMMA": 2
+                    "PMMA": 3
                   },
                   "PP": {
                     "PE": 1,
-                    "PP": 15,
+                    "PP": 19,
                     "PVC": 1
                   },
                   "PS": {
@@ -2523,7 +2619,7 @@
                     "PS": 8
                   },
                   "PU": {
-                    "NO_MATCH": 2,
+                    "NO_MATCH": 4,
                     "PA": 1,
                     "PU": 1
                   },
@@ -2532,53 +2628,66 @@
                     "PVC": 2
                   }
                 },
-                "n_evaluated": 73,
-                "out_of_library": 3
+                "n_evaluated": 102,
+                "out_of_library": 4
               },
               "pca_svm": {
-                "n": 76,
-                "accuracy": 0.863013698630137,
-                "macro_f1": 0.7349824778396208,
+                "n": 106,
+                "accuracy": 0.8235294117647058,
+                "macro_f1": 0.7146573699205278,
                 "coverage": 1.0,
                 "per_class_recall": {
                   "ABS": 0.0,
-                  "CELLULOSE": 0.5,
+                  "ACRYLIC": 1.0,
+                  "CA": 0.6666666666666666,
+                  "CELLULOSE": 0.6,
                   "PA": 1.0,
                   "PC": 1.0,
-                  "PE": 0.8846153846153846,
-                  "PET": 1.0,
+                  "PE": 0.8461538461538461,
+                  "PET": 0.8461538461538461,
                   "PMMA": 1.0,
-                  "PP": 1.0,
+                  "PP": 0.9523809523809523,
                   "PS": 0.8888888888888888,
-                  "PU": 0.25,
+                  "PU": 0.16666666666666666,
                   "PVC": 0.6666666666666666
                 },
                 "confusion": {
                   "ABS": {
                     "PS": 1
                   },
+                  "ACRYLIC": {
+                    "ACRYLIC": 3
+                  },
+                  "CA": {
+                    "CA": 2,
+                    "PMMA": 1
+                  },
                   "CELLULOSE": {
-                    "CELLULOSE": 1,
-                    "PA": 1
+                    "CA": 1,
+                    "CELLULOSE": 3,
+                    "PVC": 1
                   },
                   "PA": {
-                    "PA": 4
+                    "PA": 7
                   },
                   "PC": {
                     "PC": 2
                   },
                   "PE": {
+                    "EVA": 1,
                     "PA": 3,
-                    "PE": 23
+                    "PE": 22
                   },
                   "PET": {
-                    "PET": 3
+                    "CELLULOSE": 2,
+                    "PET": 11
                   },
                   "PMMA": {
-                    "PMMA": 2
+                    "PMMA": 3
                   },
                   "PP": {
-                    "PP": 17
+                    "PP": 20,
+                    "PVC": 1
                   },
                   "PS": {
                     "PA": 1,
@@ -2586,8 +2695,8 @@
                   },
                   "PU": {
                     "EVA": 1,
-                    "PA": 1,
-                    "PET": 1,
+                    "PET": 3,
+                    "PP": 1,
                     "PU": 1
                   },
                   "PVC": {
@@ -2595,111 +2704,130 @@
                     "PVC": 2
                   }
                 },
-                "n_evaluated": 73,
-                "out_of_library": 3
+                "n_evaluated": 102,
+                "out_of_library": 4
               }
             }
           },
           "pooled": {
             "correlation@0": {
-              "n": 2683,
-              "accuracy": 0.8695101351351351,
-              "macro_f1": 0.7310310629919893,
+              "n": 2792,
+              "accuracy": 0.8901897456600727,
+              "macro_f1": 0.7824050628617477,
               "coverage": 1.0,
               "per_class_recall": {
-                "ABS": 0.8235294117647058,
-                "CELLULOSE": 0.2857142857142857,
-                "PA": 0.7297297297297297,
+                "ABS": 0.84,
+                "ACRYLIC": 0.9230769230769231,
+                "CA": 0.5714285714285714,
+                "CELLULOSE": 0.5714285714285714,
+                "PA": 0.7555555555555555,
                 "PC": 1.0,
-                "PE": 0.908433734939759,
-                "PET": 0.9326599326599326,
-                "PMMA": 0.9583333333333334,
-                "PP": 0.7485822306238186,
-                "PS": 0.9049586776859504,
-                "PU": 0.6551724137931034,
-                "PVC": 0.7647058823529411
+                "PE": 0.9127837514934289,
+                "PET": 0.941747572815534,
+                "PMMA": 0.9615384615384616,
+                "PP": 0.8357933579335793,
+                "PS": 0.8983739837398373,
+                "PU": 0.6451612903225806,
+                "PVC": 0.775
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 14,
-                  "PS": 3
+                  "ABS": 21,
+                  "PS": 4
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 12,
+                  "PU": 1
+                },
+                "CA": {
+                  "CA": 4,
+                  "CELLULOSE": 1,
+                  "PE": 2
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 2,
-                  "PE": 1,
-                  "PP": 3,
+                  "CA": 1,
+                  "CELLULOSE": 12,
+                  "PE": 3,
+                  "PET": 1,
+                  "PLA": 1,
+                  "PP": 2,
                   "PVC": 1
                 },
                 "PA": {
-                  "PA": 27,
-                  "PE": 6,
+                  "PA": 34,
+                  "PE": 7,
                   "PET": 1,
                   "PP": 1,
                   "PU": 1,
                   "PVC": 1
                 },
                 "PC": {
-                  "PC": 25
+                  "PC": 26
                 },
                 "PE": {
                   "ABS": 1,
-                  "CELLULOSE": 9,
+                  "ACRYLIC": 1,
+                  "CELLULOSE": 8,
                   "EVA": 2,
                   "PA": 8,
-                  "PE": 754,
-                  "PET": 5,
+                  "PE": 764,
+                  "PET": 4,
                   "PP": 12,
-                  "PS": 2,
+                  "PS": 1,
                   "PTFE": 7,
-                  "PU": 7,
-                  "PVC": 17,
-                  "RUBBER": 2,
+                  "PU": 6,
+                  "PVC": 12,
+                  "RUBBER": 7,
                   "SILICONE": 4
                 },
                 "PET": {
-                  "CELLULOSE": 3,
-                  "PA": 4,
-                  "PE": 10,
-                  "PET": 554,
+                  "CA": 1,
+                  "CELLULOSE": 4,
+                  "PE": 8,
+                  "PET": 582,
+                  "PMMA": 1,
                   "PP": 1,
-                  "PS": 3,
-                  "PTFE": 9,
+                  "PS": 2,
+                  "PTFE": 7,
                   "PU": 3,
-                  "PVC": 3,
-                  "SILICONE": 4
+                  "PVC": 6,
+                  "SILICONE": 3
                 },
                 "PMMA": {
-                  "PMMA": 23,
+                  "PMMA": 25,
                   "PVC": 1
                 },
                 "PP": {
-                  "CELLULOSE": 2,
+                  "ABS": 1,
+                  "ACRYLIC": 2,
+                  "CELLULOSE": 4,
                   "PA": 4,
                   "PE": 26,
-                  "PET": 6,
+                  "PET": 2,
                   "PMMA": 1,
-                  "PP": 396,
-                  "PS": 7,
-                  "PTFE": 16,
-                  "PU": 18,
-                  "PVC": 37,
-                  "RUBBER": 2,
-                  "SILICONE": 14
+                  "PP": 453,
+                  "PS": 5,
+                  "PTFE": 12,
+                  "PU": 14,
+                  "PVC": 7,
+                  "RUBBER": 4,
+                  "SILICONE": 7
                 },
                 "PS": {
-                  "ABS": 5,
-                  "CELLULOSE": 4,
+                  "ABS": 7,
+                  "CELLULOSE": 3,
                   "PE": 5,
                   "PET": 1,
-                  "PS": 219,
-                  "PVC": 6,
-                  "RUBBER": 2
+                  "PS": 221,
+                  "PVC": 3,
+                  "RUBBER": 6
                 },
                 "PU": {
                   "PA": 2,
                   "PE": 2,
+                  "PET": 1,
                   "PP": 5,
-                  "PU": 19,
+                  "PU": 20,
                   "PVC": 1
                 },
                 "PVC": {
@@ -2707,59 +2835,75 @@
                   "PA": 1,
                   "PE": 4,
                   "PET": 2,
-                  "PVC": 26
+                  "PP": 1,
+                  "PVC": 31
                 }
               },
-              "n_evaluated": 2368,
+              "n_evaluated": 2477,
               "out_of_library": 315
             },
             "correlation@0.7": {
-              "n": 2683,
-              "accuracy": 0.7795608108108109,
-              "macro_f1": 0.7752413833721932,
-              "coverage": 0.828125,
+              "n": 2792,
+              "accuracy": 0.8397254743641501,
+              "macro_f1": 0.8213397956169489,
+              "coverage": 0.8881711748082358,
               "per_class_recall": {
-                "ABS": 0.7647058823529411,
-                "CELLULOSE": 0.2857142857142857,
-                "PA": 0.7297297297297297,
+                "ABS": 0.8,
+                "ACRYLIC": 0.8461538461538461,
+                "CA": 0.5714285714285714,
+                "CELLULOSE": 0.5238095238095238,
+                "PA": 0.7555555555555555,
                 "PC": 1.0,
-                "PE": 0.8819277108433735,
-                "PET": 0.803030303030303,
-                "PMMA": 0.9583333333333334,
-                "PP": 0.5519848771266541,
-                "PS": 0.8677685950413223,
-                "PU": 0.6551724137931034,
-                "PVC": 0.7647058823529411
+                "PE": 0.8876941457586619,
+                "PET": 0.8527508090614887,
+                "PMMA": 0.9615384615384616,
+                "PP": 0.7675276752767528,
+                "PS": 0.8658536585365854,
+                "PU": 0.6129032258064516,
+                "PVC": 0.775
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 13,
+                  "ABS": 20,
                   "NO_MATCH": 1,
-                  "PS": 3
+                  "PS": 4
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 11,
+                  "NO_MATCH": 2
+                },
+                "CA": {
+                  "CA": 4,
+                  "CELLULOSE": 1,
+                  "NO_MATCH": 1,
+                  "PE": 1
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 2,
-                  "PE": 1,
-                  "PP": 3,
+                  "CA": 1,
+                  "CELLULOSE": 11,
+                  "NO_MATCH": 2,
+                  "PE": 3,
+                  "PLA": 1,
+                  "PP": 2,
                   "PVC": 1
                 },
                 "PA": {
                   "NO_MATCH": 2,
-                  "PA": 27,
-                  "PE": 5,
+                  "PA": 34,
+                  "PE": 6,
                   "PET": 1,
                   "PP": 1,
                   "PVC": 1
                 },
                 "PC": {
-                  "PC": 25
+                  "PC": 26
                 },
                 "PE": {
                   "CELLULOSE": 4,
                   "EVA": 2,
-                  "NO_MATCH": 73,
+                  "NO_MATCH": 69,
                   "PA": 5,
-                  "PE": 732,
+                  "PE": 743,
                   "PET": 1,
                   "PP": 8,
                   "PS": 1,
@@ -2769,9 +2913,8 @@
                 },
                 "PET": {
                   "CELLULOSE": 2,
-                  "NO_MATCH": 105,
-                  "PA": 3,
-                  "PET": 477,
+                  "NO_MATCH": 82,
+                  "PET": 527,
                   "PS": 1,
                   "PTFE": 1,
                   "PU": 3,
@@ -2779,205 +2922,235 @@
                   "SILICONE": 1
                 },
                 "PMMA": {
-                  "PMMA": 23,
+                  "PMMA": 25,
                   "PVC": 1
                 },
                 "PP": {
                   "CELLULOSE": 1,
-                  "NO_MATCH": 193,
+                  "NO_MATCH": 83,
                   "PA": 4,
                   "PE": 25,
                   "PMMA": 1,
-                  "PP": 292,
-                  "PU": 10,
+                  "PP": 416,
+                  "PU": 9,
                   "PVC": 2,
                   "RUBBER": 1
                 },
                 "PS": {
+                  "ABS": 1,
                   "CELLULOSE": 2,
-                  "NO_MATCH": 27,
+                  "NO_MATCH": 26,
                   "PE": 2,
-                  "PS": 210,
-                  "RUBBER": 1
+                  "PS": 213,
+                  "RUBBER": 2
                 },
                 "PU": {
-                  "NO_MATCH": 4,
+                  "NO_MATCH": 6,
                   "PA": 2,
                   "PP": 4,
                   "PU": 19
                 },
                 "PVC": {
                   "CELLULOSE": 1,
-                  "NO_MATCH": 2,
+                  "NO_MATCH": 3,
                   "PA": 1,
                   "PE": 2,
                   "PET": 2,
-                  "PVC": 26
+                  "PVC": 31
                 }
               },
-              "n_evaluated": 2368,
+              "n_evaluated": 2477,
               "out_of_library": 315
             },
             "pca_svm": {
-              "n": 2683,
-              "accuracy": 0.78125,
-              "macro_f1": 0.6811376069615803,
+              "n": 2792,
+              "accuracy": 0.8013726281792491,
+              "macro_f1": 0.7039234110016885,
               "coverage": 1.0,
               "per_class_recall": {
-                "ABS": 0.8823529411764706,
-                "CELLULOSE": 0.14285714285714285,
-                "PA": 0.8108108108108109,
-                "PC": 1.0,
-                "PE": 0.9072289156626506,
-                "PET": 0.7575757575757576,
-                "PMMA": 0.9583333333333334,
-                "PP": 0.5614366729678639,
-                "PS": 0.8677685950413223,
-                "PU": 0.7241379310344828,
-                "PVC": 0.7352941176470589
+                "ABS": 0.6,
+                "ACRYLIC": 0.9230769230769231,
+                "CA": 0.7142857142857143,
+                "CELLULOSE": 0.5238095238095238,
+                "PA": 0.7777777777777778,
+                "PC": 0.9615384615384616,
+                "PE": 0.8984468339307049,
+                "PET": 0.7119741100323624,
+                "PMMA": 0.9615384615384616,
+                "PP": 0.7472324723247232,
+                "PS": 0.8658536585365854,
+                "PU": 0.6774193548387096,
+                "PVC": 0.65
               },
               "confusion": {
                 "ABS": {
                   "ABS": 15,
-                  "PS": 2
+                  "PS": 9,
+                  "PU": 1
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 12,
+                  "PU": 1
+                },
+                "CA": {
+                  "CA": 5,
+                  "CELLULOSE": 1,
+                  "PMMA": 1
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 1,
-                  "PA": 3,
+                  "ACRYLIC": 2,
+                  "CA": 4,
+                  "CELLULOSE": 11,
+                  "PA": 2,
                   "PE": 1,
-                  "PLA": 2
+                  "PVC": 1
                 },
                 "PA": {
-                  "EVA": 1,
-                  "PA": 30,
+                  "CELLULOSE": 1,
+                  "EVA": 3,
+                  "PA": 35,
                   "PE": 2,
                   "PET": 1,
                   "PU": 2,
                   "PVC": 1
                 },
                 "PC": {
+                  "CELLULOSE": 1,
                   "PC": 25
                 },
                 "PE": {
-                  "CELLULOSE": 5,
+                  "ABS": 1,
+                  "CELLULOSE": 4,
                   "EVA": 23,
-                  "PA": 22,
-                  "PE": 753,
+                  "PA": 30,
+                  "PE": 752,
                   "PET": 1,
-                  "PP": 3,
+                  "PP": 5,
                   "PS": 4,
-                  "PU": 8,
-                  "PVC": 11
+                  "PU": 5,
+                  "PVC": 11,
+                  "SILICONE": 1
                 },
                 "PET": {
-                  "CELLULOSE": 1,
+                  "CELLULOSE": 4,
                   "PA": 1,
-                  "PE": 72,
-                  "PET": 450,
-                  "PS": 2,
-                  "PU": 63,
-                  "PVC": 4,
+                  "PE": 43,
+                  "PET": 440,
+                  "PS": 3,
+                  "PU": 121,
+                  "PVC": 5,
                   "SILICONE": 1
                 },
                 "PMMA": {
-                  "PMMA": 23,
+                  "PMMA": 25,
                   "RUBBER": 1
                 },
                 "PP": {
-                  "CELLULOSE": 5,
-                  "PA": 3,
-                  "PE": 98,
-                  "PMMA": 1,
-                  "PP": 297,
-                  "PS": 10,
-                  "PTFE": 3,
-                  "PU": 104,
-                  "PVC": 6,
+                  "ABS": 3,
+                  "CELLULOSE": 1,
+                  "PA": 5,
+                  "PE": 82,
+                  "PMMA": 4,
+                  "PP": 405,
+                  "PS": 7,
+                  "PTFE": 2,
+                  "PU": 23,
+                  "PVC": 7,
                   "RUBBER": 1,
-                  "SILICONE": 1
+                  "SILICONE": 2
                 },
                 "PS": {
-                  "ABS": 8,
+                  "ABS": 11,
                   "CELLULOSE": 2,
-                  "PA": 2,
-                  "PE": 15,
+                  "PA": 1,
+                  "PE": 13,
                   "PP": 1,
-                  "PS": 210,
-                  "PU": 3,
+                  "PS": 213,
+                  "PU": 4,
                   "RUBBER": 1
                 },
                 "PU": {
                   "EVA": 1,
-                  "PA": 1,
-                  "PET": 1,
-                  "PP": 4,
+                  "PET": 3,
+                  "PP": 5,
                   "PU": 21,
                   "PVC": 1
                 },
                 "PVC": {
                   "CELLULOSE": 1,
-                  "PA": 3,
+                  "PA": 6,
                   "PE": 3,
-                  "PP": 2,
-                  "PVC": 25
+                  "PP": 1,
+                  "PTFE": 3,
+                  "PVC": 26
                 }
               },
-              "n_evaluated": 2368,
+              "n_evaluated": 2477,
               "out_of_library": 315
             }
           },
           "pooled_share_by_source": {
-            "mpx": 0.7419763513513513,
-            "raman_weathered": 0.06925675675675676,
-            "raspi": 0.13048986486486486,
-            "slopp": 0.027449324324324325,
-            "slopp_e": 0.030827702702702704
+            "mpx": 0.7101332256762213,
+            "raman_weathered": 0.0662091239402503,
+            "raspi": 0.12474767864352039,
+            "slopp": 0.05773112636253532,
+            "slopp_e": 0.041178845377472746
           }
         },
         "group_kfold": {
           "excluded": {
             "total": 223,
             "polymers_with_fewer_groups_than_splits": {
-              "ACRYLIC": 1,
-              "CA": 1,
               "NC": 1,
               "PLA": 218,
-              "RUBBER": 2
+              "RUBBER": 4
             }
           },
           "n_splits": 5,
           "seed": 0,
           "methods": {
             "correlation@0": {
-              "n": 2460,
-              "accuracy": 0.9024390243902439,
-              "macro_f1": 0.8749452658620139,
+              "n": 2569,
+              "accuracy": 0.9034643830284157,
+              "macro_f1": 0.8555705830196497,
               "coverage": 1.0,
               "per_class_recall": {
-                "ABS": 0.8823529411764706,
-                "CELLULOSE": 0.7142857142857143,
+                "ABS": 0.92,
+                "ACRYLIC": 0.9230769230769231,
+                "CA": 0.5714285714285714,
+                "CELLULOSE": 0.6190476190476191,
                 "EVA": 0.6,
-                "PA": 0.7837837837837838,
+                "PA": 0.8,
                 "PC": 1.0,
-                "PE": 0.9421686746987952,
-                "PET": 0.8956228956228957,
-                "PMMA": 0.9166666666666666,
+                "PE": 0.945041816009558,
+                "PET": 0.8996763754045307,
+                "PMMA": 0.9230769230769231,
                 "POM": 1.0,
-                "PP": 0.8601134215500945,
-                "PS": 0.8884297520661157,
+                "PP": 0.8763837638376384,
+                "PS": 0.8943089430894309,
                 "PTFE": 0.9024390243902439,
-                "PU": 0.8275862068965517,
-                "PVC": 0.8823529411764706,
+                "PU": 0.6774193548387096,
+                "PVC": 0.85,
                 "SILICONE": 1.0
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 15,
+                  "ABS": 23,
                   "PS": 2
                 },
+                "ACRYLIC": {
+                  "ACRYLIC": 12,
+                  "PU": 1
+                },
+                "CA": {
+                  "CA": 4,
+                  "CELLULOSE": 2,
+                  "PE": 1
+                },
                 "CELLULOSE": {
-                  "CELLULOSE": 5,
-                  "PE": 1,
+                  "CA": 5,
+                  "CELLULOSE": 13,
+                  "PE": 2,
                   "PP": 1
                 },
                 "EVA": {
@@ -2985,34 +3158,38 @@
                   "PE": 2
                 },
                 "PA": {
-                  "PA": 29,
+                  "PA": 36,
                   "PE": 4,
                   "PET": 1,
                   "PP": 2,
+                  "PU": 1,
                   "PVC": 1
                 },
                 "PC": {
-                  "PC": 25
+                  "PC": 26
                 },
                 "PE": {
-                  "CELLULOSE": 1,
-                  "EVA": 2,
-                  "PE": 782,
-                  "PET": 10,
+                  "CA": 1,
+                  "CELLULOSE": 3,
+                  "PE": 791,
+                  "PET": 7,
                   "PP": 28,
-                  "PS": 6,
+                  "PS": 4,
+                  "PU": 2,
                   "PVC": 1
                 },
                 "PET": {
-                  "PA": 2,
-                  "PE": 35,
-                  "PET": 532,
-                  "PP": 23,
+                  "CELLULOSE": 1,
+                  "PE": 45,
+                  "PET": 556,
+                  "PP": 12,
+                  "PS": 1,
                   "PTFE": 1,
-                  "PU": 1
+                  "PU": 1,
+                  "PVC": 1
                 },
                 "PMMA": {
-                  "PMMA": 22,
+                  "PMMA": 24,
                   "PP": 1,
                   "PU": 1
                 },
@@ -3020,23 +3197,24 @@
                   "POM": 21
                 },
                 "PP": {
-                  "CELLULOSE": 1,
-                  "PA": 3,
-                  "PE": 42,
-                  "PET": 21,
+                  "CELLULOSE": 3,
+                  "PA": 2,
+                  "PE": 38,
+                  "PET": 18,
                   "PMMA": 1,
-                  "PP": 455,
+                  "PP": 475,
                   "PS": 2,
                   "PU": 1,
-                  "PVC": 2,
+                  "PVC": 1,
                   "SILICONE": 1
                 },
                 "PS": {
-                  "ABS": 2,
-                  "PE": 14,
-                  "PET": 5,
-                  "PP": 6,
-                  "PS": 215
+                  "ABS": 1,
+                  "CELLULOSE": 2,
+                  "PE": 16,
+                  "PET": 2,
+                  "PP": 5,
+                  "PS": 220
                 },
                 "PTFE": {
                   "PET": 2,
@@ -3045,53 +3223,69 @@
                 },
                 "PU": {
                   "PA": 2,
-                  "PE": 2,
+                  "PE": 3,
+                  "PET": 1,
                   "PMMA": 1,
-                  "PU": 24
+                  "PP": 3,
+                  "PU": 21
                 },
                 "PVC": {
+                  "CELLULOSE": 1,
                   "PA": 1,
+                  "PE": 1,
                   "PP": 3,
-                  "PVC": 30
+                  "PVC": 34
                 },
                 "SILICONE": {
                   "SILICONE": 25
                 }
               },
-              "n_evaluated": 2460,
+              "n_evaluated": 2569,
               "out_of_library": 0
             },
             "correlation@0.7": {
-              "n": 2460,
-              "accuracy": 0.874390243902439,
-              "macro_f1": 0.8751123568582646,
-              "coverage": 0.9508130081300813,
+              "n": 2569,
+              "accuracy": 0.8824445309458934,
+              "macro_f1": 0.8556633984098002,
+              "coverage": 0.9591280653950953,
               "per_class_recall": {
-                "ABS": 0.8235294117647058,
-                "CELLULOSE": 0.7142857142857143,
+                "ABS": 0.88,
+                "ACRYLIC": 0.8461538461538461,
+                "CA": 0.5714285714285714,
+                "CELLULOSE": 0.6190476190476191,
                 "EVA": 0.6,
-                "PA": 0.7837837837837838,
+                "PA": 0.8,
                 "PC": 1.0,
-                "PE": 0.9313253012048193,
-                "PET": 0.8232323232323232,
-                "PMMA": 0.9166666666666666,
+                "PE": 0.9354838709677419,
+                "PET": 0.8592233009708737,
+                "PMMA": 0.9230769230769231,
                 "POM": 1.0,
-                "PP": 0.8355387523629489,
-                "PS": 0.8801652892561983,
+                "PP": 0.8523985239852399,
+                "PS": 0.8821138211382114,
                 "PTFE": 0.9024390243902439,
-                "PU": 0.7931034482758621,
-                "PVC": 0.8823529411764706,
+                "PU": 0.5806451612903226,
+                "PVC": 0.85,
                 "SILICONE": 1.0
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 14,
-                  "NO_MATCH": 1,
-                  "PS": 2
+                  "ABS": 22,
+                  "NO_MATCH": 2,
+                  "PS": 1
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 11,
+                  "NO_MATCH": 2
+                },
+                "CA": {
+                  "CA": 4,
+                  "CELLULOSE": 2,
+                  "NO_MATCH": 1
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 5,
-                  "PE": 1,
+                  "CA": 5,
+                  "CELLULOSE": 13,
+                  "PE": 2,
                   "PP": 1
                 },
                 "EVA": {
@@ -3100,35 +3294,37 @@
                 },
                 "PA": {
                   "NO_MATCH": 1,
-                  "PA": 29,
+                  "PA": 36,
                   "PE": 4,
                   "PET": 1,
-                  "PP": 1,
+                  "PP": 2,
                   "PVC": 1
                 },
                 "PC": {
-                  "PC": 25
+                  "PC": 26
                 },
                 "PE": {
+                  "CA": 1,
                   "CELLULOSE": 1,
-                  "EVA": 2,
                   "NO_MATCH": 16,
-                  "PE": 773,
-                  "PET": 7,
-                  "PP": 26,
-                  "PS": 5
+                  "PE": 783,
+                  "PET": 6,
+                  "PP": 25,
+                  "PS": 3,
+                  "PU": 2
                 },
                 "PET": {
-                  "NO_MATCH": 59,
-                  "PA": 2,
-                  "PE": 27,
-                  "PET": 489,
-                  "PP": 15,
+                  "CELLULOSE": 1,
+                  "NO_MATCH": 39,
+                  "PE": 35,
+                  "PET": 531,
+                  "PP": 9,
+                  "PS": 1,
                   "PTFE": 1,
                   "PU": 1
                 },
                 "PMMA": {
-                  "PMMA": 22,
+                  "PMMA": 24,
                   "PP": 1,
                   "PU": 1
                 },
@@ -3137,22 +3333,23 @@
                 },
                 "PP": {
                   "CELLULOSE": 1,
-                  "NO_MATCH": 30,
-                  "PA": 3,
-                  "PE": 33,
+                  "NO_MATCH": 27,
+                  "PA": 2,
+                  "PE": 31,
                   "PET": 15,
                   "PMMA": 1,
-                  "PP": 442,
+                  "PP": 462,
                   "PS": 1,
                   "PU": 1,
-                  "PVC": 2
+                  "PVC": 1
                 },
                 "PS": {
+                  "CELLULOSE": 1,
                   "NO_MATCH": 10,
-                  "PE": 12,
-                  "PET": 3,
+                  "PE": 13,
+                  "PET": 1,
                   "PP": 4,
-                  "PS": 213
+                  "PS": 217
                 },
                 "PTFE": {
                   "NO_MATCH": 1,
@@ -3161,57 +3358,73 @@
                   "PTFE": 37
                 },
                 "PU": {
-                  "NO_MATCH": 2,
+                  "NO_MATCH": 4,
                   "PA": 2,
-                  "PE": 1,
+                  "PE": 2,
+                  "PET": 1,
                   "PMMA": 1,
-                  "PU": 23
+                  "PP": 3,
+                  "PU": 18
                 },
                 "PVC": {
-                  "NO_MATCH": 1,
+                  "CELLULOSE": 1,
+                  "NO_MATCH": 2,
                   "PA": 1,
-                  "PP": 2,
-                  "PVC": 30
+                  "PE": 1,
+                  "PP": 1,
+                  "PVC": 34
                 },
                 "SILICONE": {
                   "SILICONE": 25
                 }
               },
-              "n_evaluated": 2460,
+              "n_evaluated": 2569,
               "out_of_library": 0
             },
             "pca_svm": {
-              "n": 2460,
-              "accuracy": 0.858130081300813,
-              "macro_f1": 0.7971164887680966,
+              "n": 2569,
+              "accuracy": 0.838458544180615,
+              "macro_f1": 0.7815056695148,
               "coverage": 1.0,
               "per_class_recall": {
-                "ABS": 0.8235294117647058,
-                "CELLULOSE": 0.7142857142857143,
+                "ABS": 0.92,
+                "ACRYLIC": 0.8461538461538461,
+                "CA": 0.7142857142857143,
+                "CELLULOSE": 0.8095238095238095,
                 "EVA": 0.8,
-                "PA": 0.8108108108108109,
-                "PC": 1.0,
-                "PE": 0.9180722891566265,
-                "PET": 0.8282828282828283,
-                "PMMA": 0.9583333333333334,
+                "PA": 0.8444444444444444,
+                "PC": 0.9615384615384616,
+                "PE": 0.9223416965352449,
+                "PET": 0.7411003236245954,
+                "PMMA": 0.9615384615384616,
                 "POM": 0.9523809523809523,
-                "PP": 0.7693761814744802,
-                "PS": 0.8636363636363636,
+                "PP": 0.7859778597785978,
+                "PS": 0.8495934959349594,
                 "PTFE": 0.9512195121951219,
-                "PU": 0.9310344827586207,
-                "PVC": 0.8529411764705882,
+                "PU": 0.7741935483870968,
+                "PVC": 0.825,
                 "SILICONE": 1.0
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 14,
-                  "PP": 1,
+                  "ABS": 23,
                   "PS": 2
                 },
+                "ACRYLIC": {
+                  "ACRYLIC": 11,
+                  "CELLULOSE": 1,
+                  "PU": 1
+                },
+                "CA": {
+                  "CA": 5,
+                  "CELLULOSE": 1,
+                  "PMMA": 1
+                },
                 "CELLULOSE": {
-                  "CELLULOSE": 5,
-                  "PA": 1,
-                  "PE": 1
+                  "CA": 2,
+                  "CELLULOSE": 17,
+                  "PE": 1,
+                  "PVC": 1
                 },
                 "EVA": {
                   "EVA": 4,
@@ -3219,65 +3432,67 @@
                 },
                 "PA": {
                   "EVA": 1,
-                  "PA": 30,
-                  "PE": 2,
+                  "PA": 38,
+                  "PE": 1,
                   "PET": 1,
+                  "PP": 1,
                   "PU": 2,
                   "PVC": 1
                 },
                 "PC": {
+                  "CELLULOSE": 1,
                   "PC": 25
                 },
                 "PE": {
                   "CELLULOSE": 4,
                   "EVA": 13,
-                  "PA": 4,
-                  "PE": 762,
-                  "PET": 13,
-                  "PP": 18,
-                  "PS": 10,
-                  "PU": 3,
-                  "PVC": 3
+                  "PA": 8,
+                  "PE": 772,
+                  "PET": 8,
+                  "PP": 14,
+                  "PS": 7,
+                  "PU": 4,
+                  "PVC": 7
                 },
                 "PET": {
-                  "CELLULOSE": 1,
-                  "PE": 25,
-                  "PET": 492,
-                  "PP": 64,
+                  "CELLULOSE": 3,
+                  "PA": 1,
+                  "PE": 23,
+                  "PET": 458,
+                  "PP": 54,
                   "PS": 7,
-                  "PU": 3,
-                  "PVC": 1,
-                  "SILICONE": 1
+                  "PU": 72
                 },
                 "PMMA": {
-                  "PMMA": 23,
+                  "PMMA": 25,
                   "PVC": 1
                 },
                 "POM": {
                   "POM": 20,
-                  "PP": 1
+                  "PTFE": 1
                 },
                 "PP": {
+                  "ABS": 1,
                   "CELLULOSE": 6,
                   "PA": 5,
-                  "PE": 58,
-                  "PET": 28,
-                  "PMMA": 1,
-                  "PP": 407,
-                  "PS": 10,
+                  "PE": 47,
+                  "PET": 32,
+                  "PMMA": 2,
+                  "PP": 426,
+                  "PS": 9,
                   "PTFE": 1,
                   "PU": 10,
                   "PVC": 3
                 },
                 "PS": {
-                  "ABS": 9,
+                  "ABS": 13,
                   "CELLULOSE": 2,
-                  "PA": 2,
-                  "PE": 7,
+                  "PA": 1,
+                  "PE": 12,
                   "PET": 2,
-                  "PP": 10,
+                  "PP": 5,
                   "PS": 209,
-                  "PU": 1
+                  "PU": 2
                 },
                 "PTFE": {
                   "POM": 2,
@@ -3286,18 +3501,23 @@
                 "PU": {
                   "EVA": 1,
                   "PA": 1,
-                  "PU": 27
+                  "PP": 4,
+                  "PU": 24,
+                  "PVC": 1
                 },
                 "PVC": {
+                  "CA": 1,
+                  "CELLULOSE": 1,
                   "PA": 2,
-                  "PE": 3,
-                  "PVC": 29
+                  "PE": 2,
+                  "PTFE": 1,
+                  "PVC": 33
                 },
                 "SILICONE": {
                   "SILICONE": 25
                 }
               },
-              "n_evaluated": 2460,
+              "n_evaluated": 2569,
               "out_of_library": 0
             }
           }
@@ -3305,133 +3525,156 @@
         "pristine_to_aged": {
           "methods": {
             "correlation@0": {
-              "n": 2198,
-              "accuracy": 0.8356095093576126,
-              "macro_f1": 0.5528718585687057,
+              "n": 2230,
+              "accuracy": 0.8839641434262948,
+              "macro_f1": 0.6031000563527926,
               "coverage": 1.0,
               "per_class_recall": {
-                "ABS": 0.5,
-                "CELLULOSE": 0.5,
-                "PA": 0.625,
+                "ABS": 1.0,
+                "ACRYLIC": 1.0,
+                "CA": 0.6666666666666666,
+                "CELLULOSE": 0.6,
+                "PA": 0.7272727272727273,
                 "PC": 1.0,
-                "PE": 0.8970792767732962,
-                "PET": 0.9414990859232175,
+                "PE": 0.9029126213592233,
+                "PET": 0.940754039497307,
                 "PMMA": 1.0,
-                "PP": 0.6109936575052854,
-                "PS": 0.893719806763285,
-                "PU": 0.25,
+                "PP": 0.8071278825995807,
+                "PS": 0.8888888888888888,
+                "PU": 0.3333333333333333,
                 "PVC": 0.5
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 1,
-                  "PS": 1
+                  "ABS": 2
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 3
+                },
+                "CA": {
+                  "CA": 2,
+                  "CELLULOSE": 1
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 1,
+                  "CA": 1,
+                  "CELLULOSE": 3,
                   "PVC": 1
                 },
                 "PA": {
-                  "PA": 5,
+                  "PA": 8,
                   "PE": 3
                 },
                 "PC": {
                   "PC": 3
                 },
                 "PE": {
-                  "CELLULOSE": 12,
+                  "ABS": 1,
+                  "ACRYLIC": 1,
+                  "CELLULOSE": 10,
                   "EVA": 2,
-                  "PA": 13,
-                  "PE": 645,
-                  "PET": 8,
+                  "PA": 16,
+                  "PE": 651,
+                  "PET": 7,
                   "PP": 1,
-                  "PS": 1,
                   "PTFE": 7,
                   "PU": 8,
-                  "PVC": 18,
+                  "PVC": 13,
                   "SILICONE": 4
                 },
                 "PET": {
-                  "CELLULOSE": 3,
-                  "PE": 7,
-                  "PET": 515,
+                  "CA": 2,
+                  "CELLULOSE": 4,
+                  "PE": 6,
+                  "PET": 524,
                   "PMMA": 1,
-                  "PS": 2,
-                  "PTFE": 9,
+                  "PS": 1,
+                  "PTFE": 7,
                   "PU": 3,
-                  "PVC": 3,
-                  "SILICONE": 4
+                  "PVC": 6,
+                  "SILICONE": 3
                 },
                 "PMMA": {
-                  "PMMA": 2
+                  "PMMA": 3
                 },
                 "PP": {
-                  "ABS": 1,
-                  "CELLULOSE": 2,
-                  "EVA": 2,
+                  "ABS": 2,
+                  "ACRYLIC": 2,
+                  "CELLULOSE": 4,
+                  "EVA": 1,
                   "PA": 7,
                   "PE": 23,
-                  "PET": 6,
-                  "PP": 289,
-                  "PS": 4,
-                  "PTFE": 16,
-                  "PU": 28,
-                  "PVC": 78,
-                  "SILICONE": 17
+                  "PET": 3,
+                  "PP": 385,
+                  "PS": 3,
+                  "PTFE": 12,
+                  "PU": 17,
+                  "PVC": 11,
+                  "SILICONE": 7
                 },
                 "PS": {
-                  "ABS": 5,
-                  "CELLULOSE": 4,
-                  "PE": 4,
+                  "ABS": 6,
+                  "CA": 1,
+                  "CELLULOSE": 3,
+                  "PA": 1,
+                  "PE": 3,
                   "PET": 1,
-                  "PS": 185,
+                  "PS": 184,
                   "PU": 1,
                   "PVC": 7
                 },
                 "PU": {
                   "EVA": 1,
                   "PA": 1,
-                  "PET": 1,
-                  "PU": 1
+                  "PET": 2,
+                  "PU": 2
                 },
                 "PVC": {
                   "PE": 5,
                   "PVC": 5
                 }
               },
-              "n_evaluated": 1977,
-              "out_of_library": 221
+              "n_evaluated": 2008,
+              "out_of_library": 222
             },
             "correlation@0.7": {
-              "n": 2198,
-              "accuracy": 0.7450682852807283,
-              "macro_f1": 0.6358912806645213,
-              "coverage": 0.7830045523520486,
+              "n": 2230,
+              "accuracy": 0.8147410358565738,
+              "macro_f1": 0.7268639781221411,
+              "coverage": 0.852589641434263,
               "per_class_recall": {
-                "ABS": 0.5,
-                "CELLULOSE": 0.5,
-                "PA": 0.625,
+                "ABS": 1.0,
+                "ACRYLIC": 1.0,
+                "CA": 0.6666666666666666,
+                "CELLULOSE": 0.6,
+                "PA": 0.7272727272727273,
                 "PC": 1.0,
-                "PE": 0.847009735744089,
-                "PET": 0.7897623400365631,
+                "PE": 0.8529819694868238,
+                "PET": 0.8312387791741472,
                 "PMMA": 1.0,
-                "PP": 0.49682875264270615,
+                "PP": 0.7316561844863732,
                 "PS": 0.8647342995169082,
-                "PU": 0.25,
+                "PU": 0.16666666666666666,
                 "PVC": 0.5
               },
               "confusion": {
                 "ABS": {
-                  "ABS": 1,
-                  "PS": 1
+                  "ABS": 2
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 3
+                },
+                "CA": {
+                  "CA": 2,
+                  "CELLULOSE": 1
                 },
                 "CELLULOSE": {
-                  "CELLULOSE": 1,
+                  "CA": 1,
+                  "CELLULOSE": 3,
                   "PVC": 1
                 },
                 "PA": {
                   "NO_MATCH": 1,
-                  "PA": 5,
+                  "PA": 8,
                   "PE": 2
                 },
                 "PC": {
@@ -3440,9 +3683,9 @@
                 "PE": {
                   "CELLULOSE": 4,
                   "EVA": 2,
-                  "NO_MATCH": 92,
+                  "NO_MATCH": 88,
                   "PA": 7,
-                  "PE": 609,
+                  "PE": 615,
                   "PET": 1,
                   "PU": 1,
                   "PVC": 2,
@@ -3450,23 +3693,24 @@
                 },
                 "PET": {
                   "CELLULOSE": 2,
-                  "NO_MATCH": 107,
-                  "PET": 432,
+                  "NO_MATCH": 85,
+                  "PET": 463,
+                  "PS": 1,
                   "PTFE": 1,
                   "PU": 3,
                   "PVC": 1,
                   "SILICONE": 1
                 },
                 "PMMA": {
-                  "PMMA": 2
+                  "PMMA": 3
                 },
                 "PP": {
                   "CELLULOSE": 1,
-                  "NO_MATCH": 199,
+                  "NO_MATCH": 90,
                   "PA": 5,
                   "PE": 19,
-                  "PP": 235,
-                  "PU": 12,
+                  "PP": 349,
+                  "PU": 11,
                   "PVC": 2
                 },
                 "PS": {
@@ -3477,7 +3721,7 @@
                   "PS": 179
                 },
                 "PU": {
-                  "NO_MATCH": 2,
+                  "NO_MATCH": 4,
                   "PA": 1,
                   "PU": 1
                 },
@@ -3487,106 +3731,119 @@
                   "PVC": 5
                 }
               },
-              "n_evaluated": 1977,
-              "out_of_library": 221
+              "n_evaluated": 2008,
+              "out_of_library": 222
             },
             "pca_svm": {
-              "n": 2198,
-              "accuracy": 0.637329286798179,
-              "macro_f1": 0.5196932059156757,
+              "n": 2230,
+              "accuracy": 0.6757968127490039,
+              "macro_f1": 0.5493538722349004,
               "coverage": 1.0,
               "per_class_recall": {
                 "ABS": 0.0,
-                "CELLULOSE": 0.0,
-                "PA": 0.625,
+                "ACRYLIC": 0.6666666666666666,
+                "CA": 0.6666666666666666,
+                "CELLULOSE": 0.6,
+                "PA": 0.8181818181818182,
                 "PC": 1.0,
-                "PE": 0.6467315716272601,
-                "PET": 0.6819012797074955,
+                "PE": 0.5922330097087378,
+                "PET": 0.7576301615798923,
                 "PMMA": 1.0,
-                "PP": 0.47780126849894294,
-                "PS": 0.8647342995169082,
-                "PU": 0.5,
-                "PVC": 0.5
+                "PP": 0.6268343815513627,
+                "PS": 0.8695652173913043,
+                "PU": 0.16666666666666666,
+                "PVC": 0.6
               },
               "confusion": {
                 "ABS": {
-                  "PS": 1,
-                  "PU": 1
+                  "PA": 1,
+                  "PS": 1
+                },
+                "ACRYLIC": {
+                  "ACRYLIC": 2,
+                  "CELLULOSE": 1
+                },
+                "CA": {
+                  "CA": 2,
+                  "PMMA": 1
                 },
                 "CELLULOSE": {
-                  "PU": 1,
+                  "CA": 1,
+                  "CELLULOSE": 3,
                   "PVC": 1
                 },
                 "PA": {
                   "EVA": 1,
-                  "PA": 5,
-                  "PU": 1,
+                  "PA": 9,
                   "PVC": 1
                 },
                 "PC": {
                   "PC": 3
                 },
                 "PE": {
-                  "ABS": 1,
-                  "CELLULOSE": 4,
-                  "EVA": 67,
-                  "PA": 33,
-                  "PE": 465,
+                  "ABS": 2,
+                  "CELLULOSE": 24,
+                  "EVA": 107,
+                  "PA": 148,
+                  "PE": 427,
                   "PET": 2,
-                  "PS": 3,
-                  "PU": 143,
-                  "SILICONE": 1
+                  "PS": 2,
+                  "PU": 3,
+                  "PVC": 6
                 },
                 "PET": {
-                  "CELLULOSE": 2,
-                  "PA": 68,
-                  "PET": 373,
-                  "PS": 2,
-                  "PU": 101,
+                  "ABS": 1,
+                  "CELLULOSE": 8,
+                  "PA": 118,
+                  "PET": 422,
+                  "PS": 1,
+                  "PU": 5,
+                  "PVC": 1,
                   "SILICONE": 1
                 },
                 "PMMA": {
-                  "PMMA": 2
+                  "PMMA": 3
                 },
                 "PP": {
-                  "ABS": 1,
-                  "CELLULOSE": 1,
+                  "ABS": 4,
+                  "CELLULOSE": 47,
                   "EVA": 2,
-                  "PA": 16,
-                  "PE": 3,
-                  "PP": 226,
-                  "PS": 8,
-                  "PTFE": 3,
-                  "PU": 208,
-                  "PVC": 3,
+                  "PA": 94,
+                  "PE": 1,
+                  "PP": 299,
+                  "PS": 6,
+                  "PTFE": 2,
+                  "PU": 13,
+                  "PVC": 7,
                   "SILICONE": 2
                 },
                 "PS": {
                   "ABS": 4,
-                  "CELLULOSE": 2,
+                  "CELLULOSE": 9,
+                  "PA": 12,
                   "PE": 1,
-                  "PS": 179,
-                  "PU": 21
+                  "PS": 180,
+                  "PU": 1
                 },
                 "PU": {
+                  "CELLULOSE": 1,
                   "EVA": 1,
-                  "PET": 1,
-                  "PU": 2
+                  "PET": 2,
+                  "PU": 1,
+                  "PVC": 1
                 },
                 "PVC": {
-                  "PA": 1,
-                  "PE": 1,
-                  "PU": 3,
-                  "PVC": 5
+                  "PA": 4,
+                  "PVC": 6
                 }
               },
-              "n_evaluated": 1977,
-              "out_of_library": 221
+              "n_evaluated": 2008,
+              "out_of_library": 222
             }
           }
         }
       }
     }
   },
-  "runtime_seconds": 22.9
+  "runtime_seconds": 46.5
 }
