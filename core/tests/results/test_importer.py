@@ -195,7 +195,7 @@ def test_pii_errors_stop_before_validation_and_never_echo_values():
     assert any(i.code == "E_PII_VALUE" for i in r.issues)
     for i in r.issues:
         assert not any(s in i.message for s in secrets), i
-        assert i.code in _PII_CODES or i.code.startswith("E_MAPPING") or i.code == "I_UNMAPPED_COLUMN"
+        assert i.code in _PII_CODES or i.code.startswith("E_MAPPING")
 
 
 
@@ -251,3 +251,35 @@ def test_mixed_header_units_suggest_no_constant():
     assert m.mode == "wide" and "unit" not in m.constants and "unit" not in m.field_columns
     r = run_import(t, m, _ctx())
     assert {i.code for i in r.issues if i.severity == "error"} == {"E_REQUIRED_MISSING"}
+
+
+_CONTACT_HEADERS = ("jean.dupont@chu.fr", "06 12 34 56 78")
+
+
+@pytest.mark.parametrize("split", [False, True])
+def test_contact_headers_flagged_by_position_and_never_echoed(split):
+    t = _csv_table([f"Sample ID;Matrix;Method;Unit;PET;PE;{_CONTACT_HEADERS[0]};"
+                    f"{_CONTACT_HEADERS[1]};Notes",
+                    f"S1;plasma;{PYGC};µg/mL;0,5;0,4;x;y;z"])
+    m = replace(suggest_mapping(t), split_aliquot_suffix=split)
+    r = run_import(t, m, _ctx())
+    assert r.has_errors and r.records == () and r.qc_records == ()
+    pii = [i for i in r.issues if i.code == "E_PII_COLUMN"]
+    assert [(i.severity, i.row, i.column) for i in pii] == [("error", None, None)] * 2
+    assert "colonne n° 7" in pii[0].message and "colonne n° 8" in pii[1].message
+    for i in r.issues:
+        assert not any(s in i.message or s in (i.column or "") for s in _CONTACT_HEADERS), i
+        assert i.code != "I_UNMAPPED_COLUMN"
+
+
+def test_contact_header_mapped_to_a_field_never_echoed():
+    t = _csv_table([f"{_CONTACT_HEADERS[0]};Polymer;Value;{_CONTACT_HEADERS[1]}",
+                    "S1;PET;0,5;x"])
+    m = Mapping("long", {"sample_id": _CONTACT_HEADERS[0], "polymer": "Polymer",
+                         "reported_value": "Value", "zorg": _CONTACT_HEADERS[1]},
+                constants={"matrix": "plasma", "unit": UG_ML, "method": PYGC})
+    r = run_import(t, m, _ctx())
+    assert r.has_errors and r.records == ()
+    assert {i.code for i in r.issues} >= {"E_PII_COLUMN"}
+    for i in r.issues:
+        assert not any(s in i.message or s in (i.column or "") for s in _CONTACT_HEADERS), i

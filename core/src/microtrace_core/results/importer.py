@@ -5,15 +5,20 @@ from dataclasses import dataclass
 
 from microtrace_core.results.issues import Issue, has_errors, issue
 from microtrace_core.results.mapping import Mapping, apply_mapping
-from microtrace_core.results.privacy import detect_pii
+from microtrace_core.results.privacy import detect_pii, header_has_contact
 from microtrace_core.results.records import MeasurementRecord, StudyContext
 from microtrace_core.results.tables import RawTable
 from microtrace_core.results.validation import validate_rows
 from microtrace_core.results.vocab import DataNature, RecordType
 
 RULES_VERSION = "1"
-# mapping issues quoting cell values: dropped when personal data was found
-_ECHOES_CELLS = frozenset({"W_ALIQUOT_SPLIT_FAILED"})
+# mapping issues dropped when personal data was found: quoting cell values, or listing
+# every header (a header may itself be personal data)
+_ECHOES_CELLS = frozenset({"W_ALIQUOT_SPLIT_FAILED", "I_UNMAPPED_COLUMN"})
+
+
+def _names_hidden_header(i: Issue, hidden: set[str]) -> bool:
+    return i.column in hidden or any(h in i.message for h in hidden)
 
 
 @dataclass(frozen=True)
@@ -48,8 +53,11 @@ def run_import(table: RawTable, mapping: Mapping, context: StudyContext) -> Impo
     issues: list[Issue] = list(detect_pii(table, mapping))
     rows, map_issues = apply_mapping(table, mapping)
     if has_errors(issues):
-        # personal data: never validate, so that no message can echo a cell value
-        issues.extend(i for i in map_issues if i.code not in _ECHOES_CELLS)
+        # personal data: never validate, so that no message can echo a cell value, and drop
+        # mapping issues naming a header that holds contact data
+        hidden = {c for c in table.columns if header_has_contact(c)}
+        issues.extend(i for i in map_issues
+                      if i.code not in _ECHOES_CELLS and not _names_hidden_header(i, hidden))
         return ImportResult((), (), tuple(issues), len(table.rows), RULES_VERSION)
     issues.extend(map_issues)
     records: list[MeasurementRecord] = []

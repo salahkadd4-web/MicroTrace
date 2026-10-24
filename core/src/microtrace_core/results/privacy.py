@@ -7,7 +7,9 @@ W_POSSIBLE_BIRTHDATE (warning, one per column). ``column`` is the file column an
 
 Messages never repeat the offending cell value, so that personal data does not
 leak into reports or logs. Header checks are token based and never disabled by a
-column mapping. Every value pattern uses bounded quantifiers and only the first
+column mapping. A header that itself holds an e-mail address or a phone number is
+an E_PII_COLUMN named by its position only ("colonne n° 3", ``column`` None); its
+cells are not scanned, so that no issue repeats that header. Every value pattern uses bounded quantifiers and only the first
 MAX_SCAN_CHARS characters of a cell are scanned (no catastrophic backtracking).
 """
 from __future__ import annotations
@@ -21,7 +23,7 @@ from microtrace_core.results.mapping import Mapping
 from microtrace_core.results.tables import MAX_SCAN_CHARS, RawTable
 from microtrace_core.results.vocab import fold
 
-__all__ = ["MAX_SCAN_CHARS", "detect_pii"]
+__all__ = ["MAX_SCAN_CHARS", "detect_pii", "header_has_contact"]
 
 _PII_TOKENS = frozenset({
     "nom", "name", "fullname", "prenom", "firstname", "lastname", "surname", "naissance",
@@ -203,13 +205,27 @@ def _has_full_date(text: str) -> bool:
     return False
 
 
+def header_has_contact(header: str) -> bool:
+    """True if the header itself holds an e-mail address or a phone number."""
+    return _has_contact(header[:MAX_SCAN_CHARS])
+
+
 def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
     issues: list[Issue] = []
     patient_cols: set[str] = set()
+    hidden: set[str] = set()  # headers holding contact data: never repeated, cells not scanned
     fields: dict[str, str] = {}  # file column -> standard field it is mapped to
     for name, mapped in mapping.field_columns.items():
         fields.setdefault(mapped, name)
-    for col in table.columns:
+    for position, col in enumerate(table.columns, 1):
+        if header_has_contact(col):
+            hidden.add(col)
+            issues.append(issue(
+                "E_PII_COLUMN",
+                f"L'en-tête de la colonne n° {position} contient une adresse e-mail ou un numéro "
+                "de téléphone : retirez cette donnée personnelle du fichier avant l'import.",
+                field=fields.get(col)))
+            continue
         verdict = _header_verdict(col)
         if verdict == "warning":
             patient_cols.add(col)
@@ -225,8 +241,9 @@ def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
                 "code pseudonymisé et non d'une identité.", column=col, field=fields.get(col)))
     date_col = mapping.field_columns.get("analysis_date")
     birth_counts: dict[str, int] = {}
+    scanned = [col for col in table.columns if col not in hidden]
     for row, number in zip(table.rows, table.row_numbers, strict=True):
-        for col in table.columns:
+        for col in scanned:
             text = row.get(col, "")
             if not text:
                 continue

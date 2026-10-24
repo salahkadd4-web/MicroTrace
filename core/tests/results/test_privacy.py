@@ -310,3 +310,36 @@ def test_person_headers_never_excuse_names(header):
 def test_qualified_names_without_person_stay_clean(header):
     t = _table([header], [["1"]])
     assert detect_pii(t, Mapping("long", {})) == []
+
+
+# ---- residuals ----
+
+_CONTACTS = ["jean.dupont@chu.fr", "06 12 34 56 78", "+33 6 12 34 56 78", "Tel 0612345678",
+             "contact: a@b.co"]
+
+
+@pytest.mark.parametrize("header", _CONTACTS)
+def test_contact_header_flagged_by_position_without_echo(header):
+    t = _table(["Sample", header], [["S1", "jean@x.fr"]])
+    got = detect_pii(t, Mapping("long", {"comment": header}))
+    errors = [i for i in got if i.code == "E_PII_COLUMN"]
+    assert [(i.severity, i.row, i.column, i.field) for i in errors] == [
+        ("error", None, None, "comment")]
+    assert "colonne n° 2" in errors[0].message
+    for i in got:
+        assert header not in i.message and i.column != header, i
+
+
+def test_contact_headers_are_scanned_capped_and_fast():
+    header = "x" * MAX_SCAN_CHARS + " a@b.fr"
+    t = _table([header, "0 " * 500_000], [["1", "1"]])
+    start = time.perf_counter()
+    got = detect_pii(t, Mapping("long", {}))
+    assert time.perf_counter() - start < 1.0
+    assert [i.code for i in got if i.code == "E_PII_COLUMN"] == []
+
+
+def test_ordinary_headers_not_taken_for_contacts():
+    t = _table(["Sample ID", "PET (µg/mL)", "Lot 2021-06-01", "Size 10-20 µm", "2021-06-01"],
+               [["1"] * 5])
+    assert [i for i in detect_pii(t, Mapping("long", {})) if i.severity == "error"] == []
