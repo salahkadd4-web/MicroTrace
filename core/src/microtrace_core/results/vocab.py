@@ -1,0 +1,120 @@
+"""Controlled vocabularies for laboratory result tables."""
+from __future__ import annotations
+
+import unicodedata
+from enum import StrEnum
+
+from microtrace_core.polymers import normalize_polymer
+
+
+class Matrix(StrEnum):
+    whole_blood = "whole_blood"
+    plasma = "plasma"
+    serum = "serum"
+    other = "other"
+
+
+class Technique(StrEnum):
+    py_gc_ms = "py_gc_ms"
+    ted_gc_ms = "ted_gc_ms"
+    micro_ftir = "micro_ftir"
+    micro_raman = "micro_raman"
+    other = "other"
+
+
+class QuantityKind(StrEnum):
+    mass_concentration = "mass_concentration"
+    number_concentration = "number_concentration"
+
+
+class Basis(StrEnum):
+    per_volume = "per_volume"
+    per_mass = "per_mass"
+
+
+class DetectionStatus(StrEnum):
+    quantified = "quantified"
+    between_lod_loq = "between_lod_loq"
+    not_quantified = "not_quantified"
+    below_lod = "below_lod"
+    not_analysed = "not_analysed"
+
+
+class RecordType(StrEnum):
+    sample = "sample"
+    procedural_blank = "procedural_blank"
+    field_blank = "field_blank"
+    spiked = "spiked"
+
+
+class IdentificationStatus(StrEnum):
+    confirmed = "confirmed"
+    candidate = "candidate"
+
+
+class DataNature(StrEnum):
+    published = "published"
+    laboratory = "laboratory"
+    simulated = "simulated"
+
+
+PS_SUM = "PS_SUM"
+THERMOANALYTICAL = frozenset({Technique.py_gc_ms, Technique.ted_gc_ms})
+
+STATUS_RANK: dict[DetectionStatus, int] = {
+    DetectionStatus.quantified: 4,
+    DetectionStatus.between_lod_loq: 3,
+    DetectionStatus.not_quantified: 2,
+    DetectionStatus.below_lod: 1,
+    DetectionStatus.not_analysed: 0,
+}
+
+
+def fold(text: str) -> str:
+    """Lowercase, strip accents (NFKD, drop combining marks) and trim."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return stripped.strip().lower()
+
+
+_MATRIX_SYNONYMS: dict[str, Matrix] = {
+    "whole blood": Matrix.whole_blood, "sang total": Matrix.whole_blood,
+    "sang": Matrix.whole_blood, "blood": Matrix.whole_blood,
+    "plasma": Matrix.plasma, "plasma sanguin": Matrix.plasma,
+    "serum": Matrix.serum,
+    "other": Matrix.other, "autre": Matrix.other,
+}
+
+_TECHNIQUE_SYNONYMS: dict[str, Technique] = {
+    "py-gc/ms": Technique.py_gc_ms, "pyr-gc/ms": Technique.py_gc_ms,
+    "py_gc_ms": Technique.py_gc_ms, "pyrolysis gc-ms": Technique.py_gc_ms,
+    "ted-gc/ms": Technique.ted_gc_ms, "ted_gc_ms": Technique.ted_gc_ms,
+    "uftir": Technique.micro_ftir, "micro-ftir": Technique.micro_ftir,
+    "ftir": Technique.micro_ftir, "micro_ftir": Technique.micro_ftir,
+    "uraman": Technique.micro_raman, "micro-raman": Technique.micro_raman,
+    "raman": Technique.micro_raman, "micro_raman": Technique.micro_raman,
+    "other": Technique.other, "autre": Technique.other,
+}
+
+
+def parse_matrix(text: str) -> Matrix | None:
+    return _MATRIX_SYNONYMS.get(" ".join(fold(text).split()))
+
+
+def parse_technique(text: str) -> Technique | None:
+    key = " ".join(fold(text).split()).replace("µ", "u").replace("μ", "u")
+    return _TECHNIQUE_SYNONYMS.get(key)
+
+
+def normalize_result_polymer(label: str | None, technique: Technique) -> str:
+    """Canonical polymer code; PS becomes PS_SUM for thermoanalytical techniques."""
+    code = normalize_polymer(label)
+    if code == "PS" and technique in THERMOANALYTICAL:
+        return PS_SUM
+    return code
+
+
+def default_identification(technique: Technique) -> IdentificationStatus:
+    if technique is Technique.other:
+        return IdentificationStatus.candidate
+    return IdentificationStatus.confirmed
