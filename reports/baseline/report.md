@@ -1,26 +1,36 @@
 # MicroTrace : rapport de la baseline d'identification des polymères
 
 - Date : 2026-10-24
-- Catalogue (git_commit) : `86a400be0292cbf5d8ede0300faad0997e65ab00`
-- Nature des données : reference/environmental polymers — not human biological matrices
+- Catalogue (git_commit) : `f4ccfd11ed4908dd9e65ef924181f8464ef07077` (modifications non commitées : non)
+- Nature des données (valeur `data_nature` du catalogue) : reference/environmental polymers — not human biological matrices
 - Seuil de corrélation testé : 0.7
 - Durée du calcul : 22.9 s
 
-Ce rapport mesure dans quelle mesure le polymère d'un échantillon peut être retrouvé à partir de son spectre, avec des séparations qui évitent toute fuite de données entre apprentissage et test. Trois méthodes sont comparées : `correlation@0` (le spectre de référence le plus proche est toujours retenu), `correlation@0.7` (la réponse est NO_MATCH si la corrélation est inférieure au seuil) et `pca_svm` (réduction PCA puis machine à vecteurs de support).
+Ce rapport mesure dans quelle mesure le polymère d'un échantillon peut être retrouvé à partir de son spectre, avec des séparations par groupe d'échantillons entre apprentissage et test. Trois méthodes sont comparées : `correlation@0` (le spectre de référence le plus proche est toujours retenu), `correlation@0.7` (la réponse est NO_MATCH si la corrélation est inférieure au seuil) et `pca_svm` (réduction PCA puis machine à vecteurs de support).
 
-Lecture des colonnes : `n` = requêtes testées ; `accuracy` = part de bonnes réponses (un NO_MATCH compte comme une erreur) ; `macro-F1` = moyenne du F1 par polymère, qui donne le même poids aux polymères rares ; `coverage` = part des requêtes pour lesquelles une réponse est donnée ; `out_of_library` = requêtes dont le polymère n'existe pas dans la bibliothèque d'apprentissage (comptées à part, exclues de accuracy et macro-F1).
+Aucun groupe d'échantillons connu n'est partagé entre apprentissage et test. Les groupes sont définis par source : MPX = produit (champ Polymer) ; RaSPI = identifiant sans la lettre finale ; FLOPP, FLOPP-e, SLoPP, SLoPP-E et raman_weathered = un groupe par spectre (les spectres répétés d'un même objet, s'il y en a, ne sont pas regroupés).
+
+Lecture des colonnes : `n` = requêtes testées ; `accuracy` = part de bonnes réponses (un NO_MATCH compte comme une erreur) ; `macro-F1` = moyenne du F1 par polymère, qui donne le même poids aux polymères rares ; `taux de réponse` (clé `coverage` dans metrics.json) = part des requêtes pour lesquelles une réponse est donnée ; `out_of_library` = requêtes dont le polymère n'existe pas dans la bibliothèque d'apprentissage (comptées à part, exclues de accuracy et macro-F1).
 
 ## Technique : ftir_atr
 
 Spectres évalués après exclusions : 4210. Exclus avant toute séparation : 3 (polymère UNKNOWN : 0, polymère OTHER : 3, couverture < 0.8 : 0).
 
+### Spectres exclus par source
+
+| Source | UNKNOWN | OTHER | couverture < 0.8 | Total |
+|---|---|---|---|---|
+| flopp | 0 | 1 | 0 | 1 |
+| flopp_e | 0 | 2 | 0 | 2 |
+| mpx | 0 | 0 | 0 | 0 |
+
 ### Effectifs par source
 
-| Source | Spectres |
-|---|---|
-| flopp | 185 |
-| flopp_e | 193 |
-| mpx | 3832 |
+| Source | Spectres | Groupes d'échantillons |
+|---|---|---|
+| flopp | 185 | 185 |
+| flopp_e | 193 | 193 |
+| mpx | 3832 | 17 |
 
 ### Effectifs par polymère
 
@@ -47,43 +57,43 @@ Spectres évalués après exclusions : 4210. Exclus avant toute séparation : 3 
 
 Résultats cumulés sur toutes les sources tenues à part :
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 4210 | 4185 | 0.849 | 0.741 | 1.000 | 25 |
 | correlation@0.7 | 4210 | 4185 | 0.792 | 0.805 | 0.857 | 25 |
 | pca_svm | 4210 | 4185 | 0.700 | 0.687 | 1.000 | 25 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **flopp**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 185 | 164 | 0.921 | 0.916 | 1.000 | 21 |
 | correlation@0.7 | 185 | 164 | 0.921 | 0.916 | 1.000 | 21 |
 | pca_svm | 185 | 164 | 0.854 | 0.839 | 1.000 | 21 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **flopp_e**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 193 | 189 | 0.921 | 0.874 | 1.000 | 4 |
 | correlation@0.7 | 193 | 189 | 0.921 | 0.874 | 1.000 | 4 |
 | pca_svm | 193 | 189 | 0.905 | 0.848 | 1.000 | 4 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **mpx**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 3832 | 3832 | 0.842 | 0.865 | 1.000 | 0 |
 | correlation@0.7 | 3832 | 3832 | 0.780 | 0.849 | 0.844 | 0 |
 | pca_svm | 3832 | 3832 | 0.683 | 0.794 | 1.000 | 0 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère (LOSO cumulé) :
 
@@ -102,27 +112,42 @@ Rappel par polymère (LOSO cumulé) :
 | PU | 0.684 | 0.684 | 0.737 |
 | PVC | 0.889 | 0.889 | 0.944 |
 
+Principales confusions (LOSO cumulé, correlation@0, polymère réel → prédiction, 10 premières) :
+
+| Polymère réel | Prédiction | Nombre |
+|---|---|---|
+| PE | PP | 100 |
+| PET | CELLULOSE | 77 |
+| PLA | CELLULOSE | 76 |
+| PET | PP | 59 |
+| PS | CELLULOSE | 56 |
+| PS | PP | 53 |
+| PLA | PP | 25 |
+| PE | CELLULOSE | 14 |
+| PP | CELLULOSE | 12 |
+| PP | PU | 12 |
+
 ### Validation croisée par groupes (group_kfold)
 
 Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 4 spectres retirés (CA : 2, PMMA : 2). Résultats cumulés sur les prédictions hors pli :
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 4206 | 4206 | 0.762 | 0.822 | 1.000 | 0 |
 | correlation@0.7 | 4206 | 4206 | 0.759 | 0.828 | 0.994 | 0 |
 | pca_svm | 4206 | 4206 | 0.835 | 0.830 | 1.000 | 0 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 ### Pristine vers vieilli (pristine_to_aged)
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 4025 | 4021 | 0.800 | 0.552 | 1.000 | 4 |
 | correlation@0.7 | 4025 | 4021 | 0.736 | 0.687 | 0.809 | 4 |
 | pca_svm | 4025 | 4021 | 0.625 | 0.596 | 1.000 | 4 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère :
 
@@ -143,17 +168,27 @@ Rappel par polymère :
 
 ## Technique : raman
 
-Spectres évalués après exclusions : 2312. Exclus avant toute séparation : 501 (polymère UNKNOWN : 14, polymère OTHER : 7, couverture < 0.8 : 480).
+Spectres évalués après exclusions : 2683. Exclus avant toute séparation : 130 (polymère UNKNOWN : 14, polymère OTHER : 7, couverture < 0.8 : 109).
+
+### Spectres exclus par source
+
+| Source | UNKNOWN | OTHER | couverture < 0.8 | Total |
+|---|---|---|---|---|
+| mpx | 0 | 0 | 2 | 2 |
+| raman_weathered | 8 | 0 | 0 | 8 |
+| raspi | 6 | 0 | 0 | 6 |
+| slopp | 0 | 0 | 77 | 77 |
+| slopp_e | 0 | 7 | 30 | 37 |
 
 ### Effectifs par source
 
-| Source | Spectres |
-|---|---|
-| mpx | 1604 |
-| raman_weathered | 165 |
-| raspi | 396 |
-| slopp | 71 |
-| slopp_e | 76 |
+| Source | Spectres | Groupes d'échantillons |
+|---|---|---|
+| mpx | 1975 | 19 |
+| raman_weathered | 165 | 165 |
+| raspi | 396 | 272 |
+| slopp | 71 | 71 |
+| slopp_e | 76 | 76 |
 
 ### Effectifs par polymère
 
@@ -167,12 +202,12 @@ Spectres évalués après exclusions : 2312. Exclus avant toute séparation : 50
 | NC | 1 |
 | PA | 37 |
 | PC | 25 |
-| PE | 803 |
-| PET | 410 |
+| PE | 830 |
+| PET | 594 |
 | PLA | 218 |
 | PMMA | 24 |
 | POM | 21 |
-| PP | 369 |
+| PP | 529 |
 | PS | 242 |
 | PTFE | 41 |
 | PU | 29 |
@@ -184,101 +219,116 @@ Spectres évalués après exclusions : 2312. Exclus avant toute séparation : 50
 
 Résultats cumulés sur toutes les sources tenues à part :
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
-| correlation@0 | 2312 | 1997 | 0.898 | 0.759 | 1.000 | 315 |
-| correlation@0.7 | 2312 | 1997 | 0.857 | 0.798 | 0.912 | 315 |
-| pca_svm | 2312 | 1997 | 0.871 | 0.753 | 1.000 | 315 |
+| correlation@0 | 2683 | 2368 | 0.870 | 0.731 | 1.000 | 315 |
+| correlation@0.7 | 2683 | 2368 | 0.780 | 0.775 | 0.828 | 315 |
+| pca_svm | 2683 | 2368 | 0.781 | 0.681 | 1.000 | 315 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **mpx**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
-| correlation@0 | 1604 | 1386 | 0.908 | 0.933 | 1.000 | 218 |
-| correlation@0.7 | 1604 | 1386 | 0.853 | 0.910 | 0.887 | 218 |
-| pca_svm | 1604 | 1386 | 0.867 | 0.900 | 1.000 | 218 |
+| correlation@0 | 1975 | 1757 | 0.866 | 0.908 | 1.000 | 218 |
+| correlation@0.7 | 1975 | 1757 | 0.749 | 0.842 | 0.779 | 218 |
+| pca_svm | 1975 | 1757 | 0.749 | 0.805 | 1.000 | 218 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **raman_weathered**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 165 | 164 | 0.756 | 0.586 | 1.000 | 1 |
 | correlation@0.7 | 165 | 164 | 0.756 | 0.591 | 0.970 | 1 |
-| pca_svm | 165 | 164 | 0.780 | 0.648 | 1.000 | 1 |
+| pca_svm | 165 | 164 | 0.774 | 0.647 | 1.000 | 1 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **raspi**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
-| correlation@0 | 396 | 309 | 0.939 | 0.918 | 1.000 | 87 |
+| correlation@0 | 396 | 309 | 0.945 | 0.928 | 1.000 | 87 |
 | correlation@0.7 | 396 | 309 | 0.926 | 0.930 | 0.968 | 87 |
-| pca_svm | 396 | 309 | 0.939 | 0.931 | 1.000 | 87 |
+| pca_svm | 396 | 309 | 0.932 | 0.922 | 1.000 | 87 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **slopp**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 71 | 65 | 0.908 | 0.870 | 1.000 | 6 |
 | correlation@0.7 | 71 | 65 | 0.892 | 0.837 | 0.985 | 6 |
-| pca_svm | 71 | 65 | 0.892 | 0.851 | 1.000 | 6 |
+| pca_svm | 71 | 65 | 0.862 | 0.793 | 1.000 | 6 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Source tenue à part : **slopp_e**
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
 | correlation@0 | 76 | 73 | 0.849 | 0.731 | 1.000 | 3 |
 | correlation@0.7 | 76 | 73 | 0.849 | 0.742 | 0.959 | 3 |
 | pca_svm | 76 | 73 | 0.863 | 0.735 | 1.000 | 3 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère (LOSO cumulé) :
 
 | Polymère | correlation@0 | correlation@0.7 | pca_svm |
 |---|---|---|---|
 | ABS | 0.824 | 0.765 | 0.882 |
-| CELLULOSE | 0.286 | 0.286 | 0.286 |
-| PA | 0.730 | 0.730 | 0.838 |
+| CELLULOSE | 0.286 | 0.286 | 0.143 |
+| PA | 0.730 | 0.730 | 0.811 |
 | PC | 1.000 | 1.000 | 1.000 |
-| PE | 0.934 | 0.912 | 0.915 |
-| PET | 0.924 | 0.837 | 0.876 |
+| PE | 0.908 | 0.882 | 0.907 |
+| PET | 0.933 | 0.803 | 0.758 |
 | PMMA | 0.958 | 0.958 | 0.958 |
-| PP | 0.840 | 0.791 | 0.794 |
-| PS | 0.905 | 0.868 | 0.872 |
+| PP | 0.749 | 0.552 | 0.561 |
+| PS | 0.905 | 0.868 | 0.868 |
 | PU | 0.655 | 0.655 | 0.724 |
 | PVC | 0.765 | 0.765 | 0.735 |
+
+Principales confusions (LOSO cumulé, correlation@0, polymère réel → prédiction, 10 premières) :
+
+| Polymère réel | Prédiction | Nombre |
+|---|---|---|
+| PP | PVC | 37 |
+| PP | PE | 26 |
+| PP | PU | 18 |
+| PE | PVC | 17 |
+| PP | PTFE | 16 |
+| PP | SILICONE | 14 |
+| PE | PP | 12 |
+| PET | PE | 10 |
+| PE | CELLULOSE | 9 |
+| PET | PTFE | 9 |
 
 ### Validation croisée par groupes (group_kfold)
 
 Validation croisée en 5 plis, graine 0 : aucun groupe d'échantillons n'est coupé entre apprentissage et test. Seuls les polymères présents dans au moins 5 groupes sont conservés ; 223 spectres retirés (ACRYLIC : 1, CA : 1, NC : 1, PLA : 218, RUBBER : 2). Résultats cumulés sur les prédictions hors pli :
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
-| correlation@0 | 2089 | 2089 | 0.912 | 0.866 | 1.000 | 0 |
-| correlation@0.7 | 2089 | 2089 | 0.892 | 0.870 | 0.962 | 0 |
-| pca_svm | 2089 | 2089 | 0.900 | 0.814 | 1.000 | 0 |
+| correlation@0 | 2460 | 2460 | 0.902 | 0.875 | 1.000 | 0 |
+| correlation@0.7 | 2460 | 2460 | 0.874 | 0.875 | 0.951 | 0 |
+| pca_svm | 2460 | 2460 | 0.858 | 0.797 | 1.000 | 0 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 ### Pristine vers vieilli (pristine_to_aged)
 
-| Méthode | n | n_evaluated | accuracy | macro-F1 | coverage | out_of_library |
+| Méthode | n | n_evaluated | accuracy | macro-F1 | taux de réponse | out_of_library |
 |---|---|---|---|---|---|---|
-| correlation@0 | 1827 | 1606 | 0.893 | 0.583 | 1.000 | 221 |
-| correlation@0.7 | 1827 | 1606 | 0.834 | 0.659 | 0.877 | 221 |
-| pca_svm | 1827 | 1606 | 0.745 | 0.556 | 1.000 | 221 |
+| correlation@0 | 2198 | 1977 | 0.836 | 0.553 | 1.000 | 221 |
+| correlation@0.7 | 2198 | 1977 | 0.745 | 0.636 | 0.783 | 221 |
+| pca_svm | 2198 | 1977 | 0.637 | 0.520 | 1.000 | 221 |
 
-Accuracy, macro-F1 et coverage sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
+Accuracy, macro-F1 et taux de réponse sont calculés uniquement sur les requêtes présentes dans la bibliothèque (n_evaluated = n − out_of_library).
 
 Rappel par polymère :
 
@@ -288,10 +338,10 @@ Rappel par polymère :
 | CELLULOSE | 0.500 | 0.500 | 0.000 |
 | PA | 0.625 | 0.625 | 0.625 |
 | PC | 1.000 | 1.000 | 1.000 |
-| PE | 0.929 | 0.880 | 0.672 |
-| PET | 0.937 | 0.821 | 0.854 |
+| PE | 0.897 | 0.847 | 0.647 |
+| PET | 0.941 | 0.790 | 0.682 |
 | PMMA | 1.000 | 1.000 | 1.000 |
-| PP | 0.792 | 0.751 | 0.722 |
+| PP | 0.611 | 0.497 | 0.478 |
 | PS | 0.894 | 0.865 | 0.865 |
 | PU | 0.250 | 0.250 | 0.500 |
 | PVC | 0.500 | 0.500 | 0.500 |
@@ -302,3 +352,8 @@ Rappel par polymère :
 - Il n'existe aucune classe négative (particule non plastique) : le système n'a jamais appris à répondre « ce n'est pas un plastique ».
 - Les résultats de chaque protocole ne sont pas comparables à une performance clinique.
 - Les protocoles diffèrent par leur difficulté : ne comparer les chiffres qu'à l'intérieur d'un même protocole.
+- Provenance des étiquettes : celles de raman_weathered viennent de scores de recherche en bibliothèque KnowItAll (certaines « identifiées subjectivement ») ; celles des échantillons environnementaux de FLOPP-e et SLoPP-E proviennent probablement d'une comparaison spectrale. Sur ces sources, les scores mesurent l'accord avec une identification de référence, pas une vérité terrain.
+- Taille effective de l'échantillon : `n` compte des spectres, pas des échantillons indépendants (ftir_atr : mpx = 3832 spectres issus de 17 groupes ; raman : mpx = 1975 spectres issus de 19 groupes). Certains rappels par polymère reflètent essentiellement un seul produit. Aucun intervalle de confiance n'est calculé.
+- Le LOSO cumulé est dominé par une source (ftir_atr : mpx = 92 % des requêtes évaluées ; raman : mpx = 74 % des requêtes évaluées) : le chiffre cumulé décrit surtout cette source ; lire aussi les résultats par source tenue à part.
+- Le macro-F1 favorise l'abstention : un NO_MATCH n'est jamais un faux positif pour aucune classe. Comparer les seuils sur l'accuracy et le taux de réponse, pas sur le seul macro-F1.
+- Règle de couverture : un spectre couvrant moins de 0.8 de la grille est exclu. Les spectres limités surtout à la région d'empreinte digitale (p. ex. de nombreux spectres SLoPP, ~100–2000 cm⁻¹) ne sont donc pas évalués.
