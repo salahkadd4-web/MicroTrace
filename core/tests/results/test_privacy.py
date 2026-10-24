@@ -176,3 +176,55 @@ def test_patient_column_with_codes_only_warns():
 def test_other_columns_with_names_not_flagged():
     t = _table(["Polymer"], [["Polyethylene"]])
     assert detect_pii(t, Mapping("long", {})) == []
+
+
+@pytest.mark.parametrize("header", [
+    "Place of birth", "Year of birth", "Mobile number", "Patient birth", "Mobile 2", "Birthday",
+    "Birthplace", "NIR", "N° NIR", "SSN", "SSNumber", "IPPs", "TELs",
+])
+def test_default_deny_headers(header):
+    t = _table([header], [["1"]])
+    got = detect_pii(t, Mapping("long", {}))
+    assert [i.code for i in got if i.severity == "error"] == ["E_PII_COLUMN"]
+
+
+@pytest.mark.parametrize("header", [
+    "Birth weight (g)", "Weight at birth", "Mobile phase", "Phase mobile", "Portable instrument",
+    "NIR spectra", "NIR signal", "SSNR", "Studies name", "Nombre",
+])
+def test_excused_headers(header):
+    t = _table([header], [["1"]])
+    assert detect_pii(t, Mapping("long", {})) == []
+
+
+@pytest.mark.parametrize("header", ["aB" * 500_000, " ".join(["tok"] * 4000) + " x" * 4000],
+                         ids=["1MB", "8000-tokens"])
+def test_huge_headers_are_fast(header):
+    t = _table([header], [["1"]])
+    start = time.perf_counter()
+    detect_pii(t, Mapping("long", {}))
+    assert time.perf_counter() - start < 1.0
+
+
+@pytest.mark.parametrize("text", [
+    "06.12.34 56 78", "06/12/34 56 78", "01/02/03 04 05", "31/02/2021 0612345678",
+    "01/06/2021 10:30 0612345678", "25/13/2021 0612345678",
+])
+def test_phones_next_to_dates_or_fake_dates_flagged(text):
+    t = _table(["Other"], [[text]])
+    assert _codes(detect_pii(t, Mapping("long", {"analysis_date": "Other"}))) == [
+        ("E_PII_VALUE", "error", 2, "Other")]
+
+
+@pytest.mark.parametrize("cell", ["Dupont, Jean", "J. Dupont", "Jean.Dupont", "Jean_Dupont"])
+def test_patient_names_with_separators(cell):
+    t = _table(["Patient"], [[cell]])
+    assert [(i.code, i.row) for i in detect_pii(t, Mapping("long", {})) if i.code == "E_PII_VALUE"] == [
+        ("E_PII_VALUE", 2)]
+
+
+@pytest.mark.parametrize("cell", ["NA", "n/a", "nd", "Inconnu", "unknown", "Témoin", "temoin",
+                                  "Contrôle", "control", "Blank", "blanc", "vide"])
+def test_patient_placeholders_are_not_names(cell):
+    t = _table(["Patient"], [[cell]])
+    assert [i.code for i in detect_pii(t, Mapping("long", {}))] == ["W_POSSIBLE_PII_COLUMN"]

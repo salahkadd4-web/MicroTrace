@@ -18,6 +18,7 @@ from datetime import date
 from microtrace_core.results.issues import Issue
 from microtrace_core.results.mapping import Mapping
 from microtrace_core.results.tables import RawTable
+from microtrace_core.results.vocab import fold
 
 MAX_SCAN_CHARS = 1000
 
@@ -37,10 +38,25 @@ _QUALIFIERS = frozenset({
     "lab", "labo", "study", "etude", "file", "fichier", "batch", "lot", "instrument",
     "compound", "material", "materiau",
 })
-_PHONE_COMPANIONS = frozenset({"tel", "phone", "numero", "num", "no", "n"})
-_BIRTH_COMPANIONS = frozenset({"date", "day", "dob", "of", "de", "du", "la", "le", "d"})
+_SPECTRO = frozenset({
+    "spectra", "spectrum", "spectre", "spectroscopy", "spectroscopie", "signal", "band",
+    "bande", "region", "range", "absorbance", "reflectance", "wavelength", "nm", "cm",
+})
+# Ambiguous words block by default; only these explicit scientific terms excuse them.
+_BIRTH_EXCUSES = frozenset({
+    "weight", "poids", "rate", "taux", "defect", "defaut", "order", "rang", "cohort", "cohorte",
+})
+_MOBILE_EXCUSES = frozenset({
+    "phase", "instrument", "lab", "laboratory", "labo", "unit", "unite", "device", "appareil",
+    "spectrometer", "spectrometre", "analyzer", "analyseur", "platform", "plateforme",
+})
+_PLACEHOLDERS = frozenset({
+    "na", "nd", "n/a", "inconnu", "unknown", "temoin", "controle", "control", "blank", "blanc",
+    "vide",
+})
 
-_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+# an uppercase run followed by a lone lowercase "s" (IPPs, TELs) is not split
+_CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z](?:s[a-z]|[a-rt-z]))")
 _TOKEN = re.compile(r"[a-z0-9]+")
 _DIGITS_END = re.compile(r"\d+$")
 
@@ -52,10 +68,10 @@ def _tokens(header: str) -> list[str]:
 
 def _bases(token: str) -> set[str]:
     """The token, without trailing digits, and without a plural ending."""
-    out = {token}
-    stem = _DIGITS_END.sub("", token) or token
-    out.add(stem)
+    out = {token, _DIGITS_END.sub("", token) or token}
     for t in tuple(out):
+        if t.endswith("ies"):
+            out.add(t[:-3] + "y")
         if t.endswith("es"):
             out.add(t[:-2])
         if t.endswith("s"):
@@ -64,27 +80,28 @@ def _bases(token: str) -> set[str]:
 
 
 def _header_verdict(header: str) -> str | None:
-    """"error", "warning" or None for a column header."""
-    toks = _tokens(header)
+    """"error", "warning" or None for a column header (linear in the header length)."""
+    toks = _tokens(header[:MAX_SCAN_CHARS])
     joined = "".join(toks)
     bases = [_bases(t) for t in toks]
-    flat = set().union(*bases) if bases else set()
+    flat: set[str] = set().union(*bases)
     scientific = bool(flat & _QUALIFIERS)
     for b in bases:
-        hit = b & _PII_TOKENS
-        if hit and not (hit <= _NAME_TOKENS and scientific):
+        for hit in b & _PII_TOKENS:
+            if hit in _NAME_TOKENS and scientific:
+                continue
+            if hit == "nir" and flat & _SPECTRO:
+                continue
             return "error"
-    if any(s in joined for s in _JOINED_SUBSTRINGS) or joined.startswith("ssn"):
+    if (any(s in joined for s in _JOINED_SUBSTRINGS)
+            or "ssnumber" in joined or "socialsecurity" in joined):
         return "error"
-    for i, b in enumerate(bases):
-        others = set().union(*(x for j, x in enumerate(bases) if j != i), set())
-        if b & {"mobile", "portable"} and (len(toks) == 1 or others & _PHONE_COMPANIONS):
-            return "error"
-        if "birth" in b and others <= _BIRTH_COMPANIONS:
-            return "error"
+    if any(x.startswith("birth") for x in flat) and not flat & (_BIRTH_EXCUSES | _QUALIFIERS):
+        return "error"
+    if flat & {"mobile", "portable"} and not flat & (_MOBILE_EXCUSES | _QUALIFIERS):
+        return "error"
     for i, t in enumerate(toks):
-        rest = toks[i + 1:]
-        if t in ("ne", "nee") and (rest[:1] == ["le"] or rest[:2] == ["e", "le"]):
+        if t in ("ne", "nee") and (toks[i + 1:i + 2] == ["le"] or toks[i + 1:i + 3] == ["e", "le"]):
             return "error"
     if "patient" in flat:
         return "warning"
@@ -92,28 +109,61 @@ def _header_verdict(header: str) -> str | None:
 
 
 def _name_like(text: str) -> bool:
+    if fold(text.strip(". ")) in _PLACEHOLDERS:
+        return False
     return (sum(c.isalpha() for c in text) >= 2
-            and all(c.isalpha() or c in " -'’" for c in text))
+            and all(c.isalpha() or c in " -'’,._" for c in text))
 
 
 _EMAIL = re.compile(r"[^\s@]{1,64}@[^\s@.]{1,63}(?:\.[^\s@.]{1,63}){1,8}")
-_PHONE_INTL = re.compile(r"(?<![\w+])\+(?:[ .\-/()]?\d){9,15}(?!\d)")
-_PHONE_FR = re.compile(r"(?<!\d)(?<!\d[.,])0\d(?:[ .\-/]?\d{2}){4}(?!\d)")
-_PHONE_NANP = re.compile(r"(?<![\d\-])\(?\d{3}\)?[ .\-]\d{3}[ .\-]\d{4}(?!\d)")
+_PHONES = (
+    re.compile(r"(?<![\w+])\+(?:[ .\-/()]?\d){9,15}(?!\d)"),
+    re.compile(r"(?<!\d)(?<!\d[.,])0\d(?:[ .\-/]?\d{2}){4}(?!\d)"),
+    re.compile(r"(?<![\d\-])\(?\d{3}\)?[ .\-]\d{3}[ .\-]\d{4}(?!\d)"),
+)
 _DATE = re.compile(
     r"(?<![\d/.\-])(?:(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})|(\d{4})-(\d{1,2})-(\d{1,2}))(?!\d)")
-
-
 _DATE_SPAN = re.compile(
-    r"(?<!\d)(?<!\d[/.\-])(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/.\-]\d{1,2}[/.\-](?:\d{4}|\d{2}(?![\d/.\-]\d)))"
-    r"(?:[ T\-]\d{1,2}(?::\d{2}(?::\d{2})?|h\d{2}))?(?!\d)")
+    r"(?<!\d)(?<!\d[/.\-])(?P<date>(?:(?P<y1>\d{4})-(?P<m1>\d{1,2})-(?P<d1>\d{1,2})"
+    r"|(?P<d2>\d{1,2})[/.\-](?P<m2>\d{1,2})[/.\-](?P<y2>\d{4}|\d{2}(?![\d/.\-]\d))))"
+    r"(?P<time>[ T\-](?P<h>\d{1,2})(?::(?P<mi>\d{2})(?::(?P<se>\d{2}))?|h(?P<mh>\d{2})))?(?!\d)")
+
+
+def _valid_date_spans(text: str) -> list[tuple[int, int]]:
+    """Spans of validated dates / datetimes (real calendar day, real clock time)."""
+    spans: list[tuple[int, int]] = []
+    for m in _DATE_SPAN.finditer(text):
+        if m.group("y1"):
+            y, mo, d = int(m.group("y1")), int(m.group("m1")), int(m.group("d1"))
+        else:
+            y, mo, d = int(m.group("y2")), int(m.group("m2")), int(m.group("d2"))
+            if len(m.group("y2")) == 2:
+                y += 2000
+        try:
+            date(y, mo, d)
+        except ValueError:
+            continue
+        end = m.end("date")
+        if m.group("time"):
+            minute = m.group("mi") or m.group("mh") or "0"
+            if int(m.group("h")) <= 23 and int(minute) <= 59 and int(m.group("se") or 0) <= 59:
+                end = m.end()
+        spans.append((m.start(), end))
+    return spans
 
 
 def _has_contact(text: str) -> bool:
     if _EMAIL.search(text):
         return True
-    text = _DATE_SPAN.sub(" ", text)  # dates and datetimes are never phone numbers
-    return bool(_PHONE_INTL.search(text) or _PHONE_FR.search(text) or _PHONE_NANP.search(text))
+    spans: list[tuple[int, int]] | None = None
+    for pattern in _PHONES:
+        for m in pattern.finditer(text):
+            if spans is None:
+                spans = _valid_date_spans(text)
+            # a phone-shaped match entirely inside a validated date/datetime is a date
+            if not any(a <= m.start() and m.end() <= b for a, b in spans):
+                return True
+    return False
 
 
 def _has_full_date(text: str) -> bool:
