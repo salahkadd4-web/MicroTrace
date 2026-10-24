@@ -237,3 +237,27 @@ def test_plasma_and_whole_blood_donors_in_one_import_stay_apart():
             for f in quantification_frequency(r.records)] == [
         ("PET", Matrix.plasma, 2, 2), ("PET", Matrix.whole_blood, 1, 2),
         ("ANY", Matrix.plasma, 2, 2), ("ANY", Matrix.whole_blood, 1, 2)]
+
+
+def rec_o(detail, **kw):
+    return replace(rec(**kw), matrix=Matrix.other, matrix_detail=detail)
+
+
+def test_other_matrices_with_different_details_never_pooled():
+    recs = [rec_o("urine", sample="U1", value=1.0), rec_o("urine", sample="U2", value=3.0),
+            rec_o("sang de cordon", sample="C1", value=10.0)]
+    assert [(s.matrix_detail, s.sample_id) for s in aggregate_aliquots(recs)] == [
+        ("sang de cordon", "C1"), ("urine", "U1"), ("urine", "U2")]
+    stats = describe(recs)
+    assert [(s.matrix_detail, s.n_quantified, s.max) for s in stats] == [
+        ("sang de cordon", 1, 10.0), ("urine", 2, 3.0)]
+    got = [(f.polymer, f.matrix_detail, f.n_samples) for f in quantification_frequency(recs)]
+    assert got == [("PET", "sang de cordon", 1), ("PET", "urine", 2),
+                   ("ANY", "sang de cordon", 1), ("ANY", "urine", 2)]
+
+
+def test_named_matrices_have_empty_detail():
+    recs = [replace(rec(), matrix=Matrix.plasma, matrix_detail="stray"), rec(sample="S2")]
+    assert {s.matrix_detail for s in aggregate_aliquots(recs)} == {""}
+    assert [f.name for f in fields(PolymerStats)][:4] == ["polymer", "method", "matrix", "matrix_detail"]
+    assert [f.name for f in fields(Frequency)][:3] == ["polymer", "matrix", "matrix_detail"]

@@ -18,9 +18,10 @@ import re
 import unicodedata
 from datetime import date
 
+from microtrace_core.results.contact import MAX_SCAN_CHARS, _has_contact, header_has_contact, header_label
 from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.mapping import Mapping
-from microtrace_core.results.tables import MAX_SCAN_CHARS, RawTable
+from microtrace_core.results.tables import RawTable
 from microtrace_core.results.vocab import fold
 
 __all__ = ["MAX_SCAN_CHARS", "detect_pii", "header_has_contact"]
@@ -132,65 +133,8 @@ def _name_like(text: str) -> bool:
             and all(c.isalpha() or c in " -'’,._" for c in text))
 
 
-_EMAIL = re.compile(r"[^\s@]{1,64}@[^\s@.]{1,63}(?:\.[^\s@.]{1,63}){1,8}")
-_PHONES = (
-    re.compile(r"(?<![\w+])\+(?:[ .\-/()]?\d){9,15}(?!\d)"),
-    re.compile(r"(?<!\d)(?<!\d[.,])0\d(?:[ .\-/]?\d{2}){4}(?!\d)"),
-    re.compile(r"(?<![\d\-])\(?\d{3}\)?[ .\-]\d{3}[ .\-]\d{4}(?!\d)"),
-)
 _DATE = re.compile(
     r"(?<![\d/.\-])(?:(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{4})|(\d{4})-(\d{1,2})-(\d{1,2}))(?!\d)")
-_DATE_SPAN = re.compile(
-    r"(?<!\d)(?<!\d[/.\-])(?P<date>(?:(?P<y1>\d{4})-(?P<m1>\d{1,2})-(?P<d1>\d{1,2})"
-    r"|(?P<d2>\d{1,2})[/.\-](?P<m2>\d{1,2})[/.\-](?P<y2>\d{4}|\d{2}(?![\d/.\-]\d))))"
-    r"(?P<time>[ T\-](?P<h>\d{1,2})(?::(?P<mi>\d{2})(?::(?P<se>\d{2}))?|h(?P<mh>\d{2})))?(?!\d)")
-
-
-def _valid_date_spans(text: str) -> list[tuple[int, int, bool]]:
-    """(start, end, 4-digit year) of validated dates / datetimes (real day, real clock time)."""
-    spans: list[tuple[int, int, bool]] = []
-    for m in _DATE_SPAN.finditer(text):
-        if m.group("y1"):
-            y, mo, d = int(m.group("y1")), int(m.group("m1")), int(m.group("d1"))
-        else:
-            y, mo, d = int(m.group("y2")), int(m.group("m2")), int(m.group("d2"))
-            if len(m.group("y2")) == 2:
-                y += 2000
-        try:
-            date(y, mo, d)
-        except ValueError:
-            continue
-        end = m.end("date")
-        if m.group("time"):
-            minute = m.group("mi") or m.group("mh") or "0"
-            if int(m.group("h")) <= 23 and int(minute) <= 59 and int(m.group("se") or 0) <= 59:
-                end = m.end()
-        spans.append((m.start(), end, len(m.group("y1") or m.group("y2")) == 4))
-    return spans
-
-
-def _is_date(m: re.Match[str], french: bool, spans: list[tuple[int, int, bool]]) -> bool:
-    """A phone-shaped match entirely inside a validated date/datetime is a date; a French
-    match starting inside a 4-digit-year date ("05/06/2021 10 mL") is a dated measurement."""
-    return any((a <= m.start() and m.end() <= b) or (french and long_year and a <= m.start() < b)
-               for a, b, long_year in spans)
-
-
-def _has_contact(text: str) -> bool:
-    if _EMAIL.search(text):
-        return True
-    spans: list[tuple[int, int, bool]] | None = None
-    for pattern in _PHONES:
-        french = pattern is _PHONES[1]
-        pos = 0
-        while (m := pattern.search(text, pos)) is not None:
-            if spans is None:
-                spans = _valid_date_spans(text)
-            if not _is_date(m, french, spans):
-                return True
-            # retry just after the start: a dropped match may overlap a real phone
-            pos = m.start() + 1
-    return False
 
 
 def _has_full_date(text: str) -> bool:
@@ -203,11 +147,6 @@ def _has_full_date(text: str) -> bool:
             continue
         return True
     return False
-
-
-def header_has_contact(header: str) -> bool:
-    """True if the header itself holds an e-mail address or a phone number."""
-    return _has_contact(header[:MAX_SCAN_CHARS])
 
 
 def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
@@ -229,16 +168,19 @@ def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
         verdict = _header_verdict(col)
         if verdict == "warning":
             patient_cols.add(col)
+        long_header = len(col) > MAX_SCAN_CHARS  # never echoed: named by position
+        named = header_label(col, position)
+        shown = None if long_header else col
         if verdict == "error":
             issues.append(issue(
                 "E_PII_COLUMN",
-                f"La colonne « {col} » semble contenir des données personnelles : "
-                "retirez-la du fichier avant l'import.", column=col, field=fields.get(col)))
+                f"La {named} semble contenir des données personnelles : "
+                "retirez-la du fichier avant l'import.", column=shown, field=fields.get(col)))
         elif verdict == "warning":
             issues.append(issue(
                 "W_POSSIBLE_PII_COLUMN",
-                f"La colonne « {col} » mentionne un patient : vérifier qu'il s'agit d'un "
-                "code pseudonymisé et non d'une identité.", column=col, field=fields.get(col)))
+                f"La {named} mentionne un patient : vérifier qu'il s'agit d'un "
+                "code pseudonymisé et non d'une identité.", column=shown, field=fields.get(col)))
     date_col = mapping.field_columns.get("analysis_date")
     birth_counts: dict[str, int] = {}
     scanned = [col for col in table.columns if col not in hidden]
@@ -262,10 +204,12 @@ def detect_pii(table: RawTable, mapping: Mapping) -> list[Issue]:
                     fields.get(col)))
             if col != date_col and _has_full_date(text):
                 birth_counts[col] = birth_counts.get(col, 0) + 1
+    positions = {col: k for k, col in enumerate(table.columns, 1)}
     for col, n in birth_counts.items():
         issues.append(issue(
             "W_POSSIBLE_BIRTHDATE",
-            f"La colonne « {col} » contient {n} cellule(s) avec une date complète pouvant être "
-            "une date de naissance : vérifiez qu'elle n'identifie pas une personne.", column=col,
+            f"La {header_label(col, positions[col])} contient {n} cellule(s) avec une date complète pouvant être "
+            "une date de naissance : vérifiez qu'elle n'identifie pas une personne.",
+            column=None if len(col) > MAX_SCAN_CHARS else col,
             field=fields.get(col)))
     return issues

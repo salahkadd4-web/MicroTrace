@@ -15,6 +15,8 @@ from pathlib import PurePath
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 
+from microtrace_core.results.contact import MAX_SCAN_CHARS, header_label
+
 _TEXT_EXT = {".csv", ".tsv", ".txt"}
 _DELIMITERS = (";", ",", "\t")
 
@@ -24,8 +26,9 @@ MAX_COLUMNS = 500
 MAX_ROWS = 100_000
 MAX_BLANK_ROWS = 10_000
 MAX_CELLS = 2_000_000  # data rows x columns
-# text scanners (personal data, header units, field synonyms) only read this many characters
-MAX_SCAN_CHARS = 1000
+
+
+__all__ = ["MAX_SCAN_CHARS", "RawTable", "TableReadError", "read_table"]
 
 
 class TableReadError(ValueError):
@@ -193,8 +196,9 @@ def read_table(data: bytes, filename: str, sheet: str | None = None) -> RawTable
                 columns = tuple(h or f"colonne_{i}" for i, h in enumerate(r, 1))
                 dup = next((n for n, c in Counter(columns).items() if c > 1), None)
                 if dup is not None:
+                    where = header_label(dup, columns.index(dup) + 1)
                     raise TableReadError(
-                        f"En-tête dupliqué : la colonne « {dup} » apparaît plusieurs fois.")
+                        f"En-tête dupliqué : la {where} apparaît plusieurs fois.")
                 continue
             if len(r) > len(columns):
                 if any(r[len(columns):]):

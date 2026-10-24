@@ -136,3 +136,16 @@ def test_xlsx_cell_beyond_max_columns(tmp_path, monkeypatch):
     monkeypatch.setattr(tables, "MAX_COLUMNS", 2)
     with pytest.raises(TableReadError):
         read_table(xl, "r.xlsx")
+
+
+def test_duplicate_header_with_contact_data_not_echoed():
+    with pytest.raises(TableReadError) as e:
+        read_table("a@b.fr;a@b.fr\n1;2\n".encode("utf-8"), "r.csv")
+    assert "a@b.fr" not in str(e.value) and "n° 1" in str(e.value)
+
+
+def test_duplicate_long_header_not_echoed():
+    h = "y" * 1100 + "jean.dupont@chu.fr"
+    with pytest.raises(TableReadError) as e:
+        read_table(f"{h};{h}\n1;2\n".encode("utf-8"), "r.csv")
+    assert "jean.dupont" not in str(e.value)

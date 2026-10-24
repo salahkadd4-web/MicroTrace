@@ -558,11 +558,26 @@ def test_header_unit_conflict_with_row_unit():
 
 
 def test_header_unit_conflict_with_constant_unit():
-    r = wide_row(3, "µg/L", unit="ng/mL")
+    r = wide_row(3, "µg/L", unit="µg/mL")
     r.columns.pop("unit")  # the unit comes from a constant
     recs, issues = run(r, context=ctx(limits=()))
     assert recs == []
     check(issues, "E_HEADER_UNIT_CONFLICT", "error", "unit", 3, "PET (µg/L)")
+
+
+@pytest.mark.parametrize("header_unit,unit", [("µg/mL", "mg/L"), ("ng/mL", "µg/L"),
+                                              ("mg/L", "µg/mL"), ("µg/L", "ng/mL")])
+def test_equivalent_unit_spellings_are_no_header_conflict(header_unit, unit):
+    recs, issues = run(wide_row(2, header_unit, unit=unit), context=ctx(limits=()))
+    assert not [i for i in issues if i.code == "E_HEADER_UNIT_CONFLICT"]
+    assert len(recs) == 1
+
+
+@pytest.mark.parametrize("header_unit,unit", [("ng/mL", "µg/mL"), ("µg/L", "µg/mL"),
+                                              ("µg/mL", "µg/g"), ("µg/mL", "particles/mL")])
+def test_different_unit_is_header_conflict(header_unit, unit):
+    _, issues = run(wide_row(2, header_unit, unit=unit), context=ctx(limits=()))
+    assert [i.code for i in issues if i.code == "E_HEADER_UNIT_CONFLICT"]
 
 
 @pytest.mark.parametrize("header_unit,unit", [("ng/mL", "ng/mL"), ("ng/ml", "ng/mL"),

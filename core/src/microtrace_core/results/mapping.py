@@ -7,10 +7,12 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
+from microtrace_core.results.contact import MAX_SCAN_CHARS, header_label
 from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.schema import FIELD_NAMES
-from microtrace_core.results.tables import MAX_SCAN_CHARS, RawTable
+from microtrace_core.results.tables import RawTable
 from microtrace_core.results.units import parse_unit
+from microtrace_core.results.vocab import parse_technique
 
 
 @dataclass(frozen=True)
@@ -70,13 +72,17 @@ _GENERIC_ID = "id"  # only applies when no more specific sample synonym matched
 _GROUPS = {")": "(", "]": "["}
 
 
-def _unit_suffix(header: str) -> tuple[str, str] | None:
-    """(label, unit text) when the header ends with a unit in parentheses or brackets.
+def _is_metadata_group(inner: str) -> bool:
+    """A bracket group naming limits, signal-to-noise or a technique is not a unit
+    ("PET (LOD/LOQ)", "PE (S/N)", "PET (Py-GC/MS)")."""
+    low = inner.strip().lower()
+    return ("lod" in low or "loq" in low or "s/n" in low or low == "sn"
+            or parse_technique(inner) is not None)
 
-    A unit is a group whose content is a known unit or contains "/" ("ng/dL" is kept as an
-    unknown unit, "(sum)" or "(lot 2)" are not units). Linear: only the first MAX_SCAN_CHARS
-    characters are read, so a longer header never has a unit suffix.
-    """
+
+def _trailing_group(header: str) -> tuple[str, str] | None:
+    """(label, content) of a trailing "(...)" or "[...]" group; linear, and None for a header
+    longer than MAX_SCAN_CHARS."""
     if len(header) > MAX_SCAN_CHARS:
         return None
     text = header.rstrip()
@@ -88,15 +94,38 @@ def _unit_suffix(header: str) -> tuple[str, str] | None:
     label = text[:start].rstrip()
     if start < 0 or not label or text[-1] in inner:
         return None
-    if parse_unit(inner) is None and "/" not in inner:
-        return None
     return label, inner
 
 
+def _unit_suffix(header: str) -> tuple[str, str] | None:
+    """(label, unit text) when the header ends with a unit in parentheses or brackets.
+
+    A unit is a group whose content is a known unit or contains "/" ("ng/dL" is kept as an
+    unknown unit, "(sum)" or "(lot 2)" are not units), unless it names limits, signal-to-noise
+    or a technique. Linear: only the first MAX_SCAN_CHARS characters are read, so a longer
+    header never has a unit suffix.
+    """
+    group = _trailing_group(header)
+    if group is None:
+        return None
+    inner = group[1]
+    if _is_metadata_group(inner):
+        return None
+    if parse_unit(inner) is None and "/" not in inner:
+        return None
+    return group
+
+
 def _polymer_label(header: str) -> str:
-    """The header without a trailing unit in parentheses or brackets ("PET (µg/mL)" -> "PET")."""
+    """The header without a trailing unit or technique group ("PET (µg/mL)" -> "PET",
+    "PET (Py-GC/MS)" -> "PET")."""
     suffix = _unit_suffix(header)
-    return suffix[0] if suffix else header
+    if suffix:
+        return suffix[0]
+    group = _trailing_group(header)
+    if group and parse_technique(group[1]) is not None:
+        return group[0]
+    return header
 
 
 def _header_unit(header: str) -> str | None:
@@ -158,41 +187,53 @@ _MAX_EXAMPLES = 5
 
 
 def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
-    """Mapping errors; ``column`` is set only for columns that exist in the file."""
+    """Mapping errors; ``column`` is set only for columns that exist in the file (and never
+    for a header longer than MAX_SCAN_CHARS, which is named by position, never echoed)."""
     issues: list[Issue] = []
     known = set(table.columns)
+    positions = {col: k for k, col in enumerate(table.columns, 1)}
 
     def present(col: str | None) -> str | None:
-        return col if col in known else None
+        return col if col in known and len(col) <= MAX_SCAN_CHARS else None
+
+    def named(col: str) -> str:
+        if col in positions:
+            return f"colonne n° {positions[col]}" if len(col) > MAX_SCAN_CHARS else f"colonne « {col} »"
+        return "colonne inconnue" if len(col) > MAX_SCAN_CHARS else f"colonne « {col} »"
+
+    def shown(name: str) -> str:
+        return "(nom trop long)" if len(name) > MAX_SCAN_CHARS else name
 
     for name, col in mapping.field_columns.items():
         if name not in FIELD_NAMES:
-            issues.append(issue("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} ».",
+            issues.append(issue("E_MAPPING_UNKNOWN_FIELD",
+                                f"Champ standard inconnu : « {shown(name)} ».",
                                 column=present(col)))
         if col not in known:
             issues.append(issue(
                 "E_MAPPING_UNKNOWN_COLUMN",
-                f"La colonne « {col} » associée à « {name} » est absente du tableau.",
+                f"La {named(col)} associée à « {shown(name)} » est absente du tableau.",
                 field=name if name in FIELD_NAMES else None))
     for col in mapping.polymer_columns:
         if col not in known:
             issues.append(issue("E_MAPPING_UNKNOWN_COLUMN",
-                                f"La colonne de polymère « {col} » est absente du tableau.",
+                                f"La {named(col)} de polymère est absente du tableau.",
                                 field="reported_value"))
     for name in mapping.constants:
         if name not in FIELD_NAMES:
-            issues.append(issue("E_MAPPING_UNKNOWN_FIELD", f"Champ standard inconnu : « {name} »."))
+            issues.append(issue("E_MAPPING_UNKNOWN_FIELD",
+                                f"Champ standard inconnu : « {shown(name)} »."))
         if name in mapping.field_columns:
             issues.append(issue(
                 "E_MAPPING_CONFLICT",
-                f"Le champ « {name} » est associé à la fois à une colonne et à une constante.",
+                f"Le champ « {shown(name)} » est associé à la fois à une colonne et à une constante.",
                 column=present(mapping.field_columns[name]), field=name))
     if mapping.mode == "wide":
         for name in ("reported_value", "polymer"):
             if name in mapping.field_columns or name in mapping.constants:
                 issues.append(issue(
                     "E_MAPPING_CONFLICT",
-                    f"En format large, « {name} » provient des colonnes de polymères "
+                    f"En format large, « {shown(name)} » provient des colonnes de polymères "
                     "et ne peut être ni associé à une colonne ni fixé par une constante.",
                     column=present(mapping.field_columns.get(name)), field=name))
         if not mapping.polymer_columns:
@@ -205,9 +246,9 @@ def _check_mapping(table: RawTable, mapping: Mapping) -> list[Issue]:
 def _unmapped(table: RawTable, mapping: Mapping) -> list[Issue]:
     used = set(mapping.field_columns.values()) | set(mapping.polymer_columns)
     return [issue("I_UNMAPPED_COLUMN",
-                  f"La colonne « {col} » n'est associée à aucun champ : elle est ignorée.",
-                  column=col)
-            for col in table.columns if col not in used]
+                  f"La {header_label(col, k)} n'est associée à aucun champ : elle est ignorée.",
+                  column=None if len(col) > MAX_SCAN_CHARS else col)
+            for k, col in enumerate(table.columns, 1) if col not in used]
 
 
 def _split_failed(failed: list[str], column: str) -> Issue:

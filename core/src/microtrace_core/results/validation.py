@@ -216,7 +216,8 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
                 f"Unité « {row.header_unit} » de l'en-tête de colonne non reconnue : elle est "
                 "ignorée, l'unité de la ligne est utilisée.", "unit", hcol,
                 once=("header_unit", hcol))
-        elif unit is not None and header_unit.code != unit.code:
+        elif unit is not None and (header_unit.kind, header_unit.basis, header_unit.per_canonical) != (
+                unit.kind, unit.basis, unit.per_canonical):
             add("E_HEADER_UNIT_CONFLICT",
                 f"L'en-tête de colonne indique « {header_unit.label} » mais l'unité de la ligne "
                 f"est « {unit.label} » : corrigez l'une ou l'autre, aucune conversion n'est "

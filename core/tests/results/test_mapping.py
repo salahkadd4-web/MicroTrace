@@ -246,3 +246,64 @@ def test_header_unit_only_in_wide_mode():
     rows, _ = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"},
                                        {"PET": "PET", "PE (sum)": "PE"}, {"unit": "µg/mL"}))
     assert [r.header_unit for r in rows] == [None, None]
+
+
+# ---- long headers are never echoed; bracket groups that are not units ----
+
+
+def _long_header():
+    return "x" * 1075 + " contact jean.dupont@chu.fr"[:20] + "jean.dupont@chu.fr"
+
+
+def _leaks(issues):
+    return [i for i in issues if "jean.dupont" in i.message or (i.column and "jean.dupont" in i.column)]
+
+
+def test_long_header_unmapped_column_named_by_position():
+    h = _long_header()
+    assert len(h) > 1000 and h.endswith("jean.dupont@chu.fr")
+    t = _table(["Donor", "Valeur", h], [["1", "2", "x"]])
+    _, issues = apply_mapping(t, Mapping("long", {"sample_id": "Donor", "reported_value": "Valeur"}))
+    assert [(i.code, i.column) for i in issues] == [("I_UNMAPPED_COLUMN", None)]
+    assert "colonne n° 3" in issues[0].message and not _leaks(issues)
+
+
+def test_long_header_mapping_issues_never_echo_it():
+    h = _long_header()
+    t = _table(["Donor", h], [["1", "x"]])
+    _, issues = apply_mapping(t, Mapping("long", {"bogus": h, "sample_id": "Donor"}))
+    assert [i.code for i in issues] == ["E_MAPPING_UNKNOWN_FIELD"] and issues[0].column is None
+    _, issues = apply_mapping(t, Mapping("long", {"sample_id": "Absent" + h}))
+    assert [i.code for i in issues] == ["E_MAPPING_UNKNOWN_COLUMN"]
+    _, issues = apply_mapping(t, Mapping("wide", {"sample_id": "Donor", "unit": h},
+                                         {h + "z": "PET"}, {"unit": "µg/mL"}))
+    assert issues and not _leaks(issues) and all(i.column is None for i in issues)
+
+
+def test_long_header_run_import_never_echoes_it():
+    from microtrace_core.results.importer import run_import
+
+    from .conftest import leslie_like_context
+    h = _long_header()
+    t = _table(["Sample", "Polymer", "Value", h], [["S1", "PET", "1", "x"]])
+    m = Mapping("long", {"sample_id": "Sample", "polymer": "Polymer", "reported_value": h})
+    r = run_import(t, m, leslie_like_context())
+    assert not _leaks(list(r.issues))
+
+
+def test_bracket_groups_that_are_not_units():
+    t = _table(["Donor", "PET (LOD/LOQ)", "PE (S/N)", "PP (sn)", "PS (µg/mL)", "PMMA (µg/mL)"],
+               [["1", "1", "2", "3", "4", "5"]])
+    m = suggest_mapping(t)
+    assert set(m.polymer_columns) == {"PS (µg/mL)", "PMMA (µg/mL)"}
+    _, issues = apply_mapping(t, m)
+    assert sorted(i.column for i in issues if i.code == "I_UNMAPPED_COLUMN") == [
+        "PE (S/N)", "PET (LOD/LOQ)", "PP (sn)"]
+
+
+def test_technique_group_is_polymer_column_without_unit():
+    t = _table(["Donor", "PET (Py-GC/MS)", "PE (Py-GC/MS)"], [["1", "1", "2"]])
+    m = suggest_mapping(t)
+    assert m.mode == "wide"
+    assert m.polymer_columns == {"PET (Py-GC/MS)": "PET", "PE (Py-GC/MS)": "PE"}
+    assert "unit" not in m.constants

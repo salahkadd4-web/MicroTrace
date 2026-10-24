@@ -1,8 +1,8 @@
 """Honest per-sample aggregation, quantification frequencies and statistics.
 
 Never pooled: aggregation, frequencies and statistics are always split by matrix
-(plasma and whole blood are never combined), and statistics also by method,
-quantity kind and basis.
+(plasma and whole blood are never combined; "other" matrices stay apart by their
+detail), and statistics also by method, quantity kind and basis.
 """
 from __future__ import annotations
 
@@ -28,12 +28,14 @@ AGGREGATION_RULE_FR = (
     "Aucune imputation."
 )
 ANY = "ANY"
+_Key = tuple[str, Matrix, str]  # (polymer, matrix, matrix detail)
 
 
 @dataclass(frozen=True)
 class SampleResult:
     sample_id: str
     matrix: Matrix
+    matrix_detail: str
     polymer: str
     method: str
     kind: QuantityKind
@@ -51,6 +53,7 @@ class Frequency:
 
     polymer: str
     matrix: Matrix
+    matrix_detail: str
     n_samples: int
     n_quantified: int
     fraction: float
@@ -63,6 +66,7 @@ class PolymerStats:
     polymer: str
     method: str
     matrix: Matrix
+    matrix_detail: str
     kind: QuantityKind
     basis: Basis
     canonical_unit: Unit
@@ -79,15 +83,20 @@ def _samples(records: Iterable[MeasurementRecord]) -> list[MeasurementRecord]:
     return [r for r in records if r.record_type == RecordType.sample]
 
 
+def _detail(r: MeasurementRecord) -> str:
+    """The matrix detail that tells "other" matrices apart ("" for the named matrices)."""
+    return r.matrix_detail.strip() if r.matrix is Matrix.other else ""
+
+
 def _is_quantified(r: MeasurementRecord) -> bool:
     return r.status == DetectionStatus.quantified and r.canonical_value is not None
 
 
 def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResult]:
     """One result per (sample, matrix, polymer, method, kind, basis); never pooled across."""
-    groups: dict[tuple[str, str, str, str, str, str], list[MeasurementRecord]] = defaultdict(list)
+    groups: dict[tuple[str, ...], list[MeasurementRecord]] = defaultdict(list)
     for r in _samples(records):
-        groups[(r.sample_id, r.matrix.value, r.polymer, r.method, r.kind.value,
+        groups[(r.sample_id, r.matrix.value, _detail(r), r.polymer, r.method, r.kind.value,
                 r.basis.value)].append(r)
     out: list[SampleResult] = []
     for key in sorted(groups):
@@ -102,7 +111,8 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
             value = None
         first = rows[0]
         out.append(SampleResult(
-            sample_id=first.sample_id, matrix=first.matrix, polymer=first.polymer,
+            sample_id=first.sample_id, matrix=first.matrix, matrix_detail=_detail(first),
+            polymer=first.polymer,
             method=first.method,
             kind=first.kind, basis=first.basis, canonical_unit=first.canonical_unit,
             status=status, value=value, n_aliquots=len(rows), n_quantified=len(quantified),
@@ -123,27 +133,29 @@ def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequ
     are ordered by (polymer, matrix), the "ANY" rows last; no sample, no row.
     """
     rows = _samples(records)
-    analysed: dict[tuple[str, Matrix], set[str]] = defaultdict(set)
-    quantified: dict[tuple[str, Matrix], set[str]] = defaultdict(set)
-    keys: set[tuple[str, Matrix]] = set()
+    analysed: dict[_Key, set[str]] = defaultdict(set)
+    quantified: dict[_Key, set[str]] = defaultdict(set)
+    keys: set[_Key] = set()
     for r in rows:
-        keys.add((r.polymer, r.matrix))
+        d = _detail(r)
+        keys.add((r.polymer, r.matrix, d))
         if r.status != DetectionStatus.not_analysed:
-            analysed[(r.polymer, r.matrix)].add(r.sample_id)
-            analysed[(ANY, r.matrix)].add(r.sample_id)
+            analysed[(r.polymer, r.matrix, d)].add(r.sample_id)
+            analysed[(ANY, r.matrix, d)].add(r.sample_id)
         if _is_quantified(r):
-            quantified[(r.polymer, r.matrix)].add(r.sample_id)
-            quantified[(ANY, r.matrix)].add(r.sample_id)
+            quantified[(r.polymer, r.matrix, d)].add(r.sample_id)
+            quantified[(ANY, r.matrix, d)].add(r.sample_id)
 
-    def freq(key: tuple[str, Matrix]) -> Frequency:
+    def freq(key: _Key) -> Frequency:
         k, n = len(quantified[key]), len(analysed[key])
-        return Frequency(key[0], key[1], n, k, k / n if n else 0.0)
+        return Frequency(key[0], key[1], key[2], n, k, k / n if n else 0.0)
 
-    def order(key: tuple[str, Matrix]) -> tuple[str, str]:
-        return key[0], key[1].value
+    def order(key: _Key) -> tuple[str, str, str]:
+        return key[0], key[1].value, key[2]
 
     out = [freq(key) for key in sorted(keys, key=order)]
-    out.extend(freq((ANY, m)) for m in sorted({m for _, m in keys}, key=lambda m: m.value))
+    out.extend(freq((ANY, m, d)) for m, d in sorted({(m, d) for _, m, d in keys},
+                                                     key=lambda md: (md[0].value, md[1])))
     return out
 
 
@@ -151,13 +163,14 @@ def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
     """Statistics per (polymer, method, matrix, kind, basis) of the per-sample results;
     ``max_measurement`` is the largest single quantified aliquot. Never pooled across."""
     rows = _samples(records)
-    groups: dict[tuple[str, str, str, str, str], list[SampleResult]] = defaultdict(list)
+    groups: dict[tuple[str, ...], list[SampleResult]] = defaultdict(list)
     for s in aggregate_aliquots(rows):
-        groups[(s.polymer, s.method, s.matrix.value, s.kind.value, s.basis.value)].append(s)
-    measurements: dict[tuple[str, str, str, str, str], list[float]] = defaultdict(list)
+        groups[(s.polymer, s.method, s.matrix.value, s.matrix_detail, s.kind.value,
+                s.basis.value)].append(s)
+    measurements: dict[tuple[str, ...], list[float]] = defaultdict(list)
     for r in rows:
         if _is_quantified(r) and r.canonical_value is not None:
-            measurements[(r.polymer, r.method, r.matrix.value, r.kind.value,
+            measurements[(r.polymer, r.method, r.matrix.value, _detail(r), r.kind.value,
                           r.basis.value)].append(r.canonical_value)
     out: list[PolymerStats] = []
     for key in sorted(groups):
@@ -168,7 +181,8 @@ def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
         values = [s.value for s in items if s.value is not None]
         meas = measurements.get(key, [])
         out.append(PolymerStats(
-            polymer=key[0], method=key[1], matrix=items[0].matrix, kind=items[0].kind,
+            polymer=key[0], method=key[1], matrix=items[0].matrix,
+            matrix_detail=items[0].matrix_detail, kind=items[0].kind,
             basis=items[0].basis,
             canonical_unit=items[0].canonical_unit, counts_by_status=counts,
             n_quantified=len(values),
