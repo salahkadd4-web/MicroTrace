@@ -96,3 +96,22 @@ def test_declared_status_accepts_reported_notations(text):
     ("not analysed", "not_analysed"), ("Not_Quantified", "not_quantified")])
 def test_declared_status_more_notations(text, status):
     assert parse_declared_status(text) == status
+
+
+# ---- residuals ----
+
+_NON_FINITE = ["1e999", "-1e999", "1E400", "1,5e999", "inf", "-inf", "Inf", "INF", "infinity",
+               "nan", "NaN", "NAN", "<1e999", "*1e999", "1e999*", pytest.param("<" + "9" * 400, id="lt-400-nines"),
+               pytest.param("9" * 400, id="400-nines"), pytest.param("*" + "9" * 400, id="star-400-nines")]
+
+
+@pytest.mark.parametrize("text", _NON_FINITE)
+def test_non_finite_numbers_unreadable(text):
+    r = parse_reported_value(text)
+    assert (r.ok, r.value, r.bound, r.hint) == (False, None, None, None)
+
+
+@pytest.mark.parametrize("text,value", [("1e308", 1e308), ("-1e-999", -0.0), ("1e-400", 0.0)])
+def test_finite_extremes_stay_readable(text, value):
+    r = parse_reported_value(text)
+    assert r.ok and r.value == value

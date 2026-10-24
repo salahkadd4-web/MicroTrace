@@ -512,6 +512,31 @@ def test_study_context_rejects_methods_equal_after_normalisation():
 # ---- residuals ----
 
 
+@pytest.mark.parametrize("text", ["1e999", "-1e999", "inf", "-INF", "NaN", "nan",
+                                  pytest.param("9" * 400, id="400-nines")])
+def test_non_finite_value_unparsable(text):
+    recs, issues = run(row(reported_value=text))
+    assert recs == []
+    check(issues, "E_UNPARSABLE_VALUE", "error", "reported_value")
+    assert not any(i.code == "E_NEGATIVE_VALUE" for i in issues)
+
+
+@pytest.mark.parametrize("name", ["lod", "loq"])
+@pytest.mark.parametrize("text", ["1e999", "-1e999", "Infinity", "nan"])
+def test_non_finite_row_limit_unparsable(name, text):
+    recs, issues = run(row(**{name: text}))
+    assert recs == []
+    check(issues, "E_UNPARSABLE_VALUE", "error", name)
+
+
+@pytest.mark.parametrize("name", ["size_min_um", "size_max_um"])
+@pytest.mark.parametrize("text", ["1e999", "-1e999", "inf", "NaN"])
+def test_non_finite_size_unparsable(name, text):
+    recs, issues = run(row(**{name: text}))
+    assert recs == []
+    check(issues, "E_UNPARSABLE_VALUE", "error", name)
+
+
 def wide_row(number=2, header_unit=None, polymer="PET", value="500", **over):
     """A wide cell: polymer and value from the polymer column, header unit kept."""
     header = f"{polymer} ({header_unit})" if header_unit else polymer

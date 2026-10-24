@@ -1,6 +1,7 @@
 """Reading of reported values (censored notations) and detection status."""
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass
 
@@ -46,12 +47,20 @@ def _key(text: str) -> str:
     return _AFTER_LT_GT.sub(r"\1", " ".join(fold(text.strip(" \xa0")).split()))
 
 
-def _num(text: str) -> float:
-    return float(text.replace(",", "."))
+def _num(text: str) -> float | None:
+    """The number, or None when it overflows to infinity ("1e999", 400 digits)."""
+    value = float(text.replace(",", "."))
+    return value if math.isfinite(value) else None
+
+
+_UNREADABLE = Reported(None, None, None, False)
 
 
 def parse_reported_value(text: str) -> Reported:
-    """Parse a reported cell: number, ``<LOD``, ``n.d.``, ``< 0,68``, ``*1.2``, ``1e-05``..."""
+    """Parse a reported cell: number, ``<LOD``, ``n.d.``, ``< 0,68``, ``*1.2``, ``1e-05``...
+
+    Every number is finite: "inf", "nan" or an overflowing "1e999" is unreadable (ok=False).
+    """
     key = _key(text)
     if key in _NOT_ANALYSED:
         return Reported(None, DetectionStatus.not_analysed, None, True)
@@ -60,12 +69,16 @@ def parse_reported_value(text: str) -> Reported:
     if key in _NOT_QUANTIFIED:
         return Reported(None, DetectionStatus.not_quantified, None, True)
     if m := _BOUND.match(key):
-        return Reported(None, None, _num(m.group(1)), True)
+        bound = _num(m.group(1))
+        return Reported(None, None, bound, True) if bound is not None else _UNREADABLE
     if m := _STAR.match(key):
-        return Reported(_num(m.group(1) or m.group(2)), DetectionStatus.between_lod_loq, None, True)
-    if _NUMBER.match(key):
-        return Reported(_num(key), None, None, True)
-    return Reported(None, None, None, False)
+        value = _num(m.group(1) or m.group(2))
+        if value is None:
+            return _UNREADABLE
+        return Reported(value, DetectionStatus.between_lod_loq, None, True)
+    if _NUMBER.match(key) and (value := _num(key)) is not None:
+        return Reported(value, None, None, True)
+    return _UNREADABLE
 
 
 def infer_status(r: Reported, lod: float | None, loq: float | None) -> DetectionStatus | None:

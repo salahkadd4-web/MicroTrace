@@ -1,4 +1,9 @@
-"""Honest per-sample aggregation, quantification frequencies and statistics."""
+"""Honest per-sample aggregation, quantification frequencies and statistics.
+
+Never pooled: aggregation, frequencies and statistics are always split by matrix
+(plasma and whole blood are never combined), and statistics also by method,
+quantity kind and basis.
+"""
 from __future__ import annotations
 
 import statistics
@@ -42,7 +47,10 @@ class SampleResult:
 
 @dataclass(frozen=True)
 class Frequency:
+    """Quantification frequency of one polymer ("ANY": any polymer) in one matrix."""
+
     polymer: str
+    matrix: Matrix
     n_samples: int
     n_quantified: int
     fraction: float
@@ -50,8 +58,11 @@ class Frequency:
 
 @dataclass(frozen=True)
 class PolymerStats:
+    """Statistics of the per-sample results of one (polymer, method, matrix, kind, basis)."""
+
     polymer: str
     method: str
+    matrix: Matrix
     kind: QuantityKind
     basis: Basis
     canonical_unit: Unit
@@ -100,46 +111,54 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
 
 
 def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequency]:
-    """Per-polymer quantification frequency across methods and units.
+    """Quantification frequency per (polymer, matrix), across methods and units.
 
-    A sample counts as quantified for a polymer if any aliquot, under any
-    method or unit, is quantified. The denominator for a polymer is the number
-    of samples with at least one record of that polymer whose status is not
-    ``not_analysed``; for "ANY", the samples with at least one analysed record.
-    Samples where a polymer was not measured are never counted against it.
+    Matrices are never pooled: one row per (polymer, matrix) present among the
+    sample records, then one "ANY" row per matrix. A sample counts as quantified
+    for a polymer if any aliquot, under any method or unit, is quantified. The
+    denominator for (polymer, matrix) is the number of samples of that matrix with
+    at least one record of that polymer whose status is not ``not_analysed``; for
+    ("ANY", matrix), the samples of that matrix with at least one analysed record.
+    Samples where a polymer was not measured are never counted against it. Rows
+    are ordered by (polymer, matrix), the "ANY" rows last; no sample, no row.
     """
     rows = _samples(records)
-    analysed: dict[str, set[str]] = defaultdict(set)
-    by_polymer: dict[str, set[str]] = defaultdict(set)
-    any_analysed: set[str] = set()
-    any_quantified: set[str] = set()
-    polymers: set[str] = set()
+    analysed: dict[tuple[str, Matrix], set[str]] = defaultdict(set)
+    quantified: dict[tuple[str, Matrix], set[str]] = defaultdict(set)
+    keys: set[tuple[str, Matrix]] = set()
     for r in rows:
-        polymers.add(r.polymer)
+        keys.add((r.polymer, r.matrix))
         if r.status != DetectionStatus.not_analysed:
-            analysed[r.polymer].add(r.sample_id)
-            any_analysed.add(r.sample_id)
+            analysed[(r.polymer, r.matrix)].add(r.sample_id)
+            analysed[(ANY, r.matrix)].add(r.sample_id)
         if _is_quantified(r):
-            by_polymer[r.polymer].add(r.sample_id)
-            any_quantified.add(r.sample_id)
+            quantified[(r.polymer, r.matrix)].add(r.sample_id)
+            quantified[(ANY, r.matrix)].add(r.sample_id)
 
-    def freq(polymer: str, k: int, n: int) -> Frequency:
-        return Frequency(polymer, n, k, k / n if n else 0.0)
+    def freq(key: tuple[str, Matrix]) -> Frequency:
+        k, n = len(quantified[key]), len(analysed[key])
+        return Frequency(key[0], key[1], n, k, k / n if n else 0.0)
 
-    out = [freq(p, len(by_polymer[p]), len(analysed[p])) for p in sorted(polymers)]
-    out.append(freq(ANY, len(any_quantified), len(any_analysed)))
+    def order(key: tuple[str, Matrix]) -> tuple[str, str]:
+        return key[0], key[1].value
+
+    out = [freq(key) for key in sorted(keys, key=order)]
+    out.extend(freq((ANY, m)) for m in sorted({m for _, m in keys}, key=lambda m: m.value))
     return out
 
 
 def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
+    """Statistics per (polymer, method, matrix, kind, basis) of the per-sample results;
+    ``max_measurement`` is the largest single quantified aliquot. Never pooled across."""
     rows = _samples(records)
-    groups: dict[tuple[str, str, str, str], list[SampleResult]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str, str], list[SampleResult]] = defaultdict(list)
     for s in aggregate_aliquots(rows):
-        groups[(s.polymer, s.method, s.kind.value, s.basis.value)].append(s)
-    measurements: dict[tuple[str, str, str, str], list[float]] = defaultdict(list)
+        groups[(s.polymer, s.method, s.matrix.value, s.kind.value, s.basis.value)].append(s)
+    measurements: dict[tuple[str, str, str, str, str], list[float]] = defaultdict(list)
     for r in rows:
         if _is_quantified(r) and r.canonical_value is not None:
-            measurements[(r.polymer, r.method, r.kind.value, r.basis.value)].append(r.canonical_value)
+            measurements[(r.polymer, r.method, r.matrix.value, r.kind.value,
+                          r.basis.value)].append(r.canonical_value)
     out: list[PolymerStats] = []
     for key in sorted(groups):
         items = groups[key]
@@ -149,7 +168,8 @@ def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
         values = [s.value for s in items if s.value is not None]
         meas = measurements.get(key, [])
         out.append(PolymerStats(
-            polymer=key[0], method=key[1], kind=items[0].kind, basis=items[0].basis,
+            polymer=key[0], method=key[1], matrix=items[0].matrix, kind=items[0].kind,
+            basis=items[0].basis,
             canonical_unit=items[0].canonical_unit, counts_by_status=counts,
             n_quantified=len(values),
             min=min(values) if values else None,

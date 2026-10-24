@@ -1,18 +1,22 @@
 """Honest aggregation, frequencies and statistics (all data simulated)."""
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import fields, replace
 
 import pytest
 
 from microtrace_core.results.importer import run_import
+from microtrace_core.results.mapping import Mapping
 from microtrace_core.results.records import MeasurementRecord
 from microtrace_core.results.summary import (
     AGGREGATION_RULE_FR,
+    Frequency,
+    PolymerStats,
     aggregate_aliquots,
     describe,
     quantification_frequency,
 )
+from microtrace_core.results.tables import RawTable
 from microtrace_core.results.units import UNITS
 from microtrace_core.results.vocab import (
     DetectionStatus as S,
@@ -139,17 +143,19 @@ def test_frequency_order_and_empty():
     freq = quantification_frequency(recs)
     assert [f.polymer for f in freq] == ["PE", "PS_SUM", "ANY"]
     assert freq[-1].n_quantified == 1 and freq[-1].fraction == 1.0
-    assert [f.polymer for f in quantification_frequency([])] == ["ANY"]
-    assert quantification_frequency([])[0].fraction == 0.0
+    assert quantification_frequency([]) == []  # no sample, no matrix: no ANY row
 
 
 def test_leslie_like_frequencies_and_maxima():
     table = leslie_like_wide_table()
     result = run_import(table, leslie_like_mapping(table), leslie_like_context())
-    freq = {f.polymer: (f.n_quantified, f.n_samples)
+    wb = Matrix.whole_blood
+    freq = {(f.polymer, f.matrix): (f.n_quantified, f.n_samples)
             for f in quantification_frequency(result.records)}
-    assert freq == {"PET": (11, 22), "PS_SUM": (8, 22), "PE": (5, 22),
-                    "PMMA": (1, 22), "PP": (0, 22), "ANY": (17, 22)}
+    assert freq == {("PET", wb): (11, 22), ("PS_SUM", wb): (8, 22), ("PE", wb): (5, 22),
+                    ("PMMA", wb): (1, 22), ("PP", wb): (0, 22), ("ANY", wb): (17, 22)}
+    assert [f.polymer for f in quantification_frequency(result.records)][-1] == "ANY"
+    assert {s.matrix for s in describe(result.records)} == {wb}
     stats = {s.polymer: s for s in describe(result.records)}
     assert stats["PET"].max_measurement == pytest.approx(2.4)
     assert stats["PS_SUM"].max_measurement == pytest.approx(4.8)
@@ -171,11 +177,63 @@ def test_frequency_denominator_only_samples_analysed_for_that_polymer():
 
 def test_frequency_polymer_never_analysed_has_zero_denominator():
     f = quantification_frequency([rec(status=S.not_analysed, value=None)])
-    assert [(x.polymer, x.n_quantified, x.n_samples, x.fraction) for x in f] == [
-        ("PET", 0, 0, 0.0), ("ANY", 0, 0, 0.0)]
+    assert [(x.polymer, x.matrix, x.n_quantified, x.n_samples, x.fraction) for x in f] == [
+        ("PET", Matrix.whole_blood, 0, 0, 0.0), ("ANY", Matrix.whole_blood, 0, 0, 0.0)]
 
 
 def test_aggregate_never_pools_matrices():
     recs = [rec(aliquot="a", value=1.0), replace(rec(aliquot="b", value=3.0), matrix=Matrix.plasma)]
     out = aggregate_aliquots(recs)
     assert [(s.matrix, s.value) for s in out] == [(Matrix.plasma, 3.0), (Matrix.whole_blood, 1.0)]
+
+
+# ---- residuals ----
+
+
+def rec_x(matrix, **kw):
+    return replace(rec(**kw), matrix=matrix)
+
+
+def test_describe_never_pools_matrices():
+    recs = [rec_x(Matrix.plasma, sample="P1", value=0.5), rec_x(Matrix.plasma, sample="P2", value=0.7),
+            rec_x(Matrix.whole_blood, sample="W1", value=5.0),
+            rec_x(Matrix.whole_blood, sample="W2", status=S.below_lod, value=None)]
+    stats = describe(recs)
+    assert [(s.polymer, s.method, s.matrix, s.n_quantified, s.min, s.max) for s in stats] == [
+        ("PET", "M", Matrix.plasma, 2, 0.5, 0.7), ("PET", "M", Matrix.whole_blood, 1, 5.0, 5.0)]
+    assert [sum(s.counts_by_status.values()) for s in stats] == [2, 2]
+    assert [f.name for f in fields(PolymerStats)][:3] == ["polymer", "method", "matrix"]
+
+
+def test_frequency_per_polymer_and_matrix_with_any_per_matrix():
+    recs = [rec_x(Matrix.plasma, sample="P1"), rec_x(Matrix.plasma, sample="P2", status=S.below_lod,
+                                                   value=None),
+            rec_x(Matrix.plasma, sample="P2", polymer="PE"),
+            rec_x(Matrix.whole_blood, sample="W1", status=S.below_lod, value=None),
+            rec_x(Matrix.whole_blood, sample="W2", polymer="PE", status=S.not_analysed, value=None),
+            rec_x(Matrix.serum, sample="R1", polymer="PE", status=S.below_lod, value=None)]
+    got = [(f.polymer, f.matrix, f.n_quantified, f.n_samples) for f in quantification_frequency(recs)]
+    assert got == [
+        ("PE", Matrix.plasma, 1, 1), ("PE", Matrix.serum, 0, 1), ("PE", Matrix.whole_blood, 0, 0),
+        ("PET", Matrix.plasma, 1, 2), ("PET", Matrix.whole_blood, 0, 1),
+        ("ANY", Matrix.plasma, 2, 2), ("ANY", Matrix.serum, 0, 1),
+        ("ANY", Matrix.whole_blood, 0, 1)]
+    assert [f.name for f in fields(Frequency)][:2] == ["polymer", "matrix"]
+
+
+def test_plasma_and_whole_blood_donors_in_one_import_stay_apart():
+    cols = ["Sample", "Matrix", "Polymer", "Value"]
+    data = [["P1", "plasma", "PET", "0,5"], ["P2", "plasma", "PET", "0,6"],
+            ["W1", "sang total", "PET", "5"], ["W2", "sang total", "PET", "<LOD"]]
+    t = RawTable(tuple(cols), tuple(dict(zip(cols, r, strict=True)) for r in data),
+                 (2, 3, 4, 5), "simulated.csv", None)
+    m = Mapping("long", {"sample_id": "Sample", "matrix": "Matrix", "polymer": "Polymer",
+                         "reported_value": "Value"}, constants={"unit": "µg/mL", "method": "Py-GC/MS"})
+    r = run_import(t, m, leslie_like_context())
+    assert not r.has_errors
+    assert [(s.matrix, s.n_quantified, s.median, s.max) for s in describe(r.records)] == [
+        (Matrix.plasma, 2, pytest.approx(0.55), 0.6), (Matrix.whole_blood, 1, 5.0, 5.0)]
+    assert [(f.polymer, f.matrix, f.n_quantified, f.n_samples)
+            for f in quantification_frequency(r.records)] == [
+        ("PET", Matrix.plasma, 2, 2), ("PET", Matrix.whole_blood, 1, 2),
+        ("ANY", Matrix.plasma, 2, 2), ("ANY", Matrix.whole_blood, 1, 2)]
