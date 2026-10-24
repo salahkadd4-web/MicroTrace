@@ -507,3 +507,57 @@ def test_method_matching_tolerates_case_and_spaces():
 def test_study_context_rejects_methods_equal_after_normalisation():
     with pytest.raises(ValueError, match="Méthode"):
         ctx(methods=(MethodSpec(PYGC, Technique.py_gc_ms), MethodSpec("py-gc/ms ", Technique.other)))
+
+
+# ---- residuals ----
+
+
+def wide_row(number=2, header_unit=None, polymer="PET", value="500", **over):
+    """A wide cell: polymer and value from the polymer column, header unit kept."""
+    header = f"{polymer} ({header_unit})" if header_unit else polymer
+    fields = {k: v for k, v in {**BASE, "polymer": polymer, "reported_value": value,
+                                **over}.items() if v is not None}
+    columns = {k: f"[{k}]" for k in fields}
+    columns.update(polymer=header, reported_value=header)
+    return MappedRow(fields, number, header, columns, header_unit)
+
+
+def test_header_unit_conflict_with_row_unit():
+    recs, issues = run(wide_row(2, "ng/mL", unit="µg/mL"), wide_row(2, "ng/mL", "PE", unit="µg/mL"),
+                       context=ctx(limits=()))
+    assert recs == []
+    got = [i for i in issues if i.code == "E_HEADER_UNIT_CONFLICT"]
+    assert [(i.severity, i.row, i.field, i.column) for i in got] == [
+        ("error", 2, "unit", "PET (ng/mL)"), ("error", 2, "unit", "PE (ng/mL)")]
+    assert "ng/mL" in got[0].message and "µg/mL" in got[0].message
+
+
+def test_header_unit_conflict_with_constant_unit():
+    r = wide_row(3, "µg/L", unit="ng/mL")
+    r.columns.pop("unit")  # the unit comes from a constant
+    recs, issues = run(r, context=ctx(limits=()))
+    assert recs == []
+    check(issues, "E_HEADER_UNIT_CONFLICT", "error", "unit", 3, "PET (µg/L)")
+
+
+@pytest.mark.parametrize("header_unit,unit", [("ng/mL", "ng/mL"), ("ng/ml", "ng/mL"),
+                                              ("µg/mL", "ug/mL"), ("ug·mL⁻¹", "µg/mL")])
+def test_same_header_unit_no_issue(header_unit, unit):
+    recs, issues = run(wide_row(2, header_unit, value="2,4", unit=unit), context=ctx(limits=()))
+    assert len(recs) == 1
+    assert not any(i.code.startswith(("E_HEADER", "W_HEADER")) for i in issues)
+
+
+def test_unknown_header_unit_warns_once_per_column():
+    recs, issues = run(wide_row(2, "ng/dL", unit="ng/mL"), wide_row(3, "ng/dL", unit="ng/mL",
+                                                                    sample_id="S2"),
+                       context=ctx(limits=()))
+    assert len(recs) == 2 and recs[0].unit.code == "ng/mL"
+    i = check(issues, "W_HEADER_UNIT_UNKNOWN", "warning", "unit", 2, "PET (ng/dL)")
+    assert "ng/dL" in i.message
+
+
+def test_no_header_unit_no_issue():
+    recs, issues = run(wide_row(2, None, value="2,4"), context=ctx(limits=()))
+    assert len(recs) == 1
+    assert not any("HEADER" in i.code for i in issues)

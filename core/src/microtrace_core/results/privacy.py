@@ -18,10 +18,10 @@ from datetime import date
 
 from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.mapping import Mapping
-from microtrace_core.results.tables import RawTable
+from microtrace_core.results.tables import MAX_SCAN_CHARS, RawTable
 from microtrace_core.results.vocab import fold
 
-MAX_SCAN_CHARS = 1000
+__all__ = ["MAX_SCAN_CHARS", "detect_pii"]
 
 _PII_TOKENS = frozenset({
     "nom", "name", "fullname", "prenom", "firstname", "lastname", "surname", "naissance",

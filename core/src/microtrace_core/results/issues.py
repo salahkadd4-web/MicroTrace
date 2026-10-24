@@ -51,6 +51,8 @@ ISSUE_CODES: dict[str, str] = {
     "W_POLYMER_OTHER": "warning",
     "I_PS_AS_SUM": "info",
     "E_UNKNOWN_UNIT": "error",
+    "E_HEADER_UNIT_CONFLICT": "error",
+    "W_HEADER_UNIT_UNKNOWN": "warning",
     "E_UNPARSABLE_VALUE": "error",
     "E_NEGATIVE_VALUE": "error",
     "E_LIMIT_UNIT_MISMATCH": "error",

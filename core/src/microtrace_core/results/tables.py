@@ -24,6 +24,8 @@ MAX_COLUMNS = 500
 MAX_ROWS = 100_000
 MAX_BLANK_ROWS = 10_000
 MAX_CELLS = 2_000_000  # data rows x columns
+# text scanners (personal data, header units, field synonyms) only read this many characters
+MAX_SCAN_CHARS = 1000
 
 
 class TableReadError(ValueError):

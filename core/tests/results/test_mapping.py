@@ -1,4 +1,6 @@
 """Column mapping tests (all tables are synthetic, simulated)."""
+import time
+
 import pytest
 
 from microtrace_core.results.issues import Issue, has_errors
@@ -166,3 +168,81 @@ def test_wide_headers_with_units_detected_and_stripped():
     rows, _ = apply_mapping(t, m)
     assert [(r.fields["polymer"], r.source_column) for r in rows] == [
         ("PET", "PET (µg/mL)"), ("PE", "PE [ng/mL]")]
+
+
+# ---- residuals ----
+
+
+def _timed_suggest(table):
+    start = time.perf_counter()
+    m = suggest_mapping(table)
+    return m, time.perf_counter() - start
+
+
+@pytest.mark.parametrize("header", ["(" + " " * 199_999, " " * 199_998 + "(x", "PET" + " (" * 99_998 + ")"],
+                         ids=["paren-spaces", "spaces-paren", "space-paren-pairs"])
+def test_unit_suffix_scan_is_linear_on_a_200k_header(header):
+    assert len(header) >= 199_999
+    m, elapsed = _timed_suggest(_table(["Donor", header], [["1", "1"]]))
+    assert elapsed < 1.0
+    assert m.polymer_columns == {}
+
+
+def test_suggest_mapping_fast_on_500_columns_of_32k_headers():
+    cols = [f"C{i:03d}(" + " " * 31_995 for i in range(500)]
+    assert all(len(c) == 32_000 for c in cols)
+    m, elapsed = _timed_suggest(_table(cols, [["1"] * 500]))
+    assert elapsed < 1.0
+    assert m.mode == "long" and m.field_columns == {}
+
+
+def test_unit_suffix_stripping_unchanged_on_ordinary_headers():
+    t = _table(["Donor", "PET (µg/mL)", "PE  [ng/mL]  ", "PP(mg/L)", "PS (sum)", "PMMA (lot 2)",
+                "PVC (a)b)"], [["1"] * 7])
+    assert suggest_mapping(t).polymer_columns == {
+        "PET (µg/mL)": "PET", "PE  [ng/mL]  ": "PE", "PP(mg/L)": "PP"}
+
+
+def test_same_header_unit_suggested_as_unit_constant():
+    t = _table(["Donor", "PET (ng/mL)", "PE [ng/ml]", "PP (ng / mL)"], [["1", "1", "2", "3"]])
+    m = suggest_mapping(t)
+    assert m.mode == "wide" and m.constants == {"unit": "ng/mL"}
+    rows, _ = apply_mapping(t, m)
+    assert [(r.fields["unit"], r.header_unit) for r in rows] == [
+        ("ng/mL", "ng/mL"), ("ng/mL", "ng/ml"), ("ng/mL", "ng / mL")]
+
+
+@pytest.mark.parametrize("headers", [
+    ["PET (ng/mL)", "PE (µg/mL)"], ["PET (ng/mL)", "PE"], ["PET (ng/mL)", "PE (ng/dL)"],
+    ["PET (ug/mL)", "PE (mg/L)"]])
+def test_no_unit_constant_when_header_units_differ_or_unknown(headers):
+    t = _table(["Donor", *headers], [["1", "1", "2"]])
+    m = suggest_mapping(t)
+    assert m.mode == "wide" and list(m.polymer_columns) == headers
+    assert m.constants == {}
+
+
+def test_no_unit_constant_when_a_unit_column_exists():
+    t = _table(["Donor", "Unité", "PET (ng/mL)", "PE (ng/mL)"], [["1", "µg/mL", "1", "2"]])
+    m = suggest_mapping(t)
+    assert m.field_columns["unit"] == "Unité" and m.constants == {}
+
+
+def test_unit_shaped_unknown_header_is_stripped_but_others_kept():
+    t = _table(["Donor", "PET (ng/dL)", "PE (items/100 mL)", "PS (sum)", "PMMA (lot 2)"],
+               [["1"] * 5])
+    m = suggest_mapping(t)
+    assert m.polymer_columns == {"PET (ng/dL)": "PET", "PE (items/100 mL)": "PE"}
+    rows, _ = apply_mapping(t, m)
+    assert [r.header_unit for r in rows] == ["ng/dL", "items/100 mL"]
+
+
+def test_header_unit_only_in_wide_mode():
+    t = _table(["Donor", "Valeur (ng/mL)"], [["1", "2"]])
+    rows, _ = apply_mapping(t, Mapping("long", {"sample_id": "Donor",
+                                                "reported_value": "Valeur (ng/mL)"}))
+    assert rows[0].header_unit is None
+    t = _table(["Donor", "PET", "PE (sum)"], [["1", "2", "3"]])
+    rows, _ = apply_mapping(t, Mapping("wide", {"sample_id": "Donor"},
+                                       {"PET": "PET", "PE (sum)": "PE"}, {"unit": "µg/mL"}))
+    assert [r.header_unit for r in rows] == [None, None]

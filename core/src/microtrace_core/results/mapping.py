@@ -9,7 +9,7 @@ from typing import Literal
 from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
 from microtrace_core.results.issues import Issue, issue
 from microtrace_core.results.schema import FIELD_NAMES
-from microtrace_core.results.tables import RawTable
+from microtrace_core.results.tables import MAX_SCAN_CHARS, RawTable
 from microtrace_core.results.units import parse_unit
 
 
@@ -31,12 +31,17 @@ class Mapping:
 @dataclass(frozen=True)
 class MappedRow:
     """One measurement cell with its row fields; ``columns`` maps each standard field read
-    from the file to its file column (fields set by a constant are absent)."""
+    from the file to its file column (fields set by a constant are absent).
+
+    ``header_unit`` (wide format only): the unit text written in the polymer column header
+    ("PET (ng/mL)" -> "ng/mL"), checked against the row unit by the validation.
+    """
 
     fields: dict[str, str]
     source_row: int
     source_column: str
     columns: dict[str, str] = field(default_factory=dict)
+    header_unit: str | None = None
 
 
 def _norm(text: str) -> str:
@@ -62,37 +67,89 @@ _LOOKUP: dict[str, str] = {_norm(s): f for f, syns in _SYNONYMS.items() for s in
 _GENERIC_ID = "id"  # only applies when no more specific sample synonym matched
 
 
-_UNIT_SUFFIX = re.compile(r"^(.*?)\s*(?:\(([^()]*)\)|\[([^\[\]]*)\])\s*$")
+_GROUPS = {")": "(", "]": "["}
+
+
+def _unit_suffix(header: str) -> tuple[str, str] | None:
+    """(label, unit text) when the header ends with a unit in parentheses or brackets.
+
+    A unit is a group whose content is a known unit or contains "/" ("ng/dL" is kept as an
+    unknown unit, "(sum)" or "(lot 2)" are not units). Linear: only the first MAX_SCAN_CHARS
+    characters are read, so a longer header never has a unit suffix.
+    """
+    if len(header) > MAX_SCAN_CHARS:
+        return None
+    text = header.rstrip()
+    opening = _GROUPS.get(text[-1:])
+    if opening is None:
+        return None
+    start = text.rfind(opening)
+    inner = text[start + 1:-1]
+    label = text[:start].rstrip()
+    if start < 0 or not label or text[-1] in inner:
+        return None
+    if parse_unit(inner) is None and "/" not in inner:
+        return None
+    return label, inner
 
 
 def _polymer_label(header: str) -> str:
     """The header without a trailing unit in parentheses or brackets ("PET (µg/mL)" -> "PET")."""
-    m = _UNIT_SUFFIX.match(header)
-    if m and m.group(1) and parse_unit(m.group(2) or m.group(3) or "") is not None:
-        return m.group(1)
-    return header
+    suffix = _unit_suffix(header)
+    return suffix[0] if suffix else header
+
+
+def _header_unit(header: str) -> str | None:
+    suffix = _unit_suffix(header)
+    return suffix[1].strip() if suffix else None
 
 
 def _is_polymer_header(header: str) -> bool:
+    if len(header) > MAX_SCAN_CHARS:  # a polymer label is never that long
+        return False
     return normalize_polymer(_polymer_label(header)) not in (UNKNOWN, OTHER)
 
 
+def _field_of(header: str) -> str | None:
+    return None if len(header) > MAX_SCAN_CHARS else _LOOKUP.get(_norm(header))
+
+
+def _common_header_unit(columns: list[str]) -> str | None:
+    """The unit code shared by every polymer header, or None if one lacks it or they differ."""
+    units = {parse_unit(_header_unit(c) or "") for c in columns}
+    if len(units) != 1:
+        return None
+    unit = units.pop()
+    return unit.code if unit is not None else None
+
+
 def suggest_mapping(table: RawTable) -> Mapping:
+    """Columns recognised by their header; wide format when >= 2 headers are polymers.
+
+    In wide format, when every polymer header carries the same known unit ("PET (ng/mL)")
+    and no column is mapped to ``unit``, that unit is proposed as the ``unit`` constant.
+    Headers longer than MAX_SCAN_CHARS are never recognised.
+    """
     field_columns: dict[str, str] = {}
     for col in table.columns:
-        target = _LOOKUP.get(_norm(col))
+        target = _field_of(col)
         if target and target not in field_columns:
             field_columns[target] = col
     if "sample_id" not in field_columns:
         for col in table.columns:
-            if _norm(col) == _GENERIC_ID:
+            if len(col) <= MAX_SCAN_CHARS and _norm(col) == _GENERIC_ID:
                 field_columns["sample_id"] = col
                 break
     if "polymer" not in field_columns:
         used = set(field_columns.values())
         polymer_cols = [c for c in table.columns if c not in used and _is_polymer_header(c)]
         if len(polymer_cols) >= 2:
-            return Mapping("wide", field_columns, {c: _polymer_label(c) for c in polymer_cols})
+            constants: dict[str, str] = {}
+            unit = _common_header_unit(polymer_cols)
+            if unit is not None and "unit" not in field_columns:
+                constants["unit"] = unit
+            return Mapping("wide", field_columns, {c: _polymer_label(c) for c in polymer_cols},
+                           constants)
     return Mapping("long", field_columns)
 
 
@@ -172,6 +229,7 @@ def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], l
     columns = dict(mapping.field_columns)
     if split:
         columns["aliquot"] = columns["sample_id"]
+    header_units = {col: _header_unit(col) for col in mapping.polymer_columns}
     out: list[MappedRow] = []
     failed: dict[str, None] = {}  # ordered set of ids without a recognised suffix
     for row, number in zip(table.rows, table.row_numbers, strict=True):
@@ -194,7 +252,8 @@ def apply_mapping(table: RawTable, mapping: Mapping) -> tuple[list[MappedRow], l
             for col, label in mapping.polymer_columns.items():
                 out.append(MappedRow({**base, "polymer": label, "reported_value": row.get(col, "")},
                                      number, col,
-                                     {**columns, "polymer": col, "reported_value": col}))
+                                     {**columns, "polymer": col, "reported_value": col},
+                                     header_units[col]))
     if failed:
         issues.append(_split_failed(list(failed), columns["sample_id"]))
     return out, issues

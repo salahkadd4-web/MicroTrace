@@ -1,10 +1,12 @@
 """Row validation: mapped rows -> measurement records plus located French issues.
 
 Scientific rules: no silent correction, no imputation. A row with at least one
-error yields no record. Issue ``field`` is the standard field concerned and
-``column`` its file column (``MappedRow.columns``; the polymer column in wide
-format); ``column`` is None when the value comes from a constant or from the
-study context (limits table).
+error yields no record. A unit written in a wide polymer header ("PET (ng/mL)")
+must be the row unit (E_HEADER_UNIT_CONFLICT; W_HEADER_UNIT_UNKNOWN if it is not a
+known unit). Issue ``field`` is the standard field concerned and ``column`` its
+file column (``MappedRow.columns``; the polymer column in wide format); ``column``
+is None when the value comes from a constant or from the study context (limits
+table).
 """
 from __future__ import annotations
 
@@ -205,6 +207,20 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
         unit = parse_unit(f["unit"])
         if unit is None:
             add("E_UNKNOWN_UNIT", f"Unité inconnue : « {f['unit']} ».", "unit")
+    # unit written in a wide polymer header: it must be the row unit (never converted)
+    if row.header_unit is not None:
+        header_unit = parse_unit(row.header_unit)
+        hcol = cols.get("reported_value")
+        if header_unit is None:
+            add("W_HEADER_UNIT_UNKNOWN",
+                f"Unité « {row.header_unit} » de l'en-tête de colonne non reconnue : elle est "
+                "ignorée, l'unité de la ligne est utilisée.", "unit", hcol,
+                once=("header_unit", hcol))
+        elif unit is not None and header_unit.code != unit.code:
+            add("E_HEADER_UNIT_CONFLICT",
+                f"L'en-tête de colonne indique « {header_unit.label} » mais l'unité de la ligne "
+                f"est « {unit.label} » : corrigez l'une ou l'autre, aucune conversion n'est "
+                "faite.", "unit", hcol)
 
     # reported value
     reported_text = f.get("reported_value", "")

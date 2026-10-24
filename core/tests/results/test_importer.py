@@ -1,8 +1,10 @@
 """Import orchestrator tests (all tables are synthetic, simulated / fictif)."""
 from dataclasses import replace
 
+import pytest
+
 from microtrace_core.results.importer import RULES_VERSION, run_import
-from microtrace_core.results.mapping import Mapping
+from microtrace_core.results.mapping import Mapping, suggest_mapping
 from microtrace_core.results.tables import RawTable
 from microtrace_core.results.vocab import DataNature, RecordType
 
@@ -201,3 +203,51 @@ def test_leslie_like_has_no_unmapped_or_split_warnings():
     r = run_import(leslie_like_wide_table(), leslie_like_mapping(), leslie_like_context())
     codes = {i.code for i in r.issues}
     assert not codes & {"I_UNMAPPED_COLUMN", "W_ALIQUOT_SPLIT_FAILED", "E_SAMPLE_CONFLICT"}
+
+
+# ---- residuals ----
+
+def _ctx():
+    return replace(leslie_like_context(), limits=())
+
+
+def _csv_table(lines):
+    rows = [ln.split(";") for ln in lines[1:]]
+    return _long(lines[0].split(";"), rows)
+
+
+def test_header_unit_conflicts_with_unit_column():
+    t = _csv_table(["Sample ID;Matrix;Method;Unit;PET (ng/mL);PE (ng/mL)",
+                    f"S1;plasma;{PYGC};µg/mL;500;400", f"S2;plasma;{PYGC};µg/mL;300;200"])
+    m = suggest_mapping(t)
+    assert m.field_columns["unit"] == "Unit" and m.constants == {}
+    r = run_import(t, m, _ctx())
+    got = [(i.row, i.column, i.field) for i in r.issues if i.code == "E_HEADER_UNIT_CONFLICT"]
+    assert got == [(2, "PET (ng/mL)", "unit"), (2, "PE (ng/mL)", "unit"),
+                   (3, "PET (ng/mL)", "unit"), (3, "PE (ng/mL)", "unit")]
+    assert r.records == () and r.has_errors
+
+
+def test_header_unit_becomes_the_unit_constant():
+    t = _csv_table(["Sample ID;Matrix;Method;PET (ng/mL);PE (ng/mL)",
+                    f"S1;plasma;{PYGC};500;43", f"S2;plasma;{PYGC};9;1200"])
+    m = suggest_mapping(t)
+    assert m.constants == {"unit": "ng/mL"}
+    r = run_import(t, m, _ctx())
+    assert not r.has_errors
+    assert not any("HEADER" in i.code for i in r.issues)
+    got = [(x.sample_id, x.polymer, x.value, x.unit.code, x.canonical_value,
+            x.canonical_unit.code) for x in r.records]
+    assert got == [("S1", "PET", 500.0, "ng/mL", 0.5, "ug/mL"),
+                   ("S1", "PE", 43.0, "ng/mL", 0.043, "ug/mL"),
+                   ("S2", "PET", 9.0, "ng/mL", 0.009, "ug/mL"),
+                   ("S2", "PE", 1200.0, "ng/mL", 1.2, "ug/mL")]
+
+
+def test_mixed_header_units_suggest_no_constant():
+    t = _csv_table(["Sample ID;Matrix;Method;PET (ng/mL);PE (µg/mL)",
+                    f"S1;plasma;{PYGC};500;0,4"])
+    m = suggest_mapping(t)
+    assert m.mode == "wide" and "unit" not in m.constants and "unit" not in m.field_columns
+    r = run_import(t, m, _ctx())
+    assert {i.code for i in r.issues if i.severity == "error"} == {"E_REQUIRED_MISSING"}

@@ -75,6 +75,10 @@ def _corpus() -> list[Issue]:
                                               "reported_value": "Value", "analysis_date": "Date"},
                                      constants={"matrix": "plasma", "unit": UG_ML, "method": PYGC},
                                      split_aliquot_suffix=True), ctx).issues
+    headed = _table(["Sample", "Unit", "PET (ng/mL)", "PE (ng/dL)"], [["S1", UG_ML, "1", "2"]])
+    out += run_import(headed, Mapping("wide", {"sample_id": "Sample", "unit": "Unit"},
+                                      {"PET (ng/mL)": "PET", "PE (ng/dL)": "PE"},
+                                      {"matrix": "plasma", "method": PYGC}), ctx).issues
     two = _table(["Sample", "PE", "PP", "V"], [["1", "1", "2", "3"]])
     for mapping in (Mapping("wide", {"sample_id": "Sample", "reported_value": "V"}, {"PE": "PE"}),
                     Mapping("wide", {"sample_id": "Sample"}),
