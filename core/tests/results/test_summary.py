@@ -59,8 +59,9 @@ def test_frequency_partial_fraction():
     recs = [rec(sample="S1"), rec(sample="S2", status=S.below_lod, value=None),
             rec(sample="S3", polymer="PE")]
     f = {x.polymer: x for x in quantification_frequency(recs)}
-    assert (f["PET"].n_quantified, f["PET"].n_samples) == (1, 3)
-    assert f["PET"].fraction == pytest.approx(1 / 3)
+    assert (f["PET"].n_quantified, f["PET"].n_samples) == (1, 2)
+    assert f["PET"].fraction == pytest.approx(1 / 2)
+    assert (f["ANY"].n_quantified, f["ANY"].n_samples) == (2, 3)
 
 
 def test_status_rank_ordering():
@@ -153,3 +154,27 @@ def test_leslie_like_frequencies_and_maxima():
     assert stats["PS_SUM"].max_measurement == pytest.approx(4.8)
     assert stats["PE"].max_measurement == pytest.approx(7.1)
     assert stats["PP"].n_quantified == 0 and stats["PP"].median is None
+
+
+# ---- final review ----
+
+
+def test_frequency_denominator_only_samples_analysed_for_that_polymer():
+    recs = [rec(sample="S1"), rec(sample="S2", polymer="PE"),
+            rec(sample="S3", status=S.not_analysed, value=None),
+            rec(sample="S3", polymer="PE", status=S.below_lod, value=None),
+            rec(sample="S4", status=S.not_analysed, value=None)]
+    f = {x.polymer: (x.n_quantified, x.n_samples) for x in quantification_frequency(recs)}
+    assert f == {"PET": (1, 1), "PE": (1, 2), "ANY": (2, 3)}
+
+
+def test_frequency_polymer_never_analysed_has_zero_denominator():
+    f = quantification_frequency([rec(status=S.not_analysed, value=None)])
+    assert [(x.polymer, x.n_quantified, x.n_samples, x.fraction) for x in f] == [
+        ("PET", 0, 0, 0.0), ("ANY", 0, 0, 0.0)]
+
+
+def test_aggregate_never_pools_matrices():
+    recs = [rec(aliquot="a", value=1.0), replace(rec(aliquot="b", value=3.0), matrix=Matrix.plasma)]
+    out = aggregate_aliquots(recs)
+    assert [(s.matrix, s.value) for s in out] == [(Matrix.plasma, 3.0), (Matrix.whole_blood, 1.0)]

@@ -168,4 +168,27 @@ def test_particles_long_imports_clean():
 
 def test_limits_table_is_table3():
     assert LESLIE_LIMITS["PET"] == (0.13, 0.43) and len(LESLIE_LIMITS) == 5
-    assert {dl.unit_code for dl in leslie_like_context().limits} == {UG_ML}
+    assert {dl.unit_code for dl in leslie_like_context().limits} == {"ug/mL"}
+
+
+# ---- final review ----
+
+_PII_CODES = {"E_PII_COLUMN", "E_PII_VALUE", "W_POSSIBLE_PII_COLUMN", "W_POSSIBLE_BIRTHDATE"}
+
+
+def test_pii_errors_stop_before_validation_and_never_echo_values():
+    secrets = ("06 12 34 56 78", "jean.dupont@chu.fr", "Jean Dupont")
+    t = _long(["Sample", "Polymer", "Value", "Code patient"], [
+        ["06 12 34 56 78", "Jean Dupont", "jean.dupont@chu.fr", "Jean Dupont"],
+        ["06 12 34 56 78", "PET", "06 12 34 56 78", "jean.dupont@chu.fr"],
+        ["S3", "jean.dupont@chu.fr", "Jean Dupont", "P003"],
+    ])
+    m = Mapping("long", {"sample_id": "Sample", "polymer": "Polymer", "reported_value": "Value"},
+                constants={"matrix": "sang total", "unit": UG_ML, "method": PYGC},
+                split_aliquot_suffix=True)
+    r = run_import(t, m, leslie_like_context())
+    assert r.has_errors and r.records == () and r.qc_records == ()
+    assert any(i.code == "E_PII_VALUE" for i in r.issues)
+    for i in r.issues:
+        assert not any(s in i.message for s in secrets), i
+        assert i.code in _PII_CODES or i.code.startswith("E_MAPPING") or i.code == "I_UNMAPPED_COLUMN"

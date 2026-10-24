@@ -356,4 +356,29 @@ def validate_rows(
         rec = _validate_row(row, context, seen, issues)
         if rec is not None:
             records.append(rec)
+    issues.extend(_sample_conflicts(records))
     return records, issues
+
+
+def _sample_conflicts(records: list[MeasurementRecord]) -> list[Issue]:
+    """One error per sample carrying several matrices or record types in one import."""
+    by_sample: dict[str, list[MeasurementRecord]] = {}
+    for r in records:
+        by_sample.setdefault(r.sample_id, []).append(r)
+    out: list[Issue] = []
+    for sid, recs in by_sample.items():
+        parts = []
+        matrices = sorted({r.matrix.value for r in recs})
+        types = sorted({r.record_type.value for r in recs})
+        if len(matrices) > 1:
+            parts.append(f"plusieurs matrices ({', '.join(matrices)})")
+        if len(types) > 1:
+            parts.append(f"plusieurs types d'enregistrement ({', '.join(types)})")
+        if parts:
+            lines = ", ".join(str(n) for n in sorted({r.source_row for r in recs}))
+            out.append(Issue(
+                "E_SAMPLE_CONFLICT", "error",
+                f"Échantillon « {sid} » : {' et '.join(parts)} dans un même import "
+                f"(lignes {lines}). Un échantillon a une seule matrice et un seul type.",
+                column="sample_id"))
+    return out

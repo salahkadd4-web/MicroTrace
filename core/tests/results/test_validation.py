@@ -27,6 +27,14 @@ def ctx(limits=None, methods=None):
     return StudyContext(DataNature.simulated, tuple(methods), tuple(limits))
 
 
+def unchecked_limit(**over):
+    """A study limit that bypasses DetectionLimit validation (defensive paths only)."""
+    dl = DetectionLimit(PYGC, "PET", 0.13, 0.43, "ug/mL", "simulated")
+    for k, v in over.items():
+        object.__setattr__(dl, k, v)
+    return dl
+
+
 def row(number=2, col="Valeur", **over):
     fields = {**BASE, **over}
     return MappedRow({k: v for k, v in fields.items() if v is not None}, number, col)
@@ -316,7 +324,7 @@ def test_other_polymers_distinct_keys():
 
 
 def test_negative_table_limit():
-    c = ctx(limits=(DetectionLimit(PYGC, "PET", -0.1, 0.4, "ug/mL", "simulated"),))
+    c = ctx(limits=(unchecked_limit(lod=-0.1, loq=0.4),))
     _, issues = run(row(), context=c)
     check(issues, "E_NEGATIVE_VALUE", "error", "lod")
 
@@ -357,7 +365,7 @@ def test_negative_bound():
 
 
 def test_unknown_table_unit_message():
-    c = ctx(limits=(DetectionLimit(PYGC, "PET", 0.1, 0.4, "furlongs", "simulated"),))
+    c = ctx(limits=(unchecked_limit(lod=0.1, loq=0.4, unit_code="furlongs"),))
     _, issues = run(row(), context=c)
     assert "unité inconnue" in check(issues, "E_LIMIT_UNIT_MISMATCH", "error", "lod").message
 
@@ -376,3 +384,21 @@ def test_declared_status_on_bound_path():
     recs, issues = run(row(reported_value="<0,5", detection_status="below_lod"))
     assert recs[0].status is DetectionStatus.below_lod
     check(issues, "W_STATUS_INCONSISTENT", "warning", "Valeur")
+
+
+# ---- final review ----
+
+
+def test_e_sample_conflict_one_issue_per_sample():
+    recs, issues = run(
+        row(2, aliquot="a"), row(3, aliquot="b", matrix="plasma"),
+        row(4, sample_id="S2"), row(5, sample_id="S2", polymer="PE", record_type="procedural_blank"),
+        row(6, sample_id="S3", polymer="PE", matrix="sérum", record_type="field_blank"),
+        row(7, sample_id="S3", matrix="sang total"),
+        row(8, sample_id="S4"), row(9, sample_id="S4", polymer="PE"))
+    got = [i for i in issues if i.code == "E_SAMPLE_CONFLICT"]
+    assert [(i.severity, i.row) for i in got] == [("error", None)] * 3
+    assert "S1" in got[0].message and "2, 3" in got[0].message and "matrice" in got[0].message
+    assert "S2" in got[1].message and "4, 5" in got[1].message and "type" in got[1].message
+    assert "S3" in got[2].message and "matrice" in got[2].message and "type" in got[2].message
+    assert not any("S4" in i.message for i in issues)

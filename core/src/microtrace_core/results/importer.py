@@ -12,6 +12,8 @@ from microtrace_core.results.validation import validate_rows
 from microtrace_core.results.vocab import DataNature, RecordType
 
 RULES_VERSION = "1"
+# mapping issues quoting cell values: dropped when personal data was found
+_ECHOES_CELLS = frozenset({"W_ALIQUOT_SPLIT_FAILED"})
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,10 @@ def _file_rules(records: list[MeasurementRecord], context: StudyContext) -> list
 def run_import(table: RawTable, mapping: Mapping, context: StudyContext) -> ImportResult:
     issues: list[Issue] = list(detect_pii(table, mapping))
     rows, map_issues = apply_mapping(table, mapping)
+    if has_errors(issues):
+        # personal data: never validate, so that no message can echo a cell value
+        issues.extend(i for i in map_issues if i.code not in _ECHOES_CELLS)
+        return ImportResult((), (), tuple(issues), len(table.rows), RULES_VERSION)
     issues.extend(map_issues)
     records: list[MeasurementRecord] = []
     if not has_errors(map_issues):

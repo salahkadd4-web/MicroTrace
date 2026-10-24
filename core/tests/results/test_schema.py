@@ -45,4 +45,40 @@ def test_study_context_rejects_bad_blank_corrected():
     with pytest.raises(ValueError):
         StudyContext(DataNature.simulated, m, blank_corrected="maybe")
     assert StudyContext(DataNature.simulated, m).blank_corrected == "unknown"
-    DetectionLimit("PyGC", "PE", 0.1, 0.3, "ug/mL", "simulated")
+
+
+def test_study_context_coerces_strings_to_enums():
+    c = StudyContext("simulated", (MethodSpec("PyGC", "py_gc_ms"), MethodSpec("R", "µRaman")))
+    assert c.data_nature is DataNature.simulated
+    assert [s.technique for s in c.methods] == [Technique.py_gc_ms, Technique.micro_raman]
+
+
+@pytest.mark.parametrize("make", [
+    lambda: StudyContext("garbage", (MethodSpec("PyGC", Technique.py_gc_ms),)),
+    lambda: MethodSpec("PyGC", "nonsense"),
+    lambda: MethodSpec("PyGC", 3),
+])
+def test_unknown_enum_values_rejected(make):
+    with pytest.raises(ValueError, match="inconnu"):
+        make()
+
+
+def test_detection_limit_valid_values_and_unit_code():
+    dl = DetectionLimit("PyGC", "PE", 0.1, 0.3, "µg/mL", "simulated")
+    assert (dl.lod, dl.loq, dl.unit_code) == (0.1, 0.3, "ug/mL")
+    dl = DetectionLimit("PyGC", "PE", None, 2, "ng/mL", "simulated")
+    assert (dl.lod, dl.loq, dl.unit_code) == (None, 2.0, "ng/mL")
+
+
+@pytest.mark.parametrize("bad", [-0.1, float("nan"), float("inf"), "0.1", True])
+@pytest.mark.parametrize("name", ["lod", "loq"])
+def test_detection_limit_rejects_bad_limits(name, bad):
+    kw = {"lod": 0.1, "loq": 0.3, name: bad}
+    with pytest.raises(ValueError, match=name.upper()):
+        DetectionLimit("PyGC", "PE", kw["lod"], kw["loq"], "ug/mL", "simulated")
+
+
+@pytest.mark.parametrize("unit", ["furlongs", "", "ppm"])
+def test_detection_limit_rejects_unknown_unit(unit):
+    with pytest.raises(ValueError, match="nité"):
+        DetectionLimit("PyGC", "PE", 0.1, 0.3, unit, "simulated")

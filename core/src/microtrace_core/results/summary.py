@@ -12,6 +12,7 @@ from microtrace_core.results.vocab import (
     STATUS_RANK,
     Basis,
     DetectionStatus,
+    Matrix,
     QuantityKind,
     RecordType,
 )
@@ -27,6 +28,7 @@ ANY = "ANY"
 @dataclass(frozen=True)
 class SampleResult:
     sample_id: str
+    matrix: Matrix
     polymer: str
     method: str
     kind: QuantityKind
@@ -71,9 +73,11 @@ def _is_quantified(r: MeasurementRecord) -> bool:
 
 
 def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResult]:
-    groups: dict[tuple[str, str, str, str, str], list[MeasurementRecord]] = defaultdict(list)
+    """One result per (sample, matrix, polymer, method, kind, basis); never pooled across."""
+    groups: dict[tuple[str, str, str, str, str, str], list[MeasurementRecord]] = defaultdict(list)
     for r in _samples(records):
-        groups[(r.sample_id, r.polymer, r.method, r.kind.value, r.basis.value)].append(r)
+        groups[(r.sample_id, r.matrix.value, r.polymer, r.method, r.kind.value,
+                r.basis.value)].append(r)
     out: list[SampleResult] = []
     for key in sorted(groups):
         rows = groups[key]
@@ -87,7 +91,7 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
             value = None
         first = rows[0]
         out.append(SampleResult(
-            sample_id=first.sample_id, polymer=first.polymer, method=first.method,
+            sample_id=first.sample_id, matrix=first.matrix, polymer=first.polymer, method=first.method,
             kind=first.kind, basis=first.basis, canonical_unit=first.canonical_unit,
             status=status, value=value, n_aliquots=len(rows), n_quantified=len(quantified),
         ))
@@ -95,28 +99,34 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
 
 
 def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequency]:
-    """Per-polymer detection frequency across methods and units.
+    """Per-polymer quantification frequency across methods and units.
 
     A sample counts as quantified for a polymer if any aliquot, under any
-    method or unit, is quantified; the denominator is every distinct sample of
-    the import, including samples where that polymer was not measured.
+    method or unit, is quantified. The denominator for a polymer is the number
+    of samples with at least one record of that polymer whose status is not
+    ``not_analysed``; for "ANY", the samples with at least one analysed record.
+    Samples where a polymer was not measured are never counted against it.
     """
     rows = _samples(records)
-    n = len({r.sample_id for r in rows})
+    analysed: dict[str, set[str]] = defaultdict(set)
     by_polymer: dict[str, set[str]] = defaultdict(set)
+    any_analysed: set[str] = set()
     any_quantified: set[str] = set()
     polymers: set[str] = set()
     for r in rows:
         polymers.add(r.polymer)
+        if r.status != DetectionStatus.not_analysed:
+            analysed[r.polymer].add(r.sample_id)
+            any_analysed.add(r.sample_id)
         if _is_quantified(r):
             by_polymer[r.polymer].add(r.sample_id)
             any_quantified.add(r.sample_id)
 
-    def freq(polymer: str, k: int) -> Frequency:
+    def freq(polymer: str, k: int, n: int) -> Frequency:
         return Frequency(polymer, n, k, k / n if n else 0.0)
 
-    out = [freq(p, len(by_polymer[p])) for p in sorted(polymers)]
-    out.append(freq(ANY, len(any_quantified)))
+    out = [freq(p, len(by_polymer[p]), len(analysed[p])) for p in sorted(polymers)]
+    out.append(freq(ANY, len(any_quantified), len(any_analysed)))
     return out
 
 
