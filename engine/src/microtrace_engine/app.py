@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hmac
 import base64
+import logging
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Any, TypeVar
@@ -58,6 +59,8 @@ from .settings import Settings
 from .uploads import read_upload, sha256_hex, sheet_names
 
 PREVIEW_ROWS = 20
+
+logger = logging.getLogger("microtrace_engine")
 
 SECRET_HEADER = "X-Engine-Secret"
 
@@ -141,6 +144,21 @@ def create_app(settings: Settings) -> FastAPI:
         return JSONResponse(
             status_code=422, content={"detail": "Requête invalide : corps ou champs non conformes."}
         )
+
+    @app.middleware("http")
+    async def _generic_errors(request, call_next):
+        # Unexpected errors: generic 500; log only the exception type and the route
+        # (the message may hold a cell value). A middleware is used rather than an
+        # Exception handler, which Starlette re-raises to the server (traceback logged).
+        try:
+            return await call_next(request)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Erreur interne : %s sur %s", type(exc).__name__, request.url.path
+            )
+            return JSONResponse(
+                status_code=500, content={"detail": "Erreur interne du moteur."}
+            )
 
     require_secret = make_require_secret(settings)
     app.state.require_secret = require_secret

@@ -1,0 +1,12 @@
+.venv
+.git
+.superpowers
+.pytest_cache
+data
+datasets
+ml
+reports
+docs
+**/__pycache__
+**/*.pyc
+**/tests
