@@ -261,7 +261,10 @@ def create_app(settings: Settings) -> FastAPI:
             result = run_import(table, mp, ctx)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
-        extra = cross_import_issues((*result.records, *result.qc_records), existing_m)
+        sample_col = mp.field_columns.get("sample_id")
+        visible = _hidden_names(table.columns).get(sample_col or "") == sample_col
+        extra = cross_import_issues((*result.records, *result.qc_records), existing_m,
+                                    column=sample_col if visible else None)
         if extra:
             result = replace(
                 result,

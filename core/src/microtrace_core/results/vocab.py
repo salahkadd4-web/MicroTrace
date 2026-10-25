@@ -59,6 +59,7 @@ class DataNature(StrEnum):
 
 
 PS_SUM = "PS_SUM"
+ANY = "ANY"  # polymer code of the "any polymer" quantification frequency
 THERMOANALYTICAL = frozenset({Technique.py_gc_ms, Technique.ted_gc_ms})
 
 STATUS_RANK: dict[DetectionStatus, int] = {
@@ -148,3 +149,29 @@ def default_identification(technique: Technique) -> IdentificationStatus:
     if technique is Technique.other:
         return IdentificationStatus.candidate
     return IdentificationStatus.confirmed
+
+
+LABELS_FR: dict[str, dict[str, str]] = {
+    "nature": {"published": "publiée", "laboratory": "laboratoire", "simulated": "simulée"},
+    "blank": {"yes": "oui", "no": "non", "unknown": "inconnu"},
+    "matrix": {"whole_blood": "sang total", "plasma": "plasma", "serum": "sérum",
+               "other": "autre"},
+    "status": {"quantified": "quantifié", "between_lod_loq": "entre LOD et LOQ",
+               "not_quantified": "non quantifié", "below_lod": "< LOD",
+               "not_analysed": "non analysé"},
+    "record_type": {"sample": "échantillon", "procedural_blank": "blanc de procédure",
+                    "field_blank": "blanc de terrain", "spiked": "dopé"},
+    "kind": {"mass_concentration": "concentration massique",
+             "number_concentration": "concentration numérique"},
+    "basis": {"per_volume": "par volume", "per_mass": "par masse"},
+    "technique": {"py_gc_ms": "Py-GC/MS", "ted_gc_ms": "TED-GC/MS",
+                  "micro_ftir": "micro-FTIR", "micro_raman": "micro-Raman",
+                  "other": "autre"},
+    "polymer": {ANY: "au moins un polymère"},
+}
+
+
+def label_fr(group: str, code: str) -> str:
+    """French display label of a vocabulary code (``group`` a LABELS_FR key); unknown
+    codes, such as most polymer codes, are returned unchanged."""
+    return LABELS_FR[group].get(str(code), str(code))

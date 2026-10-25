@@ -50,7 +50,7 @@ def _wide_with_column(name):
 
 def test_leslie_like_imports_clean():
     result = run_import(leslie_like_wide_table(), leslie_like_mapping(), leslie_like_context())
-    assert result.rules_version == RULES_VERSION == "1"
+    assert result.rules_version == RULES_VERSION == "2"
     assert not [i for i in result.issues if i.severity == "error"]
     assert not result.has_errors
     assert any(i.code == "I_PS_AS_SUM" for i in result.issues)

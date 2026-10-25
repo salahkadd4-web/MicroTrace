@@ -601,3 +601,40 @@ def test_no_header_unit_no_issue():
     recs, issues = run(wide_row(2, None, value="2,4"), context=ctx(limits=()))
     assert len(recs) == 1
     assert not any("HEADER" in i.code for i in issues)
+
+
+# ---- C1 final review: one sample rule, French labels ----
+
+
+def test_e_sample_conflict_other_matrix_details():
+    recs, issues = run(
+        row(2, matrix="autre", matrix_detail="lait"),
+        row(3, matrix="autre", matrix_detail="salive", polymer="PE"),
+        row(4, sample_id="S2", matrix="autre", matrix_detail="Lait "),
+        row(5, sample_id="S2", matrix="autre", matrix_detail=" lait", polymer="PE"))
+    got = [i for i in issues if i.code == "E_SAMPLE_CONFLICT"]
+    assert len(got) == 1 and "« S1 »" in got[0].message
+    assert "détails de matrice « autre » (lait, salive)" in got[0].message
+
+
+def test_e_sample_conflict_message_in_french():
+    _, issues = run(row(2), row(3, matrix="plasma", record_type="procedural_blank", polymer="PE"))
+    msg = only(issues, "E_SAMPLE_CONFLICT").message
+    assert "plusieurs matrices (plasma, sang total)" in msg
+    assert "plusieurs types d'enregistrement (blanc de procédure, échantillon)" in msg
+    assert "whole_blood" not in msg and "procedural_blank" not in msg
+
+
+def test_sample_signature():
+    from types import SimpleNamespace as NS
+
+    from microtrace_core.results.validation import sample_signature
+    from microtrace_core.results.vocab import Matrix, RecordType
+
+    a = NS(matrix="other", matrix_detail=" Lait  maternel", record_type="sample")
+    b = NS(matrix=Matrix.other, matrix_detail="lait maternel", record_type=RecordType.sample)
+    assert sample_signature(a) == sample_signature(b) == (
+        Matrix.other, "lait maternel", RecordType.sample)
+    # a detail only distinguishes "other" matrices
+    p = NS(matrix="plasma", matrix_detail="x", record_type="sample")
+    assert sample_signature(p) == (Matrix.plasma, "", RecordType.sample)

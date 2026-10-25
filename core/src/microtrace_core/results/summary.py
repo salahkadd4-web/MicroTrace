@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from microtrace_core.results.records import MeasurementRecord
 from microtrace_core.results.units import Unit
 from microtrace_core.results.vocab import (
+    ANY,
     STATUS_RANK,
     Basis,
     DetectionStatus,
@@ -27,7 +28,6 @@ AGGREGATION_RULE_FR = (
     "aliquote n'est quantifiée, statut le plus élevé observé, sans valeur. "
     "Aucune imputation."
 )
-ANY = "ANY"
 _Key = tuple[str, Matrix, str]  # (polymer, matrix, matrix detail)
 
 

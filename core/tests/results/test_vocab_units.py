@@ -66,3 +66,15 @@ def test_conversions_are_exact_decimals(value, src, dst, expected):
 
 def test_to_canonical_exact():
     assert to_canonical(9.0, UNITS["ng/mL"]) == (0.009, UNITS["ug/mL"])
+
+
+def test_labels_fr():
+    from microtrace_core.results.vocab import ANY, LABELS_FR, Matrix, RecordType, label_fr
+
+    assert label_fr("matrix", Matrix.whole_blood) == "sang total"
+    assert label_fr("matrix", "other") == "autre"
+    assert label_fr("record_type", RecordType.field_blank) == "blanc de terrain"
+    assert label_fr("polymer", ANY) == "au moins un polymère"
+    assert label_fr("polymer", "PET") == "PET"
+    assert set(LABELS_FR["matrix"]) == {m.value for m in Matrix}
+    assert set(LABELS_FR["record_type"]) == {m.value for m in RecordType}

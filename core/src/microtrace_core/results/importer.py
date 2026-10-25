@@ -12,7 +12,7 @@ from microtrace_core.results.tables import RawTable
 from microtrace_core.results.validation import validate_rows
 from microtrace_core.results.vocab import DataNature, RecordType
 
-RULES_VERSION = "1"
+RULES_VERSION = "2"
 # mapping issues dropped when personal data was found: quoting cell values, or listing
 # every header (a header may itself be personal data)
 _ECHOES_CELLS = frozenset({"W_ALIQUOT_SPLIT_FAILED", "I_UNMAPPED_COLUMN"})

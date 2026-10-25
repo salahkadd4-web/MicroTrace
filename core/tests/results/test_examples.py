@@ -25,3 +25,13 @@ def test_examples_reproduce_article():
     assert stats["PE"].max_measurement == pytest.approx(7.1)
     assert leslie_like_context().data_nature == DataNature.simulated
     assert isinstance(leslie_like_csv(), bytes) and LESLIE_LIKE_FILENAME == "exemple_fictif_leslie2022.csv"
+
+
+# golden hash: any change to the packaged example is deliberate (update this constant)
+LESLIE_LIKE_SHA256 = "166b9931bed8eea89bf5b4d939ede861c49765beae64b56beeb2aef7916e3d9e"
+
+
+def test_leslie_like_csv_golden_hash():
+    import hashlib
+
+    assert hashlib.sha256(leslie_like_csv()).hexdigest() == LESLIE_LIKE_SHA256

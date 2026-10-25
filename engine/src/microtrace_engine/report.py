@@ -17,6 +17,7 @@ from microtrace_core.results import (
     quantification_frequency,
 )
 from microtrace_core.results.issues import fmt_fr
+from microtrace_core.results.vocab import label_fr
 
 from .convert import record_from_model
 from .schemas import ReportRequest
@@ -29,27 +30,8 @@ SEVERITY_FR = {"error": "erreur", "warning": "avertissement", "info": "informati
 _ENTITIES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", "[": "&#91;", "]": "&#93;",
              "`": "&#96;", "*": "&#42;", "|": "&#124;", "\\": "&#92;"}
 
-LABELS = {
-    "nature": {"published": "publiée", "laboratory": "laboratoire", "simulated": "simulée"},
-    "blank": {"yes": "oui", "no": "non", "unknown": "inconnu"},
-    "matrix": {"whole_blood": "sang total", "plasma": "plasma", "serum": "sérum",
-               "other": "autre"},
-    "status": {"quantified": "quantifié", "between_lod_loq": "entre LOD et LOQ",
-               "not_quantified": "non quantifié", "below_lod": "< LOD",
-               "not_analysed": "non analysé"},
-    "record_type": {"sample": "échantillon", "procedural_blank": "blanc de procédure",
-                    "field_blank": "blanc de terrain", "spiked": "dopé"},
-    "kind": {"mass_concentration": "concentration massique",
-             "number_concentration": "concentration numérique"},
-    "basis": {"per_volume": "par volume", "per_mass": "par masse"},
-    "technique": {"py_gc_ms": "Py-GC/MS", "ted_gc_ms": "TED-GC/MS",
-                  "micro_ftir": "micro-FTIR", "micro_raman": "micro-Raman",
-                  "other": "autre"},
-}
-
-
 def _lab(group: str, code: str) -> str:
-    return LABELS[group].get(code, code)
+    return label_fr(group, code)
 
 
 def _c(value: object) -> str:

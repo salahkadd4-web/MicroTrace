@@ -14,6 +14,7 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Protocol
 
 from microtrace_core.polymers import OTHER, UNKNOWN, normalize_polymer
 from microtrace_core.results.censoring import (
@@ -41,6 +42,7 @@ from microtrace_core.results.vocab import (
     Technique,
     default_identification,
     fold,
+    label_fr,
     method_key,
     normalize_result_polymer,
     parse_matrix,
@@ -476,25 +478,60 @@ def validate_rows(
     return records, issues
 
 
+class SampleLike(Protocol):
+    """Anything carrying a sample definition (a record, or a key of an earlier import)."""
+
+    @property
+    def matrix(self) -> Matrix | str: ...
+    @property
+    def matrix_detail(self) -> str: ...
+    @property
+    def record_type(self) -> RecordType | str: ...
+
+
+def sample_signature(r: SampleLike) -> tuple[Matrix, str, RecordType]:
+    """What defines a sample: matrix, detail of an "other" matrix (folded, spaces
+    collapsed; ignored for the other matrices) and record type.
+
+    A sample has one signature in an import and across the imports of a study
+    (E_SAMPLE_CONFLICT otherwise).
+    """
+    matrix = Matrix(r.matrix)
+    detail = " ".join(fold(r.matrix_detail).split()) if matrix is Matrix.other else ""
+    return (matrix, detail, RecordType(r.record_type))
+
+
+def _labels(group: str, codes) -> str:
+    return ", ".join(sorted(label_fr(group, c) for c in codes))
+
+
 def _sample_conflicts(records: list[MeasurementRecord], column: str | None) -> list[Issue]:
-    """One error per sample carrying several matrices or record types in one import."""
+    """One error per sample carrying several signatures (``sample_signature``) in one import."""
     by_sample: dict[str, list[MeasurementRecord]] = {}
     for r in records:
         by_sample.setdefault(r.sample_id, []).append(r)
     out: list[Issue] = []
     for sid, recs in by_sample.items():
+        sigs = {sample_signature(r) for r in recs}
+        if len(sigs) < 2:
+            continue
         parts = []
-        matrices = sorted({r.matrix.value for r in recs})
-        types = sorted({r.record_type.value for r in recs})
+        matrices = {m for m, _, _ in sigs}
+        types = {t for _, _, t in sigs}
         if len(matrices) > 1:
-            parts.append(f"plusieurs matrices ({', '.join(matrices)})")
+            parts.append(f"plusieurs matrices ({_labels('matrix', matrices)})")
+        elif len({d for _, d, _ in sigs}) > 1:
+            shown: dict[str, str] = {}
+            for r in recs:
+                shown.setdefault(sample_signature(r)[1], " ".join(r.matrix_detail.split()))
+            parts.append("plusieurs détails de matrice « autre » "
+                         f"({', '.join(sorted(shown.values()))})")
         if len(types) > 1:
-            parts.append(f"plusieurs types d'enregistrement ({', '.join(types)})")
-        if parts:
-            lines = ", ".join(str(n) for n in sorted({r.source_row for r in recs}))
-            out.append(issue(
-                "E_SAMPLE_CONFLICT",
-                f"Échantillon « {sid} » : {' et '.join(parts)} dans un même import "
-                f"(lignes {lines}). Un échantillon a une seule matrice et un seul type.",
-                column=column, field="sample_id"))
+            parts.append(f"plusieurs types d'enregistrement ({_labels('record_type', types)})")
+        lines = ", ".join(str(n) for n in sorted({r.source_row for r in recs}))
+        out.append(issue(
+            "E_SAMPLE_CONFLICT",
+            f"Échantillon « {sid} » : {' et '.join(parts)} dans un même import "
+            f"(lignes {lines}). Un échantillon a une seule matrice et un seul type.",
+            column=column, field="sample_id"))
     return out

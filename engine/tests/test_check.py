@@ -112,3 +112,10 @@ def test_existing_other_without_raw_422(client, auth_headers, expected):
     bad = _existing(expected.records[:1], polymer="OTHER", polymer_raw="")
     r = _post(client, auth_headers, existing=json.dumps(bad))
     assert r.status_code == 422 and "existing" in r.json()["detail"]
+
+
+def test_cross_import_issues_located_on_sample_column(client, auth_headers, expected):
+    ex = json.dumps(_existing(expected.records[:1]))
+    body = _post(client, auth_headers, existing=ex).json()
+    dup = [i for i in body["issues"] if i["code"] == "E_DUPLICATE_RECORD"]
+    assert [(i["column"], i["field"]) for i in dup] == [("Donor", "sample_id")]

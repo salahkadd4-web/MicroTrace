@@ -97,3 +97,31 @@ def test_other_polymer_without_raw_rejected():
     with pytest.raises(ValueError):
         ExistingKeyModel(sample_id="1", record_type="sample", polymer="OTHER",
                          method="m", matrix="plasma")
+
+
+def test_other_matrix_detail_conflict_like_b1(records):
+    from dataclasses import replace
+
+    from microtrace_core.results.vocab import Matrix
+
+    r = replace(records[0], matrix=Matrix.other, matrix_detail="lait")
+    same = [_key(r, aliquot="zz", matrix_detail="  Lait ")]
+    assert cross_import_issues([r], same) == []
+    other = cross_import_issues([r], [_key(r, aliquot="zz", matrix_detail="salive")])
+    assert [i.code for i in other] == ["E_SAMPLE_CONFLICT"]
+    assert "« autre »" in other[0].message and "salive" in other[0].message
+
+
+def test_messages_in_french_and_located(records):
+    r = records[0]
+    issues = cross_import_issues(
+        [r], [_key(r), _key(r, matrix="plasma", record_type="field_blank", aliquot="zz")],
+        column="Échantillon")
+    assert [i.code for i in issues] == ["E_DUPLICATE_RECORD", "E_SAMPLE_CONFLICT"]
+    assert all((i.column, i.field) == ("Échantillon", "sample_id") for i in issues)
+    msg = issues[1].message
+    assert "matrice sang total au lieu de plasma" in msg
+    assert "type d'enregistrement échantillon au lieu de blanc de terrain" in msg
+    for code in ("whole_blood", "field_blank", "sample "):
+        assert code not in msg
+    assert cross_import_issues([r], [_key(r)])[0].column is None
