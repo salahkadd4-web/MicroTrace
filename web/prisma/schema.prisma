@@ -117,6 +117,10 @@ model Study {
   dataFiles   DataFile[]
   importRuns  ImportRun[]
   predictions ModelPrediction[]
+  measurements   Measurement[]
+  qcMeasurements QcMeasurement[]
+
+  @@index([projectId])
 }
 
 model Method {
@@ -174,7 +178,7 @@ model DataFile {
 
   importRuns ImportRun[]
 
-  @@index([studyId, sha256])
+  @@unique([studyId, sha256])
 }
 
 model ImportRun {
@@ -203,6 +207,9 @@ model ImportRun {
 
   measurements   Measurement[]
   qcMeasurements QcMeasurement[]
+
+  @@index([studyId, status])
+  @@index([dataFileId])
 }
 
 // Un enregistrement de B1 (MeasurementRecordModel, 28 champs) + importRunId/studyId.
@@ -213,6 +220,7 @@ model Measurement {
   importRunId          String
   importRun            ImportRun            @relation(fields: [importRunId], references: [id])
   studyId              String
+  study                Study                @relation(fields: [studyId], references: [id])
   sampleId             String
   aliquot              String
   recordType           RecordType
@@ -251,6 +259,7 @@ model QcMeasurement {
   importRunId          String
   importRun            ImportRun            @relation(fields: [importRunId], references: [id])
   studyId              String
+  study                Study                @relation(fields: [studyId], references: [id])
   sampleId             String
   aliquot              String
   recordType           RecordType
@@ -301,6 +310,8 @@ model ModelPrediction {
   decidedAt       DateTime?
   decisionNote    String?
   createdAt       DateTime         @default(now())
+
+  @@index([studyId])
 }
 
 model AuditEvent {

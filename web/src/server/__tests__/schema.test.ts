@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  BlankCorrected,
   DataNature,
   DetectionStatus,
   IdentificationStatus,
@@ -54,6 +55,97 @@ describe("journal d'audit en ajout seul", () => {
     });
     await prisma.$executeRawUnsafe('TRUNCATE TABLE "AuditEvent"');
     expect(await prisma.auditEvent.count()).toBe(0);
+  });
+});
+
+const MSG =
+  /Le journal d'audit est en ajout seul : (UPDATE|DELETE) interdit sur AuditEvent\./;
+
+describe("déclencheur : autres chemins d'écriture", () => {
+  async function ev() {
+    return prisma.auditEvent.create({
+      data: { action: "a", entityType: "Study", entityId: "1" },
+    });
+  }
+  it("updateMany et deleteMany", async () => {
+    await ev();
+    await expect(
+      prisma.auditEvent.updateMany({ data: { action: "b" } }),
+    ).rejects.toThrow(MSG);
+    await expect(prisma.auditEvent.deleteMany({})).rejects.toThrow(MSG);
+  });
+  it("SQL brut UPDATE et DELETE, message complet", async () => {
+    await ev();
+    await expect(
+      prisma.$executeRawUnsafe(`UPDATE "AuditEvent" SET action = 'x'`),
+    ).rejects.toThrow(
+      "Le journal d'audit est en ajout seul : UPDATE interdit sur AuditEvent.",
+    );
+    await expect(
+      prisma.$executeRawUnsafe(`DELETE FROM "AuditEvent"`),
+    ).rejects.toThrow(
+      "Le journal d'audit est en ajout seul : DELETE interdit sur AuditEvent.",
+    );
+    expect(await prisma.auditEvent.count()).toBe(1);
+  });
+});
+
+describe("intégrité référentielle et import actif", () => {
+  it("suppression d'une étude ou d'un projet avec enfants refusée", async () => {
+    const { study, project } = await makeStudy();
+    await expect(
+      prisma.study.delete({ where: { id: study.id } }),
+    ).resolves.toBeDefined(); // sans enfant : possible en base
+    const s2 = await prisma.study.create({
+      data: { projectId: project.id, title: "E2", nature: "simulated" },
+    });
+    await prisma.method.create({
+      data: { studyId: s2.id, name: "M", nameKey: "m", technique: "other" },
+    });
+    await expect(
+      prisma.study.delete({ where: { id: s2.id } }),
+    ).rejects.toThrow(/foreign key|Foreign key/i);
+    await expect(
+      prisma.project.delete({ where: { id: project.id } }),
+    ).rejects.toThrow(/foreign key|Foreign key/i);
+  });
+
+  it("un seul import actif par fichier et par étude", async () => {
+    const { user, study } = await makeStudy();
+    const file = await prisma.dataFile.create({
+      data: {
+        studyId: study.id,
+        originalName: "f.csv",
+        sha256: "b".repeat(64),
+        sizeBytes: 1,
+        mimeType: "text/csv",
+        storagePath: "x",
+        uploadedById: user.id,
+      },
+    });
+    await expect(
+      prisma.dataFile.create({
+        data: { ...file, id: undefined, originalName: "g.csv" },
+      }),
+    ).rejects.toThrow(/Unique constraint/);
+    const data = {
+      studyId: study.id,
+      dataFileId: file.id,
+      mapping: {},
+      frozenContext: {},
+      rulesVersion: "1",
+      engineVersion: "1",
+      issues: [],
+      createdById: user.id,
+    };
+    const first = await prisma.importRun.create({ data });
+    await expect(prisma.importRun.create({ data })).rejects.toThrow();
+    await prisma.importRun.update({
+      where: { id: first.id },
+      data: { status: "retired" },
+    });
+    const second = await prisma.importRun.create({ data });
+    expect(second.status).toBe("active");
   });
 });
 
@@ -184,6 +276,7 @@ describe("cohÃ©rence des enums avec le moteur", () => {
   it.each([
     ["Technique", Technique, rec.technique.enum],
     ["DataNature", DataNature, ctx.data_nature.enum],
+    ["BlankCorrected", BlankCorrected, ctx.blank_corrected.enum],
     ["Matrix", Matrix, rec.matrix.enum],
     ["DetectionStatus", DetectionStatus, rec.status.enum],
     ["RecordType", RecordType, rec.record_type.enum],
