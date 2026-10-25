@@ -226,3 +226,58 @@ Si les imports actifs ont été contrôlés avec des versions de règles différ
 | **C4 — résultats et rapport** | tableau de bord, graphiques, rapport, exports, Playwright de bout en bout |
 
 Chaque sous-projet a son propre plan, ses relectures par tâche et sa relecture finale.
+
+## 10. Modules d'intelligence artificielle (C5–C7) — ajoutés à la demande du fondateur
+
+**Demande du fondateur (2026-10-25) :** « quelque chose de prédiction d'images de microscope et de résultats, et tout ce qui est possible pour un modèle d'IA ». L'équipe technique retient ce qui est scientifiquement défendable avec les données disponibles, et exclut le reste.
+
+### Principes communs (anti-objectifs de l'IA)
+- **Aucune prédiction de santé**, de risque individuel ou de diagnostic.
+- **Aucune identification de polymère à partir d'une image seule.** L'image donne des *particules candidates* (nombre, taille, forme) ; la composition vient d'une méthode chimique (spectre ou Py-GC/MS).
+- **Aucune imputation** de valeur manquante ou censurée par un modèle.
+- **Le modèle peut s'abstenir** (« pas de réponse fiable ») quand son score est sous un seuil fixé à l'évaluation.
+- **Toute sortie d'IA est une proposition** à valider par une personne compétente. Elle est affichée comme telle, avec le score, la version du modèle et ses limites, et elle n'est jamais enregistrée comme mesure sans validation humaine explicite.
+- **Chaque modèle a une fiche** (*model card*) versionnée : données d'entraînement et licences, protocole d'évaluation (séparations sans fuite : par objet, par bibliothèque ou par photo d'origine), métriques, conditions d'échec connues, date et sha256 des poids.
+- **L'inférence se fait dans le moteur Python** (nouvelles routes `/ai/...`), sur CPU. Les poids sont stockés hors de Git (`models/`, empreinte sha256 vérifiée au chargement). L'application enregistre chaque prédiction dans une table `ModelPrediction` (§8 du plan initial) : entrée (fichier, sha256), sortie, score, version du modèle, et décision humaine (acceptée, corrigée ou rejetée, par qui, quand).
+
+### C5 — Aide à l'identification spectrale (Raman / FTIR)
+- **Entrée :** un spectre déposé (CSV/TXT à deux colonnes, ou un des formats déjà lus par le chantier A), la technique et le laser si Raman en nm.
+- **Sortie :**
+  - les 3 polymères les plus probables, avec un score ;
+  - les 5 spectres de référence les plus proches (bibliothèque, identifiant), superposés au spectre déposé dans un graphique ;
+  - un statut `identifié | incertain | non identifié (abstention)`.
+- **Modèle :** le pipeline du chantier A (prétraitement, corrélation sur la fenêtre diagnostique, PCA+SVM), réentraîné sur le catalogue complet. Les seuils d'abstention sont choisis sur la validation par bibliothèque.
+- **Données :** les 7 bibliothèques publiques déjà cataloguées (licences dans `datasets/SOURCES.md`). **À ajouter :** une classe « non plastique » (cellulose, protéines, minéraux, fond) à partir des cartes RaMPI et de bibliothèques publiques à identifier.
+- **Limite affichée :** le modèle n'a pas vu de particules extraites de sang ; ses performances sur ce cas sont inconnues.
+
+### C6 — Analyse d'images de microscopie
+- **Entrée :** une image (PNG/JPEG/TIFF) de filtre ou de lame, avec son échelle (µm par pixel), saisie ou lue dans les métadonnées (TIFF MEB).
+- **Sortie :**
+  - le contour de chaque **particule candidate** (segmentation d'instances) ;
+  - le nombre de particules ;
+  - pour chaque particule : taille (diamètre de Feret, aire), forme (`fibre | fragment | bille | film`) avec un score ;
+  - la distribution des tailles ;
+  - l'image annotée, téléchargeable ;
+  - le résultat exportable vers une étude comme données de **comptage de particules candidates**, distinctes des mesures confirmées.
+- **Modèles :**
+  - segmentation : Mask R-CNN de `torchvision` (licence BSD) ;
+  - forme : un classifieur sur des descripteurs géométriques (allongement, circularité, solidité), règles de référence comprises.
+  - Les modèles sous licence AGPL (par exemple YOLO d'Ultralytics) sont **exclus**, pour ne pas contraindre la licence de MicroTrace.
+- **Données :**
+  - le jeu MEB `datasets/Images/dataset3` : 237 images, masques d'instances, billes, fibres et fragments ;
+  - le jeu Roboflow (177 photos d'origine, une seule classe). Ses licences sont **à retrouver** avant tout usage commercial ; en attendant, il sert à la recherche interne.
+  - Évaluation séparée par photo d'origine (aucune photo augmentée des deux côtés).
+- **Limites affichées :** entraîné sur des images MEB et d'un seul type de microscopie optique. Sur un autre microscope, il faut une recalibration, avec quelques images annotées par le laboratoire. Une particule sous la résolution de l'image n'est pas vue.
+
+### C7 — Assistant qualité des résultats
+- **Entrée :** les mesures enregistrées d'une étude.
+- **Sortie :** des **signaux**, pas des verdicts, chacun expliqué :
+  - **discordance entre aliquotes** d'un même échantillon (écart relatif au-delà d'un seuil documenté) ;
+  - **valeur proche des blancs** (moins de 3 fois la moyenne des blancs de procédure pour ce polymère, quand des contrôles qualité résumés existent) ;
+  - **valeur atypique** dans l'étude, par polymère, méthode et matrice (écart robuste à la médiane, au-delà de 3,5 écarts absolus médians) ;
+  - **taux de valeurs < LOD inhabituel** par lot ou par date d'analyse.
+- **Méthode :** statistiques robustes et règles documentées, pas un réseau de neurones : avec quelques dizaines d'échantillons, un modèle appris ne serait pas fiable. Les règles vivent dans B1 (Python), avec leurs tests.
+- **Non retenu :** prédire une concentration ou un effet sanitaire à partir de covariables (pas de données, risque de sur-interprétation).
+
+### Ordre et dépendances
+C5, C6 et C7 viennent **après C4** : ils ont besoin des écrans d'étude et de la table `ModelPrediction`. Ordre : **C7** (le plus rapide, sans entraînement), puis **C5** (données prêtes), puis **C6** (entraînement le plus long). Chacun a sa conception détaillée, son plan, ses relectures et une **fiche de modèle relue** avant d'être affiché aux chercheurs.
