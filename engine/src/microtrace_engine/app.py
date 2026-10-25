@@ -16,6 +16,7 @@ from microtrace_core.results import (
     LESLIE_LIKE_FILENAME,
     RULES_VERSION,
     aggregate_aliquots,
+    context_issues,
     data_dictionary_csv,
     data_dictionary_markdown,
     describe,
@@ -270,7 +271,10 @@ def create_app(settings: Settings) -> FastAPI:
     )
     def context_validate(ctx: StudyContextModel) -> ValidateResponse:
         # sync route: FastAPI runs it in the threadpool; B1 decides, not the web app
-        _domain(context_from_model, ctx)
+        problems = [i for i in context_issues(_domain(context_from_model, ctx))
+                    if i.severity == "error"]
+        if problems:
+            raise HTTPException(status_code=422, detail=problems[0].message)
         return ValidateResponse(ok=True)
 
     @app.post(

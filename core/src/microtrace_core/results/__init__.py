@@ -5,7 +5,7 @@ from microtrace_core.results.examples import (
     leslie_like_csv,
     leslie_like_mapping,
 )
-from microtrace_core.results.importer import RULES_VERSION, ImportResult, run_import
+from microtrace_core.results.importer import RULES_VERSION, ImportResult, context_issues, run_import
 from microtrace_core.results.issues import ISSUE_CODES, Issue, has_errors
 from microtrace_core.results.mapping import MappedRow, Mapping, apply_mapping, suggest_mapping
 from microtrace_core.results.privacy import detect_pii
@@ -52,5 +52,5 @@ __all__ = [
     "aggregate_aliquots", "apply_mapping", "canonical_unit", "data_dictionary_csv",
     "data_dictionary_markdown", "describe", "detect_pii", "has_errors", "leslie_like_context", "leslie_like_csv",
     "leslie_like_mapping", "parse_unit",
-    "quantification_frequency", "read_table", "run_import", "suggest_mapping",
+    "context_issues", "quantification_frequency", "read_table", "run_import", "suggest_mapping",
 ]

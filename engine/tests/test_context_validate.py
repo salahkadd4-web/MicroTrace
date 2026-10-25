@@ -23,5 +23,16 @@ def test_b1_rejection_is_422_french(client, auth_headers):
                                   "(casse et espaces ignorés)"}
 
 
+def test_published_needs_doi_and_license(client, auth_headers):
+    r = client.post("/context/validate", headers=auth_headers,
+                    json=_ctx(data_nature="published", reference_doi=None))
+    assert r.status_code == 422
+    assert r.json() == {"detail": "Des données publiées exigent un DOI de référence et une licence."}
+    r = client.post("/context/validate", headers=auth_headers,
+                    json=_ctx(data_nature="published", reference_doi="10.1234/abc",
+                              reference_license="CC-BY-4.0"))
+    assert r.status_code == 200 and r.json() == {"ok": True}
+
+
 def test_requires_secret(client):
     assert client.post("/context/validate", json=_ctx()).status_code == 401

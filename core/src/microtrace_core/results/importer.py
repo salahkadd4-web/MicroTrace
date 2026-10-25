@@ -51,6 +51,17 @@ class ImportResult:
         return has_errors(self.issues)
 
 
+def context_issues(context: StudyContext) -> list[Issue]:
+    """Context-level issues, independent of any file (checked at study creation and import)."""
+    issues: list[Issue] = []
+    if context.data_nature is DataNature.published and not (
+            (context.reference_doi or "").strip() and (context.reference_license or "").strip()):
+        issues.append(issue(
+            "E_PUBLISHED_WITHOUT_REFERENCE",
+            "Des données publiées exigent un DOI de référence et une licence."))
+    return issues
+
+
 def _file_rules(records: list[MeasurementRecord], context: StudyContext) -> list[Issue]:
     issues: list[Issue] = []
     if len({(r.kind, r.basis) for r in records}) > 1:
@@ -58,11 +69,7 @@ def _file_rules(records: list[MeasurementRecord], context: StudyContext) -> list
             "W_MIXED_QUANTITY_KINDS",
             "Le fichier mêle plusieurs grandeurs ou bases (masse et nombre, par volume et "
             "par masse) : elles ne seront jamais agrégées ensemble."))
-    if context.data_nature is DataNature.published and not (
-            (context.reference_doi or "").strip() and (context.reference_license or "").strip()):
-        issues.append(issue(
-            "E_PUBLISHED_WITHOUT_REFERENCE",
-            "Des données publiées exigent un DOI de référence et une licence."))
+    issues.extend(context_issues(context))
     return issues
 
 
