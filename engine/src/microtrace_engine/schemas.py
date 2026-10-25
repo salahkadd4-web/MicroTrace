@@ -159,3 +159,14 @@ class PolymerStatsModel(_Model):
     mean: Number | None
     max: Number | None
     max_measurement: Number | None
+
+
+class TableReadResponse(_Model):
+    filename: str
+    sha256: str
+    size: int
+    sheet: str | None
+    sheets: list[str]
+    columns: list[str]
+    preview: list[dict[str, str]]
+    n_rows: int
