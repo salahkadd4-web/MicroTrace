@@ -26,14 +26,45 @@ RULES_WARNING = "Attention : règles de contrôle différentes entre imports"
 SEVERITY_FR = {"error": "erreur", "warning": "avertissement", "info": "information"}
 
 
+_ENTITIES = {"&": "&amp;", "<": "&lt;", ">": "&gt;", "[": "&#91;", "]": "&#93;",
+             "`": "&#96;", "*": "&#42;", "|": "&#124;", "\\": "&#92;"}
+
+LABELS = {
+    "nature": {"published": "publiée", "laboratory": "laboratoire", "simulated": "simulée"},
+    "blank": {"yes": "oui", "no": "non", "unknown": "inconnu"},
+    "matrix": {"whole_blood": "sang total", "plasma": "plasma", "serum": "sérum",
+               "other": "autre"},
+    "status": {"quantified": "quantifié", "between_lod_loq": "entre LOD et LOQ",
+               "not_quantified": "non quantifié", "below_lod": "< LOD",
+               "not_analysed": "non analysé"},
+    "record_type": {"sample": "échantillon", "procedural_blank": "blanc de procédure",
+                    "field_blank": "blanc de terrain", "spiked": "dopé"},
+    "kind": {"mass_concentration": "concentration massique",
+             "number_concentration": "concentration numérique"},
+    "basis": {"per_volume": "par volume", "per_mass": "par masse"},
+    "technique": {"py_gc_ms": "Py-GC/MS", "ted_gc_ms": "TED-GC/MS",
+                  "micro_ftir": "micro-FTIR", "micro_raman": "micro-Raman",
+                  "other": "autre"},
+}
+
+
+def _lab(group: str, code: str) -> str:
+    return LABELS[group].get(code, code)
+
+
 def _c(value: object) -> str:
-    """A value for a Markdown table cell or line: single line, pipes escaped."""
+    """Untrusted text for Markdown: single line, markup and link syntax neutralised."""
     text = " ".join(str(value).split())
-    return text.replace("\\", "\\\\").replace("|", "\\|")
+    return "".join(_ENTITIES.get(ch, ch) for ch in text)
 
 
 def _num(v: float | None) -> str:
     return "—" if v is None else fmt_fr(v)
+
+
+def _counts(issues) -> list[int]:
+    n = Counter(x.severity for x in issues)
+    return [n["error"], n["warning"], n["info"]]
 
 
 def _table(header: list[str], rows: list[list[object]]) -> list[str]:
@@ -43,8 +74,9 @@ def _table(header: list[str], rows: list[list[object]]) -> list[str]:
     return out + [""]
 
 
-def _where(matrix: str, detail: str) -> str:
-    return f"{matrix} ({detail})" if detail else matrix
+def _where(matrix, detail: str) -> str:
+    name = _lab("matrix", getattr(matrix, "value", matrix))
+    return f"{name} ({detail})" if detail else name
 
 
 def build_markdown(req: ReportRequest) -> str:
@@ -67,15 +99,15 @@ def build_markdown(req: ReportRequest) -> str:
     L.append("")
 
     L += ["## Étude et référence", "", f"- Titre : {_c(s.title)}",
-          f"- Nature des données : {_c(s.nature)}",
+          f"- Nature des données : {_c(_lab('nature', s.nature))}",
           f"- DOI : {_c(s.doi) if s.doi else 'non renseigné'}",
           f"- Licence : {_c(s.license) if s.license else 'non renseignée'}",
-          f"- Correction du blanc : {_c(s.blank_corrected)}", ""]
+          f"- Correction du blanc : {_c(_lab('blank', s.blank_corrected))}", ""]
 
     L += ["## Méthodes et limites de détection", ""]
     if req.context.methods:
         L += _table(["Méthode", "Technique"],
-                    [[m.name, m.technique] for m in req.context.methods])
+                    [[m.name, _lab('technique', m.technique)] for m in req.context.methods])
     if req.context.limits:
         L += _table(["Méthode", "Polymère", "LOD", "LOQ", "Unité", "Source"],
                     [[x.method, x.polymer, _num(x.lod), _num(x.loq), x.unit_code, x.source]
@@ -88,7 +120,7 @@ def build_markdown(req: ReportRequest) -> str:
         L += _table(["Fichier", "SHA-256", "Feuille", "Date", "Auteur", "Erreurs",
                      "Avertissements", "Informations"],
                     [[i.file.name, i.file.sha256, i.file.sheet or "—", i.date, i.author,
-                      i.counts.error, i.counts.warning, i.counts.info] for i in req.imports])
+                      *_counts(i.issues)] for i in req.imports])
     else:
         L += ["Aucun import.", ""]
 
@@ -98,7 +130,7 @@ def build_markdown(req: ReportRequest) -> str:
     freqs = quantification_frequency(records)
     if freqs:
         L += _table(["Polymère", "Matrice", "Quantifiés/échantillons"],
-                    [[f.polymer, _where(f.matrix.value, f.matrix_detail),
+                    [[f.polymer, _where(f.matrix, f.matrix_detail),
                       f"{f.n_quantified}/{f.n_samples} ({fmt_fr(round(f.fraction * 100, 1))} %)"]
                      for f in freqs])
     else:
@@ -109,8 +141,9 @@ def build_markdown(req: ReportRequest) -> str:
     if stats:
         L += _table(["Polymère", "Méthode", "Matrice", "Grandeur", "Unité", "n quantifiés",
                      "Min", "Médiane", "Moyenne", "Max"],
-                    [[p.polymer, p.method, _where(p.matrix.value, p.matrix_detail),
-                      f"{p.kind.value}/{p.basis.value}", p.canonical_unit.code,
+                    [[p.polymer, p.method, _where(p.matrix, p.matrix_detail),
+                      f"{_lab('kind', p.kind.value)}, {_lab('basis', p.basis.value)}",
+                      p.canonical_unit.label,
                       p.n_quantified, _num(p.min), _num(p.median), _num(p.mean), _num(p.max)]
                      for p in stats])
     else:
@@ -119,6 +152,8 @@ def build_markdown(req: ReportRequest) -> str:
     L += ["## Contrôles qualité", ""]
     if qc:
         cnt = Counter((r.record_type.value, r.method, r.polymer, r.status.value) for r in qc)
+        cnt = Counter({(_lab('record_type', k[0]), k[1], k[2], _lab('status', k[3])): n
+                       for k, n in cnt.items()})
         L += _table(["Type", "Méthode", "Polymère", "Statut", "Nombre"],
                     [[*k, n] for k, n in sorted(cnt.items())])
     else:
@@ -150,13 +185,24 @@ CSS = ("body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem auto;p
 _BOLD = re.compile(r"\*\*(.+?)\*\*")
 
 
+def _text(text: str) -> str:
+    # entities emitted by _c render as the literal characters, then everything is escaped
+    out = html.escape(html.unescape(text), quote=True)
+    return out.replace("[", "&#91;").replace("]", "&#93;").replace("`", "&#96;")
+
+
 def _inline(text: str) -> str:
-    return _BOLD.sub(r"<strong>\1</strong>", html.escape(text, quote=True))
+    out = []
+    for part in re.split(r"(\*\*.+?\*\*)", text):
+        if len(part) > 4 and part.startswith("**") and part.endswith("**"):
+            out.append(f"<strong>{_text(part[2:-2])}</strong>")
+        else:
+            out.append(_text(part))
+    return "".join(out)
 
 
 def _split_row(line: str) -> list[str]:
-    cells = re.split(r"(?<!\\)\|", line.strip())[1:-1]
-    return [c.strip().replace("\\|", "|").replace("\\\\", "\\") for c in cells]
+    return [c.strip() for c in line.strip().split("|")[1:-1]]
 
 
 def to_html(markdown: str, title: str) -> str:
@@ -196,5 +242,5 @@ def to_html(markdown: str, title: str) -> str:
             out.append(f"<p>{_inline(ln)}</p>")
             i += 1
     return ("<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">"
-            f"<title>{html.escape(title)}</title><style>{CSS}</style></head><body>"
+            f"<title>{_text(title)}</title><style>{CSS}</style></head><body>"
             + "\n".join(out) + "</body></html>")

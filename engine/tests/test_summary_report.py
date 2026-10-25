@@ -113,3 +113,59 @@ def test_example(client, auth_headers):
 def test_secret_required(client):
     assert client.get("/dictionary").status_code == 401
     assert client.post("/summary", json={"records": []}).status_code == 401
+
+
+HOSTILE = "a|b\\c\n**d** # `e` <script>x</script> [l](javascript:alert(1))"
+
+
+def _hostile_req():
+    body = _req()
+    body["study"]["title"] = HOSTILE
+    body["study"]["license"] = HOSTILE
+    body["context"]["methods"][0]["name"] = HOSTILE
+    body["context"]["limits"][0]["source"] = HOSTILE
+    body["context"]["limits"][0]["method"] = HOSTILE
+    imp = _imp(name=HOSTILE)
+    imp["file"]["sheet"] = HOSTILE
+    imp["author"] = HOSTILE
+    imp["issues"] = [{"code": "X", "severity": "warning", "message": HOSTILE}]
+    body["imports"] = [imp]
+    return body
+
+
+def test_hostile_text_is_inert(client, auth_headers):
+    out = client.post("/report", headers=auth_headers, json=_hostile_req()).json()
+    md, h = out["markdown"], out["html"]
+    for text in (md, h):
+        assert "<script" not in text and "](javascript:" not in text
+        assert "`" not in text
+    assert "&lt;script&gt;" in h  # visible literally
+    assert "&amp;lt;" not in h  # no double escaping
+    assert "<strong>d</strong>" not in h
+    # every table row keeps its column count
+    import re
+    for block in re.findall(r"(?:^\|.*\n)+", md, flags=re.M):
+        counts = {ln.count("|") for ln in block.strip().split("\n")}
+        assert len(counts) == 1, block
+    for tr in re.findall(r"<table>.*?</table>", h):
+        head = tr.count("<th>")
+        assert all(r.count("<td>") == head for r in re.findall(r"<tr>(?:<td>.*?)</tr>", tr))
+
+
+def test_counters_derived_from_issues(client, auth_headers):
+    body = _req()
+    body["imports"][0]["counts"] = {"error": 0, "warning": 0, "info": 0}
+    body["imports"][0]["issues"] = [
+        {"code": "X", "severity": "error", "message": "m"},
+        {"code": "X", "severity": "error", "message": "m"}]
+    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
+    assert "| 2 | 0 | 0 |" in md
+    del body["imports"][0]["counts"]
+    assert client.post("/report", headers=auth_headers, json=body).status_code == 200
+
+
+def test_french_labels(client, auth_headers):
+    md = client.post("/report", headers=auth_headers, json=_req()).json()["markdown"]
+    assert "simulée" in md and "sang total" in md and "inconnu" in md
+    for code in ("whole_blood", "mass_concentration", "py_gc_ms", "simulated"):
+        assert code not in md

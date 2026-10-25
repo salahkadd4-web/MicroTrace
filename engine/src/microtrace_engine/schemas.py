@@ -229,7 +229,7 @@ class ReportImportModel(_Model):
     rules_version: str
     date: str
     author: str
-    counts: CountsModel
+    counts: CountsModel | None = None  # ignored: the report counts the issues itself
     issues: list[IssueModel] = Field(default_factory=list)
 
 
