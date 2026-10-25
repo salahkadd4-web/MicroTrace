@@ -19,7 +19,8 @@ from microtrace_core.results import (
     Technique,
 )
 from microtrace_core.results.issues import Severity
-from pydantic import BaseModel, ConfigDict, Field
+from microtrace_core.polymers import OTHER
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MatrixName = Literal[tuple(m.value for m in Matrix)]  # type: ignore[valid-type]
 TechniqueName = Literal[tuple(m.value for m in Technique)]  # type: ignore[valid-type]
@@ -178,6 +179,12 @@ class ExistingKeyModel(_Model):
     method: str
     matrix: MatrixName
     matrix_detail: str = ""
+
+    @model_validator(mode="after")
+    def _other_needs_raw(self) -> ExistingKeyModel:
+        if self.polymer == OTHER and not self.polymer_raw.strip():
+            raise ValueError("polymer_raw requis pour un polymère « OTHER »")
+        return self
 
 
 class TableReadResponse(_Model):

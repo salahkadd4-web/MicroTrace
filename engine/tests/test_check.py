@@ -106,3 +106,9 @@ def test_no_logging_of_content(client, auth_headers, caplog):
     with caplog.at_level(logging.DEBUG):
         _post(client, auth_headers, existing='[{"sample_id": "PRIVATE-ID"}]')
     assert "PRIVATE-ID" not in caplog.text
+
+
+def test_existing_other_without_raw_422(client, auth_headers, expected):
+    bad = _existing(expected.records[:1], polymer="OTHER", polymer_raw="")
+    r = _post(client, auth_headers, existing=json.dumps(bad))
+    assert r.status_code == 422 and "existing" in r.json()["detail"]

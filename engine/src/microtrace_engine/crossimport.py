@@ -57,7 +57,9 @@ def cross_import_issues(
         elif r.matrix is Matrix.other and any(
                 e.matrix == "other" and _detail(e.matrix_detail) != _detail(r.matrix_detail)
                 for e in known):
-            parts.append("détail de matrice « other » différent")
+            parts.append(
+                f"détail de matrice « other » « {r.matrix_detail} » différent de "
+                f"« {', '.join(sorted({e.matrix_detail for e in known if e.matrix == 'other'}))} »")
         types = sorted({e.record_type for e in known if e.record_type != r.record_type.value})
         if types:
             parts.append(f"type d'enregistrement {r.record_type.value} au lieu de "

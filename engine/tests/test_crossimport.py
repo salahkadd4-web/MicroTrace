@@ -61,3 +61,39 @@ def test_record_type_conflict(records):
     other = "field_blank" if r.record_type.value != "field_blank" else "sample"
     issues = cross_import_issues([r], [_key(r, record_type=other, aliquot="zz")])
     assert [i.code for i in issues] == ["E_SAMPLE_CONFLICT"]
+
+
+def test_same_sample_other_polymer_or_method_no_collision(records):
+    r = records[0]
+    assert cross_import_issues([r], [_key(r, polymer="ZZ", polymer_raw="ZZ")]) == []
+    assert cross_import_issues([r], [_key(r, method="Autre méthode")]) == []
+
+
+def test_qc_record_duplicate_and_conflict(records):
+    from dataclasses import replace
+
+    from microtrace_core.results.vocab import RecordType
+
+    qc = replace(records[0], sample_id="BLK1", record_type=RecordType.procedural_blank)
+    dup = cross_import_issues([qc], [_key(qc)])
+    assert [i.code for i in dup] == ["E_DUPLICATE_RECORD"]
+    conflict = cross_import_issues([qc], [_key(qc, matrix="plasma", aliquot="zz")])
+    assert [i.code for i in conflict] == ["E_SAMPLE_CONFLICT"]
+    typ = cross_import_issues([qc], [_key(qc, record_type="sample", aliquot="zz")])
+    assert [i.code for i in typ] == ["E_SAMPLE_CONFLICT"]
+
+
+def test_other_polymer_path(records):
+    from dataclasses import replace
+
+    foo = replace(records[0], polymer="OTHER", polymer_raw="polyfoo")
+    bar = replace(records[0], polymer="OTHER", polymer_raw="polybar")
+    ex = [_key(foo)]
+    assert [i.code for i in cross_import_issues([foo], ex)] == ["E_DUPLICATE_RECORD"]
+    assert cross_import_issues([bar], ex) == []
+
+
+def test_other_polymer_without_raw_rejected():
+    with pytest.raises(ValueError):
+        ExistingKeyModel(sample_id="1", record_type="sample", polymer="OTHER",
+                         method="m", matrix="plasma")

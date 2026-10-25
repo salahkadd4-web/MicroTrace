@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import hmac
-from importlib.metadata import version
 from dataclasses import replace
+from importlib.metadata import version
 from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -10,9 +10,9 @@ from microtrace_core.results import RULES_VERSION, run_import, suggest_mapping
 from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import RawTable, TableReadError, read_table
 
-from . import ENGINE_API_VERSION
 from pydantic import TypeAdapter, ValidationError
 
+from . import ENGINE_API_VERSION
 from .convert import (
     context_from_model,
     import_result_to_model,
@@ -209,7 +209,7 @@ def create_app(settings: Settings) -> FastAPI:
             result = run_import(table, mp, ctx)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
-        extra = cross_import_issues(result.records, existing_m)
+        extra = cross_import_issues((*result.records, *result.qc_records), existing_m)
         if extra:
             result = replace(
                 result,
