@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from microtrace_core.results import (
+    ISSUE_CODES,
     UNITS,
     Basis,
     DataNature,
@@ -33,6 +34,7 @@ IdentificationStatusName = Literal[  # type: ignore[valid-type]
     tuple(m.value for m in IdentificationStatus)]
 DataNatureName = Literal[tuple(m.value for m in DataNature)]  # type: ignore[valid-type]
 UnitCode = Literal[tuple(UNITS)]  # type: ignore[valid-type]
+IssueCode = Literal[tuple(ISSUE_CODES)]  # type: ignore[valid-type]
 
 Number = Annotated[float, Field(allow_inf_nan=False)]
 
@@ -41,8 +43,29 @@ class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class ErrorLoc(_Model):
+    """Location and type of one validation error (never the submitted value)."""
+
+    loc: list[str | int] = Field(
+        description='Path in the request; a segment that may be user data is "*"')
+    type: str
+
+
+class ErrorModel(_Model):
+    """Body of every error response: a French message, and locations for a 422."""
+
+    detail: str
+    errors: list[ErrorLoc] | None = None
+
+
+class HealthResponse(_Model):
+    engine_api: int
+    engine_version: str
+    rules_version: str
+
+
 class IssueModel(_Model):
-    code: str
+    code: IssueCode
     severity: Severity
     message: str
     row: int | None = None

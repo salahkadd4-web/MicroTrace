@@ -1,0 +1,2187 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "MicroTrace engine",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tables/read": {
+      "post": {
+        "summary": "Tables Read",
+        "operationId": "tables_read",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_tables_read"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TableReadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/mapping/suggest": {
+      "post": {
+        "summary": "Mapping Suggest",
+        "operationId": "mapping_suggest",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_mapping_suggest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MappingModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/imports/check": {
+      "post": {
+        "summary": "Imports Check",
+        "description": "Contrôle d'import (règles B1) et cohérence avec les imports actifs de l'étude.\n\nCorps multipart :\n- `file` : fichier CSV ou XLSX ;\n- `sheet` : feuille à lire (XLSX, facultatif) ;\n- `mapping` : champ texte, JSON conforme au schéma `MappingModel` ;\n- `context` : champ texte, JSON conforme au schéma `StudyContextModel` ;\n- `existing` : partie fichier facultative (JSON, 20 Mo au plus), liste de `ExistingKeyModel` déjà enregistrés dans l'étude.",
+        "operationId": "imports_check",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_imports_check"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResultModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/summary": {
+      "post": {
+        "summary": "Summary",
+        "operationId": "summary",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SummaryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/report": {
+      "post": {
+        "summary": "Report",
+        "operationId": "report",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dictionary": {
+      "get": {
+        "summary": "Dictionary",
+        "operationId": "dictionary",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DictionaryResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/examples/leslie-like": {
+      "get": {
+        "summary": "Example Leslie Like",
+        "operationId": "example_leslie_like",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExampleResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_imports_check": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Fichier CSV ou XLSX"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet",
+            "description": "Feuille à lire (XLSX)"
+          },
+          "mapping": {
+            "type": "string",
+            "contentMediaType": "application/json",
+            "contentSchema": {
+              "$ref": "#/components/schemas/MappingModel"
+            },
+            "title": "Mapping",
+            "description": "Correspondance des colonnes : JSON conforme au schéma MappingModel"
+          },
+          "context": {
+            "type": "string",
+            "contentMediaType": "application/json",
+            "contentSchema": {
+              "$ref": "#/components/schemas/StudyContextModel"
+            },
+            "title": "Context",
+            "description": "Contexte de l'étude : JSON conforme au schéma StudyContextModel"
+          },
+          "existing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing",
+            "description": "Fichier JSON facultatif (20 Mo au plus) : liste de ExistingKeyModel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "mapping",
+          "context"
+        ],
+        "title": "Body_imports_check"
+      },
+      "Body_mapping_suggest": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_mapping_suggest"
+      },
+      "Body_tables_read": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_tables_read"
+      },
+      "CountsModel": {
+        "properties": {
+          "error": {
+            "type": "integer",
+            "title": "Error"
+          },
+          "warning": {
+            "type": "integer",
+            "title": "Warning"
+          },
+          "info": {
+            "type": "integer",
+            "title": "Info"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error",
+          "warning",
+          "info"
+        ],
+        "title": "CountsModel"
+      },
+      "DetectionLimitModel": {
+        "properties": {
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "lod": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod"
+          },
+          "loq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loq"
+          },
+          "unit_code": {
+            "type": "string",
+            "title": "Unit Code"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method",
+          "polymer",
+          "lod",
+          "loq",
+          "unit_code",
+          "source"
+        ],
+        "title": "DetectionLimitModel"
+      },
+      "DictionaryResponse": {
+        "properties": {
+          "csv": {
+            "type": "string",
+            "title": "Csv"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "csv",
+          "markdown"
+        ],
+        "title": "DictionaryResponse"
+      },
+      "ErrorLoc": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Loc",
+            "description": "Path in the request; a segment that may be user data is \"*\""
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "loc",
+          "type"
+        ],
+        "title": "ErrorLoc",
+        "description": "Location and type of one validation error (never the submitted value)."
+      },
+      "ErrorModel": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ErrorLoc"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorModel",
+        "description": "Body of every error response: a French message, and locations for a 422."
+      },
+      "ExampleResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "csv_base64": {
+            "type": "string",
+            "title": "Csv Base64"
+          },
+          "context": {
+            "$ref": "#/components/schemas/StudyContextModel"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/MappingModel"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filename",
+          "csv_base64",
+          "context",
+          "mapping"
+        ],
+        "title": "ExampleResponse"
+      },
+      "FrequencyModel": {
+        "properties": {
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "n_samples": {
+            "type": "integer",
+            "title": "N Samples"
+          },
+          "n_quantified": {
+            "type": "integer",
+            "title": "N Quantified"
+          },
+          "fraction": {
+            "type": "number",
+            "title": "Fraction"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "polymer",
+          "matrix",
+          "matrix_detail",
+          "n_samples",
+          "n_quantified",
+          "fraction"
+        ],
+        "title": "FrequencyModel"
+      },
+      "HealthResponse": {
+        "properties": {
+          "engine_api": {
+            "type": "integer",
+            "title": "Engine Api"
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "engine_api",
+          "engine_version",
+          "rules_version"
+        ],
+        "title": "HealthResponse"
+      },
+      "ImportResultModel": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementRecordModel"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "qc_records": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementRecordModel"
+            },
+            "type": "array",
+            "title": "Qc Records"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueModel"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version"
+          },
+          "has_errors": {
+            "type": "boolean",
+            "title": "Has Errors"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/CountsModel"
+          },
+          "engine_version": {
+            "type": "string",
+            "title": "Engine Version"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256",
+            "description": "SHA-256 (hex) of the file bytes checked"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet",
+            "description": "Sheet read (XLSX), None for a CSV"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "records",
+          "qc_records",
+          "issues",
+          "n_rows",
+          "rules_version",
+          "has_errors",
+          "counts",
+          "engine_version",
+          "sha256",
+          "sheet"
+        ],
+        "title": "ImportResultModel"
+      },
+      "IssueModel": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "E_MAPPING_UNKNOWN_FIELD",
+              "E_MAPPING_UNKNOWN_COLUMN",
+              "E_MAPPING_CONFLICT",
+              "E_MAPPING_NO_POLYMER_COLUMNS",
+              "W_ALIQUOT_SPLIT_FAILED",
+              "I_UNMAPPED_COLUMN",
+              "E_PII_COLUMN",
+              "E_PII_VALUE",
+              "W_POSSIBLE_PII_COLUMN",
+              "W_POSSIBLE_BIRTHDATE",
+              "E_REQUIRED_MISSING",
+              "E_UNKNOWN_MATRIX",
+              "E_MATRIX_DETAIL_MISSING",
+              "E_UNKNOWN_METHOD",
+              "E_UNKNOWN_RECORD_TYPE",
+              "E_UNKNOWN_IDENTIFICATION",
+              "E_UNKNOWN_STATUS",
+              "E_POLYMER_MISSING",
+              "W_POLYMER_OTHER",
+              "I_PS_AS_SUM",
+              "E_UNKNOWN_UNIT",
+              "E_HEADER_UNIT_CONFLICT",
+              "W_HEADER_UNIT_UNKNOWN",
+              "E_UNPARSABLE_VALUE",
+              "E_NEGATIVE_VALUE",
+              "E_LIMIT_UNIT_MISMATCH",
+              "E_LOD_GT_LOQ",
+              "W_LIMIT_CONFLICT",
+              "E_STATUS_VALUE_CONFLICT",
+              "W_STATUS_INCONSISTENT",
+              "W_NO_LIMITS",
+              "W_VALUE_BELOW_LOD",
+              "E_DUPLICATE_RECORD",
+              "E_SAMPLE_CONFLICT",
+              "I_EMPTY_AS_NOT_ANALYSED",
+              "E_INVALID_DATE",
+              "I_DATE_NORMALIZED",
+              "W_MIXED_QUANTITY_KINDS",
+              "E_PUBLISHED_WITHOUT_REFERENCE"
+            ],
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "info"
+            ],
+            "title": "Severity"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row"
+          },
+          "column": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "message"
+        ],
+        "title": "IssueModel"
+      },
+      "MappingModel": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "long",
+              "wide"
+            ],
+            "title": "Mode"
+          },
+          "field_columns": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Field Columns"
+          },
+          "polymer_columns": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Polymer Columns"
+          },
+          "constants": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Constants"
+          },
+          "split_aliquot_suffix": {
+            "type": "boolean",
+            "title": "Split Aliquot Suffix",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "field_columns"
+        ],
+        "title": "MappingModel"
+      },
+      "MeasurementRecordModel": {
+        "properties": {
+          "sample_id": {
+            "type": "string",
+            "title": "Sample Id"
+          },
+          "aliquot": {
+            "type": "string",
+            "title": "Aliquot"
+          },
+          "record_type": {
+            "type": "string",
+            "enum": [
+              "sample",
+              "procedural_blank",
+              "field_blank",
+              "spiked"
+            ],
+            "title": "Record Type"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "polymer_raw": {
+            "type": "string",
+            "title": "Polymer Raw"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "technique": {
+            "type": "string",
+            "enum": [
+              "py_gc_ms",
+              "ted_gc_ms",
+              "micro_ftir",
+              "micro_raman",
+              "other"
+            ],
+            "title": "Technique"
+          },
+          "reported_value": {
+            "type": "string",
+            "title": "Reported Value"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Unit"
+          },
+          "canonical_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Value"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "quantified",
+              "between_lod_loq",
+              "not_quantified",
+              "below_lod",
+              "not_analysed"
+            ],
+            "title": "Status"
+          },
+          "lod": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod"
+          },
+          "loq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loq"
+          },
+          "canonical_lod": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Lod"
+          },
+          "canonical_loq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Loq"
+          },
+          "identification_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "candidate"
+            ],
+            "title": "Identification Status"
+          },
+          "size_min_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Min Um"
+          },
+          "size_max_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Max Um"
+          },
+          "analysis_date": {
+            "type": "string",
+            "title": "Analysis Date"
+          },
+          "batch": {
+            "type": "string",
+            "title": "Batch"
+          },
+          "lab": {
+            "type": "string",
+            "title": "Lab"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          },
+          "source_row": {
+            "type": "integer",
+            "title": "Source Row"
+          },
+          "source_column": {
+            "type": "string",
+            "title": "Source Column"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sample_id",
+          "aliquot",
+          "record_type",
+          "matrix",
+          "matrix_detail",
+          "polymer",
+          "polymer_raw",
+          "method",
+          "technique",
+          "reported_value",
+          "value",
+          "unit",
+          "canonical_value",
+          "canonical_unit",
+          "status",
+          "lod",
+          "loq",
+          "canonical_lod",
+          "canonical_loq",
+          "identification_status",
+          "size_min_um",
+          "size_max_um",
+          "analysis_date",
+          "batch",
+          "lab",
+          "comment",
+          "source_row",
+          "source_column"
+        ],
+        "title": "MeasurementRecordModel"
+      },
+      "MethodSpecModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "technique": {
+            "type": "string",
+            "enum": [
+              "py_gc_ms",
+              "ted_gc_ms",
+              "micro_ftir",
+              "micro_raman",
+              "other"
+            ],
+            "title": "Technique"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "technique"
+        ],
+        "title": "MethodSpecModel"
+      },
+      "PolymerStatsModel": {
+        "properties": {
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mass_concentration",
+              "number_concentration"
+            ],
+            "title": "Kind"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "per_volume",
+              "per_mass"
+            ],
+            "title": "Basis"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          },
+          "counts_by_status": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts By Status"
+          },
+          "n_quantified": {
+            "type": "integer",
+            "title": "N Quantified"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "max_measurement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Measurement"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "polymer",
+          "method",
+          "matrix",
+          "matrix_detail",
+          "kind",
+          "basis",
+          "canonical_unit",
+          "counts_by_status",
+          "n_quantified",
+          "min",
+          "median",
+          "mean",
+          "max",
+          "max_measurement"
+        ],
+        "title": "PolymerStatsModel"
+      },
+      "ReportFileModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "sha256",
+          "size"
+        ],
+        "title": "ReportFileModel"
+      },
+      "ReportImportModel": {
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/ReportFileModel"
+          },
+          "rules_version": {
+            "type": "string",
+            "title": "Rules Version"
+          },
+          "date": {
+            "type": "string",
+            "title": "Date"
+          },
+          "author": {
+            "type": "string",
+            "title": "Author"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueModel"
+            },
+            "type": "array",
+            "title": "Issues"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "file",
+          "rules_version",
+          "date",
+          "author"
+        ],
+        "title": "ReportImportModel"
+      },
+      "ReportRequest": {
+        "properties": {
+          "study": {
+            "$ref": "#/components/schemas/ReportStudyModel"
+          },
+          "imports": {
+            "items": {
+              "$ref": "#/components/schemas/ReportImportModel"
+            },
+            "type": "array",
+            "title": "Imports"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementRecordModel"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "qc_records": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementRecordModel"
+            },
+            "type": "array",
+            "title": "Qc Records"
+          },
+          "context": {
+            "$ref": "#/components/schemas/StudyContextModel"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At",
+            "description": "ISO 8601; naive values are taken as UTC"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "study",
+          "imports",
+          "records",
+          "context"
+        ],
+        "title": "ReportRequest"
+      },
+      "ReportResponse": {
+        "properties": {
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          },
+          "html": {
+            "type": "string",
+            "title": "Html"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "markdown",
+          "html"
+        ],
+        "title": "ReportResponse"
+      },
+      "ReportStudyModel": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "ReportStudyModel",
+        "description": "Nature, DOI, licence and blank correction come from the report ``context``."
+      },
+      "SampleResultModel": {
+        "properties": {
+          "sample_id": {
+            "type": "string",
+            "title": "Sample Id"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mass_concentration",
+              "number_concentration"
+            ],
+            "title": "Kind"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "per_volume",
+              "per_mass"
+            ],
+            "title": "Basis"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "quantified",
+              "between_lod_loq",
+              "not_quantified",
+              "below_lod",
+              "not_analysed"
+            ],
+            "title": "Status"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "n_aliquots": {
+            "type": "integer",
+            "title": "N Aliquots"
+          },
+          "n_quantified": {
+            "type": "integer",
+            "title": "N Quantified"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sample_id",
+          "matrix",
+          "matrix_detail",
+          "polymer",
+          "method",
+          "kind",
+          "basis",
+          "canonical_unit",
+          "status",
+          "value",
+          "n_aliquots",
+          "n_quantified"
+        ],
+        "title": "SampleResultModel"
+      },
+      "StudyContextModel": {
+        "properties": {
+          "data_nature": {
+            "type": "string",
+            "enum": [
+              "published",
+              "laboratory",
+              "simulated"
+            ],
+            "title": "Data Nature"
+          },
+          "methods": {
+            "items": {
+              "$ref": "#/components/schemas/MethodSpecModel"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "limits": {
+            "items": {
+              "$ref": "#/components/schemas/DetectionLimitModel"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "reference_doi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Doi"
+          },
+          "reference_license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference License"
+          },
+          "blank_corrected": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ],
+            "title": "Blank Corrected",
+            "default": "unknown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "data_nature",
+          "methods"
+        ],
+        "title": "StudyContextModel"
+      },
+      "SummaryRequest": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/MeasurementRecordModel"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "title": "SummaryRequest"
+      },
+      "SummaryResponse": {
+        "properties": {
+          "frequencies": {
+            "items": {
+              "$ref": "#/components/schemas/FrequencyModel"
+            },
+            "type": "array",
+            "title": "Frequencies"
+          },
+          "stats": {
+            "items": {
+              "$ref": "#/components/schemas/PolymerStatsModel"
+            },
+            "type": "array",
+            "title": "Stats"
+          },
+          "samples": {
+            "items": {
+              "$ref": "#/components/schemas/SampleResultModel"
+            },
+            "type": "array",
+            "title": "Samples"
+          },
+          "aggregation_rule": {
+            "type": "string",
+            "title": "Aggregation Rule"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "frequencies",
+          "stats",
+          "samples",
+          "aggregation_rule"
+        ],
+        "title": "SummaryResponse"
+      },
+      "TableReadResponse": {
+        "properties": {
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "sheet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sheet"
+          },
+          "sheets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sheets"
+          },
+          "columns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Columns"
+          },
+          "preview": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Preview"
+          },
+          "n_rows": {
+            "type": "integer",
+            "title": "N Rows"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "filename",
+          "sha256",
+          "size",
+          "sheet",
+          "sheets",
+          "columns",
+          "preview",
+          "n_rows"
+        ],
+        "title": "TableReadResponse"
+      },
+      "ExistingKeyModel": {
+        "additionalProperties": false,
+        "description": "Key of a measurement already recorded in an active import of the study.",
+        "properties": {
+          "sample_id": {
+            "title": "Sample Id",
+            "type": "string"
+          },
+          "aliquot": {
+            "default": "",
+            "title": "Aliquot",
+            "type": "string"
+          },
+          "record_type": {
+            "enum": [
+              "sample",
+              "procedural_blank",
+              "field_blank",
+              "spiked"
+            ],
+            "title": "Record Type",
+            "type": "string"
+          },
+          "polymer": {
+            "title": "Polymer",
+            "type": "string"
+          },
+          "polymer_raw": {
+            "default": "",
+            "title": "Polymer Raw",
+            "type": "string"
+          },
+          "method": {
+            "title": "Method",
+            "type": "string"
+          },
+          "matrix": {
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix",
+            "type": "string"
+          },
+          "matrix_detail": {
+            "default": "",
+            "title": "Matrix Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_id",
+          "record_type",
+          "polymer",
+          "method",
+          "matrix"
+        ],
+        "title": "ExistingKeyModel",
+        "type": "object"
+      }
+    }
+  }
+}

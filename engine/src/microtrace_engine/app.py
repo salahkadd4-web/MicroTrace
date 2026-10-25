@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import base64
 import hmac
+import json
 import logging
+import secrets
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Any, TypeVar
@@ -26,7 +28,8 @@ from microtrace_core.results import (
 )
 from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import MAX_BYTES, RawTable, TableReadError, read_table
-from pydantic import TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic.json_schema import models_json_schema
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -45,8 +48,10 @@ from .errors import InputError, error_response, safe_errors
 from .report import build_markdown, to_html
 from .schemas import (
     DictionaryResponse,
+    ErrorModel,
     ExampleResponse,
     ExistingKeyModel,
+    HealthResponse,
     ImportResultModel,
     MappingModel,
     ReportRequest,
@@ -180,26 +185,74 @@ def _domain(fn, *args):
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
+ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
+    401: {"model": ErrorModel, "description": "Secret du moteur manquant ou invalide"},
+    413: {"model": ErrorModel, "description": "Requête trop volumineuse"},
+    422: {"model": ErrorModel, "description": "Entrée invalide (message français, et "
+                                              "emplacements pour une erreur de schéma)"},
+    500: {"model": ErrorModel, "description": "Erreur interne du moteur"},
+}
+# JSON carried as multipart parts: registered in components.schemas for code generation
+PART_MODELS: tuple[type[BaseModel], ...] = (MappingModel, StudyContextModel, ExistingKeyModel)
+REF = "#/components/schemas/{model}"
+
+
+def _json_part(model: type[BaseModel], what: str) -> dict[str, Any]:
+    return {"description": f"{what} : JSON conforme au schéma {model.__name__}",
+            "json_schema_extra": {"contentMediaType": "application/json",
+                                  "contentSchema": {"$ref": REF.format(model=model.__name__)}}}
+
+
+IMPORTS_CHECK_DOC = (
+    "Contrôle d'import (règles B1) et cohérence avec les imports actifs de l'étude.\n\n"
+    "Corps multipart :\n"
+    "- `file` : fichier CSV ou XLSX ;\n"
+    "- `sheet` : feuille à lire (XLSX, facultatif) ;\n"
+    "- `mapping` : champ texte, JSON conforme au schéma `MappingModel` ;\n"
+    "- `context` : champ texte, JSON conforme au schéma `StudyContextModel` ;\n"
+    "- `existing` : partie fichier facultative (JSON, 20 Mo au plus), liste de "
+    "`ExistingKeyModel` déjà enregistrés dans l'étude."
+)
+
+
+def _register_part_models(schema: dict[str, Any]) -> None:
+    _, top = models_json_schema([(m, "validation") for m in PART_MODELS], ref_template=REF)
+    components = schema.setdefault("components", {}).setdefault("schemas", {})
+    for name, definition in top.get("$defs", {}).items():
+        components.setdefault(name, definition)
+
+
 def create_app(settings: Settings) -> FastAPI:
     app = FastAPI(
         title="MicroTrace engine",
+        version=version("microtrace-engine"),
         docs_url=None,
         redoc_url=None,
         openapi_url=None,
+        responses=ERROR_RESPONSES,
+        generate_unique_id_function=lambda route: route.name,
     )
+    base_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            _register_part_models(base_openapi())
+        return app.openapi_schema  # type: ignore[return-value]
+
+    app.openapi = openapi  # type: ignore[method-assign]
     errors.install(app)
     app.add_middleware(SecretAndSizeGate, secret=settings.secret, max_bytes=MAX_REQUEST_BYTES)
 
     require_secret = make_require_secret(settings)
     app.state.require_secret = require_secret
 
-    @app.get("/health")
-    def health() -> dict[str, Any]:
-        return {
-            "engine_api": ENGINE_API_VERSION,
-            "engine_version": version("microtrace-engine"),
-            "rules_version": RULES_VERSION,
-        }
+    @app.get("/health", response_model=HealthResponse)
+    def health() -> HealthResponse:
+        return HealthResponse(
+            engine_api=ENGINE_API_VERSION,
+            engine_version=version("microtrace-engine"),
+            rules_version=RULES_VERSION,
+        )
 
     @app.get(
         "/openapi.json",
@@ -266,13 +319,16 @@ def create_app(settings: Settings) -> FastAPI:
         "/imports/check",
         response_model=ImportResultModel,
         dependencies=[Depends(require_secret)],
+        description=IMPORTS_CHECK_DOC,
     )
     async def imports_check(
-        file: UploadFile = File(...),
-        sheet: str | None = Form(None),
-        mapping: str = Form(...),
-        context: str = Form(...),
-        existing: UploadFile | None = File(None),
+        file: UploadFile = File(..., description="Fichier CSV ou XLSX"),
+        sheet: str | None = Form(None, description="Feuille à lire (XLSX)"),
+        mapping: str = Form(..., **_json_part(MappingModel, "Correspondance des colonnes")),
+        context: str = Form(..., **_json_part(StudyContextModel, "Contexte de l'étude")),
+        existing: UploadFile | None = File(
+            None, description="Fichier JSON facultatif (20 Mo au plus) : liste de "
+                              "ExistingKeyModel"),
     ) -> ImportResultModel:
         mapping_m = _parse_json(mapping, _MAPPING, "mapping")
         context_m = _parse_json(context, _CONTEXT, "context")
@@ -363,3 +419,9 @@ def create_app(settings: Settings) -> FastAPI:
         )
 
     return app
+
+
+def openapi_json() -> str:
+    """The OpenAPI schema as committed in engine/openapi.json (no secret needed)."""
+    schema = create_app(Settings(secret=secrets.token_urlsafe(32))).openapi()
+    return json.dumps(schema, indent=2, ensure_ascii=False) + "\n"
