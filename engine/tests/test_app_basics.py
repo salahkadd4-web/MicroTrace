@@ -83,8 +83,10 @@ def test_settings_repr_hides_secret():
 
 
 def test_docs_disabled(client, auth_headers):
-    assert client.get("/docs").status_code == 404
-    assert client.get("/redoc").status_code == 404
+    assert client.get("/docs", headers=auth_headers).status_code == 404
+    assert client.get("/redoc", headers=auth_headers).status_code == 404
+    # the gate answers before routing: an unknown path without the secret is a 401
+    assert client.get("/docs").status_code == 401
     r = client.get("/openapi.json", headers=auth_headers)
     assert r.status_code == 200
     assert "paths" in r.json()

@@ -115,14 +115,17 @@ def counts_of(issues: Iterable[Issue]) -> CountsModel:
     return CountsModel(**n)
 
 
-def import_result_to_model(r: ImportResult) -> ImportResultModel:
+def import_result_to_model(
+    r: ImportResult, *, engine_version: str, sha256: str, sheet: str | None,
+) -> ImportResultModel:
     counts = counts_of(r.issues)
     return ImportResultModel(
         records=[record_to_model(x) for x in r.records],
         qc_records=[record_to_model(x) for x in r.qc_records],
         issues=[issue_to_model(i) for i in r.issues],
         n_rows=r.n_rows, rules_version=r.rules_version,
-        has_errors=r.has_errors, counts=counts)
+        has_errors=r.has_errors, counts=counts,
+        engine_version=engine_version, sha256=sha256, sheet=sheet)
 
 
 def sample_result_to_model(s: SampleResult) -> SampleResultModel:

@@ -110,8 +110,8 @@ def test_models_mirror_dataclass_fields():
     ]
     for model, dc in pairs:
         expected = {f.name for f in fields(dc)}
-        if dc is ImportResult:  # has_errors (property) and counts are derived fields
-            expected |= {"has_errors", "counts"}
+        if dc is ImportResult:  # derived fields, and the identity of the file checked
+            expected |= {"has_errors", "counts", "engine_version", "sha256", "sheet"}
         assert set(model.model_fields) == expected, model.__name__
 
 
@@ -136,7 +136,9 @@ def test_mapping_roundtrip():
 
 
 def test_import_result_model(leslie):
-    model = convert.import_result_to_model(leslie)
+    model = convert.import_result_to_model(leslie, engine_version="0", sha256="a" * 64,
+                                           sheet=None)
+    assert (model.engine_version, model.sha256, model.sheet) == ("0", "a" * 64, None)
     assert model.has_errors is leslie.has_errors
     assert model.n_rows == leslie.n_rows
     c = model.counts

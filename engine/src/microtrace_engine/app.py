@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import hmac
 import base64
+import hmac
 import logging
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from microtrace_core.results import (
     AGGREGATION_RULE_FR,
     LESLIE_LIKE_FILENAME,
@@ -24,45 +25,80 @@ from microtrace_core.results import (
     suggest_mapping,
 )
 from microtrace_core.results.contact import header_label
-from microtrace_core.results.tables import RawTable, TableReadError, read_table
-
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from microtrace_core.results.tables import MAX_BYTES, RawTable, TableReadError, read_table
 from pydantic import TypeAdapter, ValidationError
+from starlette.datastructures import Headers
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import ENGINE_API_VERSION
+from . import ENGINE_API_VERSION, errors
 from .convert import (
     context_from_model,
     context_to_model,
-    record_from_model,
-    summary_to_models,
     import_result_to_model,
     mapping_from_model,
     mapping_to_model,
+    record_from_model,
+    summary_to_models,
 )
 from .crossimport import cross_import_issues
+from .errors import InputError, error_response, safe_errors
 from .report import build_markdown, to_html
 from .schemas import (
     DictionaryResponse,
     ExampleResponse,
-    ReportRequest,
-    ReportResponse,
-    SummaryRequest,
-    SummaryResponse,
     ExistingKeyModel,
     ImportResultModel,
     MappingModel,
+    ReportRequest,
+    ReportResponse,
     StudyContextModel,
+    SummaryRequest,
+    SummaryResponse,
     TableReadResponse,
 )
 from .settings import Settings
-from .uploads import read_upload, sha256_hex, sheet_names
+from .uploads import TooLarge, read_upload, sha256_hex, sheet_names
 
 PREVIEW_ROWS = 20
 
 logger = logging.getLogger("microtrace_engine")
 
 SECRET_HEADER = "X-Engine-Secret"
+SECRET_INVALID = "Secret du moteur manquant ou invalide."
+OPEN_PATHS = frozenset({"/health"})
+MB = 1024 * 1024
+EXISTING_MAX_BYTES = 20 * MB
+# declared body limit: the file (MAX_BYTES) plus ``existing``, form fields and multipart framing
+MAX_REQUEST_BYTES = MAX_BYTES + 25 * MB
+
+
+def _secret_ok(given: str | None, expected: bytes) -> bool:
+    return bool(given) and hmac.compare_digest((given or "").encode("utf-8"), expected)
+
+
+class SecretAndSizeGate:
+    """Pure ASGI middleware run before any body is read: a missing or wrong
+    ``X-Engine-Secret`` (every path but /health) gets 401, a declared
+    ``Content-Length`` above ``max_bytes`` gets 413."""
+
+    def __init__(self, app: ASGIApp, secret: str, max_bytes: int) -> None:
+        self.app = app
+        self.expected = secret.encode("utf-8")
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            headers = Headers(scope=scope)
+            if scope["path"] not in OPEN_PATHS and not _secret_ok(
+                    headers.get(SECRET_HEADER), self.expected):
+                return await error_response(401, SECRET_INVALID)(scope, receive, send)
+            declared = headers.get("content-length", "")
+            if declared.isdigit() and int(declared) > self.max_bytes:
+                limit = self.max_bytes // MB
+                return await error_response(
+                    413, f"Requête trop volumineuse (limite : {limit} Mo).")(
+                    scope, receive, send)
+        await self.app(scope, receive, send)
 
 
 def make_require_secret(settings: Settings):
@@ -71,11 +107,9 @@ def make_require_secret(settings: Settings):
     def require_secret(
         x_engine_secret: str | None = Header(default=None, alias=SECRET_HEADER),
     ) -> None:
-        given = (x_engine_secret or "").encode("utf-8")
-        if not x_engine_secret or not hmac.compare_digest(given, expected):
-            raise HTTPException(
-                status_code=401, detail="Secret du moteur manquant ou invalide."
-            )
+        # defence in depth: SecretAndSizeGate has already checked the header
+        if not _secret_ok(x_engine_secret, expected):
+            raise HTTPException(status_code=401, detail=SECRET_INVALID)
 
     return require_secret
 
@@ -84,8 +118,10 @@ def _hidden_names(columns: tuple[str, ...]) -> dict[str, str]:
     """Header -> unique safe display name.
 
     A header holding contact data or longer than MAX_SCAN_CHARS is shown by position
-    (B1's header_label rule). Displayed names are guaranteed unique. A mapping that refers
-    to a hidden column cannot be applied (such files are blocked by the PII check).
+    (B1's header_label rule). Displayed names are guaranteed unique. A file whose headers
+    hold contact data is blocked by the import check (E_PII_COLUMN); a long header is only
+    masked, not blocked: the file can still be imported, a mapping naming that column by its
+    displayed name finds no such column, and B1 never echoes it in an issue.
     """
     hidden = {
         c: f"colonne n° {k}"
@@ -111,24 +147,37 @@ def _hidden_names(columns: tuple[str, ...]) -> dict[str, str]:
 
 
 async def _load(file: UploadFile, sheet: str | None) -> tuple[bytes, RawTable]:
+    """Bounded read then parse (off the event loop); TableReadError messages are French
+    and hold no cell value, any other exception becomes the generic 500."""
     try:
         data = await read_upload(file)
-        return data, read_table(data, file.filename or "", sheet)
-    except (TableReadError, ValueError) as exc:
+        return data, await run_in_threadpool(read_table, data, file.filename or "", sheet)
+    except TableReadError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 T = TypeVar("T")
+_EXISTING = TypeAdapter(list[ExistingKeyModel])
+_MAPPING = TypeAdapter(MappingModel)
+_CONTEXT = TypeAdapter(StudyContextModel)
 
 
-def _parse_json(raw: str | None, adapter: TypeAdapter[T], label: str) -> T:
-    """Parse a JSON form field; errors are French and never echo the submitted content."""
+def _parse_json(raw: str | bytes, adapter: TypeAdapter[T], label: str) -> T:
+    """Parse a JSON part; errors are French, located, and never echo the submitted content."""
     try:
-        return adapter.validate_json(raw if raw is not None else "")
-    except ValidationError:
-        raise HTTPException(
-            status_code=422, detail=f"Le champ « {label} » est invalide (JSON ou schéma)."
-        ) from None
+        return adapter.validate_json(raw)
+    except ValidationError as exc:
+        raise InputError(f"Le champ « {label} » est invalide (JSON ou schéma).",
+                         safe_errors(exc.errors(), (label,))) from None
+
+
+def _domain(fn, *args):
+    """B1 / engine conversions of client input: their ValueError are deliberate French
+    messages (StudyContext, DetectionLimit, unit codes) and are returned as 422."""
+    try:
+        return fn(*args)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from None
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -138,27 +187,8 @@ def create_app(settings: Settings) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
-    @app.exception_handler(RequestValidationError)
-    async def _invalid_request(_request, _exc: RequestValidationError) -> JSONResponse:
-        # French, and never echoes the submitted content.
-        return JSONResponse(
-            status_code=422, content={"detail": "Requête invalide : corps ou champs non conformes."}
-        )
-
-    @app.middleware("http")
-    async def _generic_errors(request, call_next):
-        # Unexpected errors: generic 500; log only the exception type and the route
-        # (the message may hold a cell value). A middleware is used rather than an
-        # Exception handler, which Starlette re-raises to the server (traceback logged).
-        try:
-            return await call_next(request)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Erreur interne : %s sur %s", type(exc).__name__, request.url.path
-            )
-            return JSONResponse(
-                status_code=500, content={"detail": "Erreur interne du moteur."}
-            )
+    errors.install(app)
+    app.add_middleware(SecretAndSizeGate, secret=settings.secret, max_bytes=MAX_REQUEST_BYTES)
 
     require_secret = make_require_secret(settings)
     app.state.require_secret = require_secret
@@ -190,7 +220,7 @@ def create_app(settings: Settings) -> FastAPI:
         data, table = await _load(file, sheet)
         filename = file.filename or ""
         try:
-            sheets = sheet_names(data, filename)
+            sheets = await run_in_threadpool(sheet_names, data, filename)
         except TableReadError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from None
         safe = _hidden_names(table.columns)
@@ -218,7 +248,7 @@ def create_app(settings: Settings) -> FastAPI:
     ) -> MappingModel:
         _, table = await _load(file, sheet)
         safe = _hidden_names(table.columns)
-        m = mapping_to_model(suggest_mapping(table))
+        m = mapping_to_model(await run_in_threadpool(suggest_mapping, table))
         return m.model_copy(
             update={
                 "field_columns": {
@@ -242,37 +272,39 @@ def create_app(settings: Settings) -> FastAPI:
         sheet: str | None = Form(None),
         mapping: str = Form(...),
         context: str = Form(...),
-        existing: str | None = Form(None),
+        existing: UploadFile | None = File(None),
     ) -> ImportResultModel:
-        mapping_m = _parse_json(mapping, TypeAdapter(MappingModel), "mapping")
-        context_m = _parse_json(context, TypeAdapter(StudyContextModel), "context")
-        existing_m = (
-            _parse_json(existing, TypeAdapter(list[ExistingKeyModel]), "existing")
-            if existing and existing.strip()
-            else []
-        )
-        try:
-            ctx = context_from_model(context_m)
-            mp = mapping_from_model(mapping_m)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from None
-        _, table = await _load(file, sheet)
-        try:
+        mapping_m = _parse_json(mapping, _MAPPING, "mapping")
+        context_m = _parse_json(context, _CONTEXT, "context")
+        existing_m: list[ExistingKeyModel] = []
+        if existing is not None:
+            try:
+                raw = await read_upload(existing, EXISTING_MAX_BYTES)
+            except TooLarge:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"La partie « existing » dépasse la limite de "
+                           f"{EXISTING_MAX_BYTES // MB} Mo.") from None
+            if raw.strip():
+                existing_m = _parse_json(raw, _EXISTING, "existing")
+        ctx = _domain(context_from_model, context_m)
+        mp = _domain(mapping_from_model, mapping_m)
+        data, table = await _load(file, sheet)
+
+        def check() -> ImportResultModel:
             result = run_import(table, mp, ctx)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from None
-        sample_col = mp.field_columns.get("sample_id")
-        visible = _hidden_names(table.columns).get(sample_col or "") == sample_col
-        extra = cross_import_issues((*result.records, *result.qc_records), existing_m,
-                                    column=sample_col if visible else None)
-        if extra:
-            result = replace(
-                result,
-                records=(),
-                qc_records=(),
-                issues=result.issues + tuple(extra),
-            )
-        return import_result_to_model(result)
+            sample_col = mp.field_columns.get("sample_id")
+            visible = _hidden_names(table.columns).get(sample_col or "") == sample_col
+            extra = cross_import_issues((*result.records, *result.qc_records), existing_m,
+                                        column=sample_col if visible else None)
+            if extra:
+                result = replace(result, records=(), qc_records=(),
+                                 issues=result.issues + tuple(extra))
+            return import_result_to_model(
+                result, engine_version=version("microtrace-engine"),
+                sha256=sha256_hex(data), sheet=table.sheet)
+
+        return await run_in_threadpool(check)
 
     @app.post(
         "/summary",
@@ -280,15 +312,13 @@ def create_app(settings: Settings) -> FastAPI:
         dependencies=[Depends(require_secret)],
     )
     def summary(req: SummaryRequest) -> SummaryResponse:
-        try:
-            records = [record_from_model(r) for r in req.records]
-            samples, freqs, stats = summary_to_models(
-                aggregate_aliquots(records),
-                quantification_frequency(records),
-                describe(records),
-            )
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from None
+        # sync route: FastAPI runs it in the threadpool
+        records = [_domain(record_from_model, r) for r in req.records]
+        samples, freqs, stats = summary_to_models(
+            aggregate_aliquots(records),
+            quantification_frequency(records),
+            describe(records),
+        )
         return SummaryResponse(
             frequencies=freqs,
             stats=stats,
@@ -302,11 +332,11 @@ def create_app(settings: Settings) -> FastAPI:
         dependencies=[Depends(require_secret)],
     )
     def report(req: ReportRequest) -> ReportResponse:
-        try:
-            context_from_model(req.context)
-            markdown = build_markdown(req)
-        except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from None
+        # sync route: FastAPI runs it in the threadpool
+        ctx = _domain(context_from_model, req.context)
+        records = [_domain(record_from_model, r) for r in req.records]
+        qc = [_domain(record_from_model, r) for r in req.qc_records]
+        markdown = build_markdown(req, ctx, records, qc)
         return ReportResponse(markdown=markdown, html=to_html(markdown, req.study.title))
 
     @app.get(

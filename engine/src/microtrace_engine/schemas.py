@@ -125,6 +125,9 @@ class ImportResultModel(_Model):
     rules_version: str
     has_errors: bool
     counts: CountsModel
+    engine_version: str
+    sha256: str = Field(description="SHA-256 (hex) of the file bytes checked")
+    sheet: str | None = Field(description="Sheet read (XLSX), None for a CSV")
 
 
 class SampleResultModel(_Model):

@@ -27,9 +27,12 @@ def _form(**over):
     return form
 
 
-def _post(client, headers, **over):
-    return client.post("/imports/check", headers=headers,
-                       files={"file": ("leslie.csv", leslie_like_csv())}, data=_form(**over))
+def _post(client, headers, existing=None, file=("leslie.csv", leslie_like_csv()), **over):
+    """``existing`` (JSON text) is sent as a file part, as the contract requires."""
+    files = {"file": file}
+    if existing is not None:
+        files["existing"] = ("existing.json", existing.encode("utf-8"), "application/json")
+    return client.post("/imports/check", headers=headers, files=files, data=_form(**over))
 
 
 def _existing(records, **kw):
@@ -119,3 +122,63 @@ def test_cross_import_issues_located_on_sample_column(client, auth_headers, expe
     body = _post(client, auth_headers, existing=ex).json()
     dup = [i for i in body["issues"] if i["code"] == "E_DUPLICATE_RECORD"]
     assert [(i["column"], i["field"]) for i in dup] == [("Donor", "sample_id")]
+
+
+def test_result_carries_file_identity(client, auth_headers):
+    import hashlib
+
+    body = _post(client, auth_headers).json()
+    from importlib.metadata import version
+
+    assert body["sha256"] == hashlib.sha256(leslie_like_csv()).hexdigest()
+    assert body["sheet"] is None
+    assert body["engine_version"] == version("microtrace-engine")
+
+
+def test_existing_above_one_megabyte(client, auth_headers, expected):
+    keys = _existing(expected.records[:1]) * 12000
+    keys = [dict(k, sample_id=f"ZZ-{n:06d}") for n, k in enumerate(keys)]
+    text = json.dumps(keys)
+    assert len(text) > 1024 * 1024
+    r = _post(client, auth_headers, existing=text)
+    assert r.status_code == 200 and r.json()["has_errors"] is False
+
+
+def test_existing_bounded(client, auth_headers, expected, monkeypatch):
+    from microtrace_engine import app as app_module
+
+    monkeypatch.setattr(app_module, "EXISTING_MAX_BYTES", 100)
+    r = _post(client, auth_headers, existing=json.dumps(_existing(expected.records[:5])))
+    assert r.status_code == 422
+    assert "existing" in r.json()["detail"] and "Mo" in r.json()["detail"]
+
+
+def test_existing_as_text_field_refused(client, auth_headers):
+    r = client.post("/imports/check", headers=auth_headers,
+                    files={"file": ("leslie.csv", leslie_like_csv())},
+                    data=_form(existing="[]"))
+    assert r.status_code == 422
+    assert {"loc": ["body", "existing"]}.items() <= r.json()["errors"][0].items()
+
+
+QC_CSV = ("sample_id;matrix;polymer;reported_value;unit;method;record_type\n"
+          "S1;sang total;PET;1,5;µg/mL;Py-GC/MS;sample\n"
+          "BLK1;sang total;PET;0,2;µg/mL;Py-GC/MS;procedural_blank\n").encode("utf-8")
+QC_MAPPING = json.dumps({"mode": "long", "field_columns": {
+    k: k for k in ("sample_id", "matrix", "polymer", "reported_value", "unit", "method",
+                   "record_type")}})
+
+
+def test_qc_only_collision_empties_qc_records(client, auth_headers):
+    clean = _post(client, auth_headers, file=("qc.csv", QC_CSV), mapping=QC_MAPPING).json()
+    assert clean["has_errors"] is False
+    assert len(clean["records"]) == 1 and len(clean["qc_records"]) == 1
+    blk = clean["qc_records"][0]
+    ex = json.dumps([{k: blk[k] for k in ("sample_id", "aliquot", "record_type", "polymer",
+                                         "polymer_raw", "method", "matrix", "matrix_detail")}])
+    body = _post(client, auth_headers, existing=ex, file=("qc.csv", QC_CSV),
+                 mapping=QC_MAPPING).json()
+    assert body["has_errors"] is True
+    assert body["records"] == [] and body["qc_records"] == []
+    assert [i["code"] for i in body["issues"] if i["severity"] == "error"] == [
+        "E_DUPLICATE_RECORD"]

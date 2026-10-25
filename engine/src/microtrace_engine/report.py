@@ -13,13 +13,14 @@ from importlib.metadata import version
 from microtrace_core.results import (
     AGGREGATION_RULE_FR,
     RULES_VERSION,
+    MeasurementRecord,
+    StudyContext,
     describe,
     quantification_frequency,
 )
 from microtrace_core.results.issues import fmt_fr
 from microtrace_core.results.vocab import label_fr
 
-from .convert import record_from_model
 from .schemas import ReportRequest
 
 DISCLAIMER = "Prototype de recherche, pas un dispositif médical."
@@ -61,11 +62,11 @@ def _where(matrix, detail: str) -> str:
     return f"{name} ({detail})" if detail else name
 
 
-def build_markdown(req: ReportRequest) -> str:
+def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[MeasurementRecord],
+                   qc: list[MeasurementRecord]) -> str:
+    """``ctx``, ``records`` and ``qc`` are ``req``'s context and records converted to B1."""
     s = req.study
     when = req.generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    records = [record_from_model(r) for r in req.records]
-    qc = [record_from_model(r) for r in req.qc_records]
     L: list[str] = [f"# {_c(s.title)}", "", f"Rapport généré le {_c(when)}", ""]
     if s.nature == "simulated":
         L += ["> **SIMULÉ — données fictives**", ""]
