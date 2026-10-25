@@ -42,3 +42,11 @@ export function listProjects() {
     include: { _count: { select: { studies: true } } },
   });
 }
+
+/** Projet avec ses études (la plus récente d'abord), ou null. */
+export function getProject(projectId: string) {
+  return prisma.project.findUnique({
+    where: { id: projectId },
+    include: { studies: { orderBy: { createdAt: "desc" } } },
+  });
+}

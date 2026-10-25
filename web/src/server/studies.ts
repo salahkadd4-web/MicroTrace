@@ -235,3 +235,16 @@ export function getStudy(studyId: string) {
     include: { project: true, methods: true, limits: true, qcSummaries: true },
   });
 }
+
+/** Étude pour l'affichage : `getStudy` plus le nom de l'auteur de la déclaration de pseudonymisation. */
+export async function getStudyView(studyId: string) {
+  const study = await getStudy(studyId);
+  if (!study) return null;
+  const declarer = study.pseudonymDeclaredById
+    ? await prisma.user.findUnique({
+        where: { id: study.pseudonymDeclaredById },
+        select: { name: true },
+      })
+    : null;
+  return { ...study, pseudonymDeclaredByName: declarer?.name ?? null };
+}
