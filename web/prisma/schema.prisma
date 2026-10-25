@@ -1,0 +1,317 @@
+// Modèle de données MicroTrace Studio (spec §4 et §10).
+// Les valeurs des enums reprennent celles du moteur (engine/openapi.json) ;
+// un test de cohérence les compare. Les nombres de mesure sont des Float.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum DataNature {
+  published
+  laboratory
+  simulated
+}
+
+enum BlankCorrected {
+  yes
+  no
+  unknown
+}
+
+enum Technique {
+  py_gc_ms
+  ted_gc_ms
+  micro_ftir
+  micro_raman
+  other
+}
+
+enum Matrix {
+  whole_blood
+  plasma
+  serum
+  other
+}
+
+enum RecordType {
+  sample
+  procedural_blank
+  field_blank
+  spiked
+}
+
+enum DetectionStatus {
+  quantified
+  between_lod_loq
+  not_quantified
+  below_lod
+  not_analysed
+}
+
+enum IdentificationStatus {
+  confirmed
+  candidate
+}
+
+enum ImportStatus {
+  active
+  retired
+}
+
+enum PredictionKind {
+  spectral
+  image
+  quality
+}
+
+enum PredictionStatus {
+  proposed
+  accepted
+  corrected
+  rejected
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  projects Project[]
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  ownerId     String
+  owner       User     @relation(fields: [ownerId], references: [id])
+  createdAt   DateTime @default(now())
+
+  studies Study[]
+}
+
+model Study {
+  id                    String         @id @default(cuid())
+  projectId             String
+  project               Project        @relation(fields: [projectId], references: [id])
+  title                 String
+  nature                DataNature
+  referenceDoi          String?
+  referenceLicense      String?
+  blankCorrected        BlankCorrected @default(unknown)
+  pseudonymDeclaredAt   DateTime?
+  pseudonymDeclaredById String?
+  archivedAt            DateTime?
+  createdAt             DateTime       @default(now())
+
+  methods     Method[]
+  limits      DetectionLimit[]
+  qcSummaries QualityControlSummary[]
+  dataFiles   DataFile[]
+  importRuns  ImportRun[]
+  predictions ModelPrediction[]
+}
+
+model Method {
+  id        String    @id @default(cuid())
+  studyId   String
+  study     Study     @relation(fields: [studyId], references: [id])
+  name      String
+  nameKey   String
+  technique Technique
+
+  limits DetectionLimit[]
+
+  @@unique([studyId, nameKey])
+}
+
+model DetectionLimit {
+  id       String @id @default(cuid())
+  studyId  String
+  study    Study  @relation(fields: [studyId], references: [id])
+  methodId String
+  method   Method @relation(fields: [methodId], references: [id])
+  polymer  String
+  lod      Float?
+  loq      Float?
+  unitCode String
+  source   String
+
+  @@unique([studyId, methodId, polymer])
+}
+
+model QualityControlSummary {
+  id       String @id @default(cuid())
+  studyId  String
+  study    Study  @relation(fields: [studyId], references: [id])
+  polymer  String
+  kind     String
+  n        Int
+  mean     Float?
+  sd       Float?
+  unitCode String
+  source   String
+}
+
+model DataFile {
+  id           String   @id @default(cuid())
+  studyId      String
+  study        Study    @relation(fields: [studyId], references: [id])
+  originalName String
+  sha256       String
+  sizeBytes    Int
+  mimeType     String
+  storagePath  String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  importRuns ImportRun[]
+
+  @@index([studyId, sha256])
+}
+
+model ImportRun {
+  id                   String       @id @default(cuid())
+  studyId              String
+  study                Study        @relation(fields: [studyId], references: [id])
+  dataFileId           String
+  dataFile             DataFile     @relation(fields: [dataFileId], references: [id])
+  sheet                String?
+  mapping              Json
+  frozenContext        Json
+  rulesVersion         String
+  engineVersion        String
+  issues               Json
+  errorCount           Int          @default(0)
+  warningCount         Int          @default(0)
+  infoCount            Int          @default(0)
+  warningsAccepted     Boolean      @default(false)
+  warningsAcceptedAt   DateTime?
+  warningsAcceptedById String?
+  status               ImportStatus @default(active)
+  retiredReason        String?
+  retiredAt            DateTime?
+  createdById          String
+  createdAt            DateTime     @default(now())
+
+  measurements   Measurement[]
+  qcMeasurements QcMeasurement[]
+}
+
+// Un enregistrement de B1 (MeasurementRecordModel, 28 champs) + importRunId/studyId.
+// Colonnes en camelCase ; la correspondance snake_case <-> camelCase vivra dans
+// un seul assistant (C3).
+model Measurement {
+  id                   String               @id @default(cuid())
+  importRunId          String
+  importRun            ImportRun            @relation(fields: [importRunId], references: [id])
+  studyId              String
+  sampleId             String
+  aliquot              String
+  recordType           RecordType
+  matrix               Matrix
+  matrixDetail         String
+  polymer              String
+  polymerRaw           String
+  method               String
+  technique            Technique
+  reportedValue        String
+  value                Float?
+  unitCode             String
+  canonicalValue       Float?
+  canonicalUnitCode    String
+  status               DetectionStatus
+  lod                  Float?
+  loq                  Float?
+  canonicalLod         Float?
+  canonicalLoq         Float?
+  identificationStatus IdentificationStatus
+  sizeMinUm            Float?
+  sizeMaxUm            Float?
+  analysisDate         String
+  batch                String
+  lab                  String
+  comment              String
+  sourceRow            Int
+  sourceColumn         String
+
+  @@index([studyId])
+  @@index([importRunId])
+}
+
+model QcMeasurement {
+  id                   String               @id @default(cuid())
+  importRunId          String
+  importRun            ImportRun            @relation(fields: [importRunId], references: [id])
+  studyId              String
+  sampleId             String
+  aliquot              String
+  recordType           RecordType
+  matrix               Matrix
+  matrixDetail         String
+  polymer              String
+  polymerRaw           String
+  method               String
+  technique            Technique
+  reportedValue        String
+  value                Float?
+  unitCode             String
+  canonicalValue       Float?
+  canonicalUnitCode    String
+  status               DetectionStatus
+  lod                  Float?
+  loq                  Float?
+  canonicalLod         Float?
+  canonicalLoq         Float?
+  identificationStatus IdentificationStatus
+  sizeMinUm            Float?
+  sizeMaxUm            Float?
+  analysisDate         String
+  batch                String
+  lab                  String
+  comment              String
+  sourceRow            Int
+  sourceColumn         String
+
+  @@index([studyId])
+  @@index([importRunId])
+}
+
+model ModelPrediction {
+  id              String           @id @default(cuid())
+  studyId         String
+  study           Study            @relation(fields: [studyId], references: [id])
+  kind            PredictionKind
+  inputFileSha256 String?
+  input           Json
+  output          Json
+  score           Float?
+  modelName       String
+  modelVersion    String
+  modelSha256     String?
+  status          PredictionStatus @default(proposed)
+  decidedById     String?
+  decidedAt       DateTime?
+  decisionNote    String?
+  createdAt       DateTime         @default(now())
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+}

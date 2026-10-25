@@ -17,6 +17,23 @@ export default defineConfig({
           setupFiles: ["./vitest.setup.ts"],
         },
       },
+      {
+        resolve: {
+          alias: {
+            ...alias,
+            "server-only": fileURLToPath(new URL("./test/server-only.ts", import.meta.url)),
+          },
+        },
+        test: {
+          name: "server",
+          environment: "node",
+          include: ["src/server/**/*.test.ts", "test/**/*.test.ts"],
+          globalSetup: ["./test/db-setup.ts"],
+          fileParallelism: false,
+          testTimeout: 30000,
+          hookTimeout: 120000,
+        },
+      },
     ],
   },
 });
