@@ -14,4 +14,14 @@ describe("DataNatureBanner", () => {
       screen.getByText("Prototype de recherche, pas un dispositif médical"),
     ).toBeInTheDocument();
   });
+
+  it("met l'état simulé en évidence avec le jeton warning", () => {
+    const { container } = render(<DataNatureBanner nature="simulated" />);
+    const banner = container.firstElementChild!;
+    expect(banner).toHaveClass("bg-warning", "text-warning-foreground");
+  });
+  it("n'utilise pas le style warning hors simulation", () => {
+    const { container } = render(<DataNatureBanner nature="laboratory" />);
+    expect(container.firstElementChild).not.toHaveClass("bg-warning");
+  });
 });
