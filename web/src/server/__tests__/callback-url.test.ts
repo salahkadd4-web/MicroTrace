@@ -12,3 +12,12 @@ describe("safeCallbackUrl", () => {
     },
   );
 });
+
+describe("safeCallbackUrl durci", () => {
+  it.each(["/\t/evil.com", "/\n/evil.com", "/a\u0000b", "/\\evil.com"])("rejette %j", (v) => {
+    expect(safeCallbackUrl(v)).toBe("/");
+  });
+  it("accepte un chemin encodé du même site", () => {
+    expect(safeCallbackUrl("/%2F%2Fevil.com")).toBe("/%2F%2Fevil.com");
+  });
+});

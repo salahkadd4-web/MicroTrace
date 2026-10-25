@@ -4,6 +4,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 
 const COST = 12;
+const MAX_PASSWORD_BYTES = 72; // limite de bcrypt
+const MAX_EMAIL_LENGTH = 254;
+const MAX_LOGIN_PASSWORD_LENGTH = 1024;
 const MIN_PASSWORD_LENGTH = 12;
 // Hachage factice (coût 12) comparé quand l'utilisateur est inconnu ou inactif.
 const DUMMY_HASH = "$2b$12$u6Rl/9QqAuuhzND7yrVdo.w.QrYGCPnACNaAtc3ZqXCDGK8vVUiWC";
@@ -21,6 +24,9 @@ export async function createUser(input: { email: string; name: string; password:
   if (!name) throw new Error("Le nom est obligatoire.");
   if (input.password.length < MIN_PASSWORD_LENGTH)
     throw new Error(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+
+  if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES)
+    throw new Error(`Le mot de passe ne doit pas dépasser ${MAX_PASSWORD_BYTES} octets.`);
 
   const passwordHash = await bcrypt.hash(input.password, COST);
   try {
@@ -46,6 +52,7 @@ export async function createUser(input: { email: string; name: string; password:
 
 /** Vérifie les identifiants ; null si invalides. Écrit user.login en cas de succès. */
 export async function authorize(email: string, password: string): Promise<SessionUser | null> {
+  if (email.length > MAX_EMAIL_LENGTH || password.length > MAX_LOGIN_PASSWORD_LENGTH) return null;
   const user = await prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
   const ok = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !ok || !user.active) return null;
