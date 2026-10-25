@@ -1,26 +1,53 @@
 from __future__ import annotations
 
 import hmac
+import base64
 from dataclasses import replace
 from importlib.metadata import version
 from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
-from microtrace_core.results import RULES_VERSION, run_import, suggest_mapping
+from microtrace_core.results import (
+    AGGREGATION_RULE_FR,
+    LESLIE_LIKE_FILENAME,
+    RULES_VERSION,
+    aggregate_aliquots,
+    data_dictionary_csv,
+    data_dictionary_markdown,
+    describe,
+    leslie_like_context,
+    leslie_like_csv,
+    leslie_like_mapping,
+    quantification_frequency,
+    run_import,
+    suggest_mapping,
+)
 from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import RawTable, TableReadError, read_table
 
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter, ValidationError
 
 from . import ENGINE_API_VERSION
 from .convert import (
     context_from_model,
+    context_to_model,
+    record_from_model,
+    summary_to_models,
     import_result_to_model,
     mapping_from_model,
     mapping_to_model,
 )
 from .crossimport import cross_import_issues
+from .report import build_markdown, to_html
 from .schemas import (
+    DictionaryResponse,
+    ExampleResponse,
+    ReportRequest,
+    ReportResponse,
+    SummaryRequest,
+    SummaryResponse,
     ExistingKeyModel,
     ImportResultModel,
     MappingModel,
@@ -108,6 +135,13 @@ def create_app(settings: Settings) -> FastAPI:
         redoc_url=None,
         openapi_url=None,
     )
+    @app.exception_handler(RequestValidationError)
+    async def _invalid_request(_request, _exc: RequestValidationError) -> JSONResponse:
+        # French, and never echoes the submitted content.
+        return JSONResponse(
+            status_code=422, content={"detail": "Requête invalide : corps ou champs non conformes."}
+        )
+
     require_secret = make_require_secret(settings)
     app.state.require_secret = require_secret
 
@@ -218,5 +252,63 @@ def create_app(settings: Settings) -> FastAPI:
                 issues=result.issues + tuple(extra),
             )
         return import_result_to_model(result)
+
+    @app.post(
+        "/summary",
+        response_model=SummaryResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def summary(req: SummaryRequest) -> SummaryResponse:
+        try:
+            records = [record_from_model(r) for r in req.records]
+            samples, freqs, stats = summary_to_models(
+                aggregate_aliquots(records),
+                quantification_frequency(records),
+                describe(records),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return SummaryResponse(
+            frequencies=freqs,
+            stats=stats,
+            samples=samples,
+            aggregation_rule=AGGREGATION_RULE_FR,
+        )
+
+    @app.post(
+        "/report",
+        response_model=ReportResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def report(req: ReportRequest) -> ReportResponse:
+        try:
+            context_from_model(req.context)
+            markdown = build_markdown(req)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        return ReportResponse(markdown=markdown, html=to_html(markdown, req.study.title))
+
+    @app.get(
+        "/dictionary",
+        response_model=DictionaryResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def dictionary() -> DictionaryResponse:
+        return DictionaryResponse(
+            csv=data_dictionary_csv(), markdown=data_dictionary_markdown()
+        )
+
+    @app.get(
+        "/examples/leslie-like",
+        response_model=ExampleResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def example_leslie_like() -> ExampleResponse:
+        return ExampleResponse(
+            filename=LESLIE_LIKE_FILENAME,
+            csv_base64=base64.b64encode(leslie_like_csv()).decode("ascii"),
+            context=context_to_model(leslie_like_context()),
+            mapping=mapping_to_model(leslie_like_mapping()),
+        )
 
     return app

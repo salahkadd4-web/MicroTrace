@@ -196,3 +196,64 @@ class TableReadResponse(_Model):
     columns: list[str]
     preview: list[dict[str, str]]
     n_rows: int
+
+
+class SummaryRequest(_Model):
+    records: list[MeasurementRecordModel]
+
+
+class SummaryResponse(_Model):
+    frequencies: list[FrequencyModel]
+    stats: list[PolymerStatsModel]
+    samples: list[SampleResultModel]
+    aggregation_rule: str
+
+
+class ReportStudyModel(_Model):
+    title: str = Field(min_length=1, max_length=300)
+    nature: DataNatureName
+    doi: str | None = None
+    license: str | None = None
+    blank_corrected: Literal["yes", "no", "unknown"] = "unknown"
+
+
+class ReportFileModel(_Model):
+    name: str
+    sha256: str
+    size: int
+    sheet: str | None = None
+
+
+class ReportImportModel(_Model):
+    file: ReportFileModel
+    rules_version: str
+    date: str
+    author: str
+    counts: CountsModel
+    issues: list[IssueModel] = Field(default_factory=list)
+
+
+class ReportRequest(_Model):
+    study: ReportStudyModel
+    imports: list[ReportImportModel]
+    records: list[MeasurementRecordModel]
+    qc_records: list[MeasurementRecordModel] = Field(default_factory=list)
+    context: StudyContextModel
+    generated_at: str | None = None
+
+
+class ReportResponse(_Model):
+    markdown: str
+    html: str
+
+
+class DictionaryResponse(_Model):
+    csv: str
+    markdown: str
+
+
+class ExampleResponse(_Model):
+    filename: str
+    csv_base64: str
+    context: StudyContextModel
+    mapping: MappingModel
