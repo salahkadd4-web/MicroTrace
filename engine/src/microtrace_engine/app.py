@@ -60,6 +60,7 @@ from .schemas import (
     SummaryRequest,
     SummaryResponse,
     TableReadResponse,
+    ValidateResponse,
 )
 from .settings import Settings
 from .uploads import TooLarge, read_upload, sha256_hex, sheet_names
@@ -261,6 +262,16 @@ def create_app(settings: Settings) -> FastAPI:
     )
     def openapi_schema() -> dict[str, Any]:
         return app.openapi()
+
+    @app.post(
+        "/context/validate",
+        response_model=ValidateResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def context_validate(ctx: StudyContextModel) -> ValidateResponse:
+        # sync route: FastAPI runs it in the threadpool; B1 decides, not the web app
+        _domain(context_from_model, ctx)
+        return ValidateResponse(ok=True)
 
     @app.post(
         "/tables/read",

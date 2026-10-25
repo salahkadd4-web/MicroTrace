@@ -75,7 +75,8 @@ def test_operation_ids_are_function_names(app, schema):
     names = {r.name for r in app.routes if isinstance(r, APIRoute) and r.include_in_schema}
     ids = {op["operationId"] for _, _, op in _operations(schema)}
     assert ids == names == {"health", "tables_read", "mapping_suggest", "imports_check",
-                            "summary", "report", "dictionary", "example_leslie_like"}
+                            "summary", "report", "dictionary", "example_leslie_like",
+                            "context_validate"}
 
 
 def test_served_schema_is_the_contract(client, auth_headers, schema):

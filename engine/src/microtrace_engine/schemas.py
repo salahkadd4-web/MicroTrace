@@ -64,6 +64,10 @@ class HealthResponse(_Model):
     rules_version: str
 
 
+class ValidateResponse(_Model):
+    ok: bool
+
+
 class IssueModel(_Model):
     code: IssueCode
     severity: Severity
