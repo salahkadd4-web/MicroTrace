@@ -64,7 +64,7 @@ export async function buildStudyContext(
 }
 
 /** Validation par le moteur ; un 422 devient un refus métier avec le texte du moteur. */
-async function validateOrRefuse(context: StudyContext): Promise<void> {
+export async function validateOrRefuse(context: StudyContext): Promise<void> {
   try {
     await engineClient.validateContext(context);
   } catch (e) {
@@ -139,7 +139,7 @@ export type StudyPatch = {
   blankCorrected?: BlankCorrected;
 };
 
-async function loadWritable(tx: Tx, studyId: string) {
+export async function loadWritable(tx: Tx, studyId: string) {
   const study = await tx.study.findUnique({ where: { id: studyId } });
   if (!study) throw new DomainError("Étude introuvable.");
   assertWritable(study);
