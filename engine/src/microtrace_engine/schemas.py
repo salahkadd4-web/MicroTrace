@@ -1,0 +1,161 @@
+"""Pydantic v2 mirrors of the ``microtrace_core.results`` dataclasses.
+
+Enumerations are ``Literal`` types derived from the B1 enums (never copied by hand);
+``Unit`` is serialised as its code. These models feed the OpenAPI schema.
+"""
+from __future__ import annotations
+
+from typing import Annotated, Literal
+
+from microtrace_core.results import (
+    UNITS,
+    Basis,
+    DataNature,
+    DetectionStatus,
+    IdentificationStatus,
+    Matrix,
+    QuantityKind,
+    RecordType,
+    Technique,
+)
+from microtrace_core.results.issues import Severity
+from pydantic import BaseModel, ConfigDict, Field
+
+MatrixName = Literal[tuple(m.value for m in Matrix)]  # type: ignore[valid-type]
+TechniqueName = Literal[tuple(m.value for m in Technique)]  # type: ignore[valid-type]
+QuantityKindName = Literal[tuple(m.value for m in QuantityKind)]  # type: ignore[valid-type]
+BasisName = Literal[tuple(m.value for m in Basis)]  # type: ignore[valid-type]
+DetectionStatusName = Literal[tuple(m.value for m in DetectionStatus)]  # type: ignore[valid-type]
+RecordTypeName = Literal[tuple(m.value for m in RecordType)]  # type: ignore[valid-type]
+IdentificationStatusName = Literal[  # type: ignore[valid-type]
+    tuple(m.value for m in IdentificationStatus)]
+DataNatureName = Literal[tuple(m.value for m in DataNature)]  # type: ignore[valid-type]
+UnitCode = Literal[tuple(UNITS)]  # type: ignore[valid-type]
+
+Number = Annotated[float, Field(allow_inf_nan=False)]
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class IssueModel(_Model):
+    code: str
+    severity: Severity
+    message: str
+    row: int | None = None
+    column: str | None = None
+    field: str | None = None
+
+
+class MeasurementRecordModel(_Model):
+    sample_id: str
+    aliquot: str
+    record_type: RecordTypeName
+    matrix: MatrixName
+    matrix_detail: str
+    polymer: str
+    polymer_raw: str
+    method: str
+    technique: TechniqueName
+    reported_value: str
+    value: Number | None
+    unit: UnitCode
+    canonical_value: Number | None
+    canonical_unit: UnitCode
+    status: DetectionStatusName
+    lod: Number | None
+    loq: Number | None
+    canonical_lod: Number | None
+    canonical_loq: Number | None
+    identification_status: IdentificationStatusName
+    size_min_um: Number | None
+    size_max_um: Number | None
+    analysis_date: str
+    batch: str
+    lab: str
+    comment: str
+    source_row: int
+    source_column: str
+
+
+class MappingModel(_Model):
+    mode: Literal["long", "wide"]
+    field_columns: dict[str, str]
+    polymer_columns: dict[str, str] = Field(default_factory=dict)
+    constants: dict[str, str] = Field(default_factory=dict)
+    split_aliquot_suffix: bool = False
+
+
+class MethodSpecModel(_Model):
+    name: str
+    technique: TechniqueName
+
+
+class DetectionLimitModel(_Model):
+    method: str
+    polymer: str
+    lod: Number | None
+    loq: Number | None
+    unit_code: str
+    source: str
+
+
+class StudyContextModel(_Model):
+    data_nature: DataNatureName
+    methods: list[MethodSpecModel]
+    limits: list[DetectionLimitModel] = Field(default_factory=list)
+    reference_doi: str | None = None
+    reference_license: str | None = None
+    blank_corrected: Literal["yes", "no", "unknown"] = "unknown"
+
+
+class ImportResultModel(_Model):
+    records: list[MeasurementRecordModel]
+    qc_records: list[MeasurementRecordModel]
+    issues: list[IssueModel]
+    n_rows: int
+    rules_version: str
+    has_errors: bool
+    counts: dict[str, int]
+
+
+class SampleResultModel(_Model):
+    sample_id: str
+    matrix: MatrixName
+    matrix_detail: str
+    polymer: str
+    method: str
+    kind: QuantityKindName
+    basis: BasisName
+    canonical_unit: UnitCode
+    status: DetectionStatusName
+    value: Number | None
+    n_aliquots: int
+    n_quantified: int
+
+
+class FrequencyModel(_Model):
+    polymer: str
+    matrix: MatrixName
+    matrix_detail: str
+    n_samples: int
+    n_quantified: int
+    fraction: Number
+
+
+class PolymerStatsModel(_Model):
+    polymer: str
+    method: str
+    matrix: MatrixName
+    matrix_detail: str
+    kind: QuantityKindName
+    basis: BasisName
+    canonical_unit: UnitCode
+    counts_by_status: dict[str, int]
+    n_quantified: int
+    min: Number | None
+    median: Number | None
+    mean: Number | None
+    max: Number | None
+    max_measurement: Number | None
