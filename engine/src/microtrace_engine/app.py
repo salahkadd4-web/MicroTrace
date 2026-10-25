@@ -2,16 +2,31 @@ from __future__ import annotations
 
 import hmac
 from importlib.metadata import version
-from typing import Any
+from dataclasses import replace
+from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
-from microtrace_core.results import RULES_VERSION, suggest_mapping
+from microtrace_core.results import RULES_VERSION, run_import, suggest_mapping
 from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import RawTable, TableReadError, read_table
 
 from . import ENGINE_API_VERSION
-from .convert import mapping_to_model
-from .schemas import MappingModel, TableReadResponse
+from pydantic import TypeAdapter, ValidationError
+
+from .convert import (
+    context_from_model,
+    import_result_to_model,
+    mapping_from_model,
+    mapping_to_model,
+)
+from .crossimport import cross_import_issues
+from .schemas import (
+    ExistingKeyModel,
+    ImportResultModel,
+    MappingModel,
+    StudyContextModel,
+    TableReadResponse,
+)
 from .settings import Settings
 from .uploads import read_upload, sha256_hex, sheet_names
 
@@ -71,6 +86,19 @@ async def _load(file: UploadFile, sheet: str | None) -> tuple[bytes, RawTable]:
         return data, read_table(data, file.filename or "", sheet)
     except (TableReadError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
+
+
+T = TypeVar("T")
+
+
+def _parse_json(raw: str | None, adapter: TypeAdapter[T], label: str) -> T:
+    """Parse a JSON form field; errors are French and never echo the submitted content."""
+    try:
+        return adapter.validate_json(raw if raw is not None else "")
+    except ValidationError:
+        raise HTTPException(
+            status_code=422, detail=f"Le champ « {label} » est invalide (JSON ou schéma)."
+        ) from None
 
 
 def create_app(settings: Settings) -> FastAPI:
@@ -151,5 +179,44 @@ def create_app(settings: Settings) -> FastAPI:
                 },
             }
         )
+
+    @app.post(
+        "/imports/check",
+        response_model=ImportResultModel,
+        dependencies=[Depends(require_secret)],
+    )
+    async def imports_check(
+        file: UploadFile = File(...),
+        sheet: str | None = Form(None),
+        mapping: str = Form(...),
+        context: str = Form(...),
+        existing: str | None = Form(None),
+    ) -> ImportResultModel:
+        mapping_m = _parse_json(mapping, TypeAdapter(MappingModel), "mapping")
+        context_m = _parse_json(context, TypeAdapter(StudyContextModel), "context")
+        existing_m = (
+            _parse_json(existing, TypeAdapter(list[ExistingKeyModel]), "existing")
+            if existing and existing.strip()
+            else []
+        )
+        try:
+            ctx = context_from_model(context_m)
+            mp = mapping_from_model(mapping_m)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        _, table = await _load(file, sheet)
+        try:
+            result = run_import(table, mp, ctx)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from None
+        extra = cross_import_issues(result.records, existing_m)
+        if extra:
+            result = replace(
+                result,
+                records=(),
+                qc_records=(),
+                issues=result.issues + tuple(extra),
+            )
+        return import_result_to_model(result)
 
     return app

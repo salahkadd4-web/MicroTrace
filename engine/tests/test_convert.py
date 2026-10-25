@@ -84,11 +84,35 @@ def test_enum_values_from_b1():
 
 
 def test_models_mirror_dataclass_fields():
-    from microtrace_core.results import Mapping
+    from microtrace_core.results import (
+        DetectionLimit,
+        Frequency,
+        ImportResult,
+        Issue,
+        Mapping,
+        MethodSpec,
+        PolymerStats,
+        SampleResult,
+        StudyContext,
+    )
 
-    assert set(schemas.MeasurementRecordModel.model_fields) == {
-        f.name for f in fields(MeasurementRecord)}
-    assert set(schemas.MappingModel.model_fields) == {f.name for f in fields(Mapping)}
+    pairs = [
+        (schemas.IssueModel, Issue),
+        (schemas.MeasurementRecordModel, MeasurementRecord),
+        (schemas.MappingModel, Mapping),
+        (schemas.MethodSpecModel, MethodSpec),
+        (schemas.DetectionLimitModel, DetectionLimit),
+        (schemas.StudyContextModel, StudyContext),
+        (schemas.ImportResultModel, ImportResult),
+        (schemas.SampleResultModel, SampleResult),
+        (schemas.FrequencyModel, Frequency),
+        (schemas.PolymerStatsModel, PolymerStats),
+    ]
+    for model, dc in pairs:
+        expected = {f.name for f in fields(dc)}
+        if dc is ImportResult:  # has_errors (property) and counts are derived fields
+            expected |= {"has_errors", "counts"}
+        assert set(model.model_fields) == expected, model.__name__
 
 
 def test_context_roundtrip_and_errors_propagate():
@@ -115,8 +139,9 @@ def test_import_result_model(leslie):
     model = convert.import_result_to_model(leslie)
     assert model.has_errors is leslie.has_errors
     assert model.n_rows == leslie.n_rows
-    assert sum(model.counts.values()) == len(leslie.issues)
-    assert set(model.counts) == {"error", "warning", "info"}
+    c = model.counts
+    assert c.error + c.warning + c.info == len(leslie.issues)
+    assert set(schemas.CountsModel.model_fields) == {"error", "warning", "info"}
     assert len(model.records) == len(leslie.records)
     schemas.ImportResultModel.model_validate_json(model.model_dump_json())
 

@@ -112,6 +112,16 @@ class _State:
     dates: dict[str | None, set[int]] = field(default_factory=dict)  # column -> rows normalised
 
 
+def record_key(sample_id: str, aliquot: str, record_type: RecordType, polymer: str,
+               polymer_raw: str, method: str) -> tuple:
+    """Identity of a measurement for duplicate detection (also used across imports).
+
+    Methods compare like method names; an "other" polymer is told apart by its folded raw name.
+    """
+    poly_key = polymer if polymer != OTHER else "OTHER:" + " ".join(fold(polymer_raw).split())
+    return (sample_id, aliquot, record_type, poly_key, method_key(method))
+
+
 def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpose
     row: MappedRow, ctx: StudyContext, state: _State, issues: list[Issue],
 ) -> MeasurementRecord | None:
@@ -407,8 +417,8 @@ def _validate_row(  # noqa: C901 - linear rule list, kept in one place on purpos
     # duplicates (flagged on the second occurrence; methods compared like method names)
     method = spec.name if spec else f.get("method", "")
     if f.get("sample_id") and polymer and f.get("method"):
-        poly_key = polymer if polymer != OTHER else "OTHER:" + " ".join(fold(f["polymer"]).split())
-        key = (f["sample_id"], f.get("aliquot", ""), record_type, poly_key, mkey)
+        key = record_key(f["sample_id"], f.get("aliquot", ""), record_type, polymer,
+                         f["polymer"], f.get("method", ""))
         if key in state.seen:
             add("E_DUPLICATE_RECORD",
                 f"Enregistrement en double (échantillon {f['sample_id']}, aliquote "

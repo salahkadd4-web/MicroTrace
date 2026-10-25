@@ -110,6 +110,12 @@ class StudyContextModel(_Model):
     blank_corrected: Literal["yes", "no", "unknown"] = "unknown"
 
 
+class CountsModel(_Model):
+    error: int
+    warning: int
+    info: int
+
+
 class ImportResultModel(_Model):
     records: list[MeasurementRecordModel]
     qc_records: list[MeasurementRecordModel]
@@ -117,7 +123,7 @@ class ImportResultModel(_Model):
     n_rows: int
     rules_version: str
     has_errors: bool
-    counts: dict[str, int]
+    counts: CountsModel
 
 
 class SampleResultModel(_Model):
@@ -159,6 +165,19 @@ class PolymerStatsModel(_Model):
     mean: Number | None
     max: Number | None
     max_measurement: Number | None
+
+
+class ExistingKeyModel(_Model):
+    """Key of a measurement already recorded in an active import of the study."""
+
+    sample_id: str
+    aliquot: str = ""
+    record_type: RecordTypeName
+    polymer: str
+    polymer_raw: str = ""
+    method: str
+    matrix: MatrixName
+    matrix_detail: str = ""
 
 
 class TableReadResponse(_Model):

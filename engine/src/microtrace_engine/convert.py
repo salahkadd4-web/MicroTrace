@@ -27,6 +27,7 @@ from microtrace_core.results import (
 )
 
 from microtrace_engine.schemas import (
+    CountsModel,
     DetectionLimitModel,
     FrequencyModel,
     ImportResultModel,
@@ -107,10 +108,15 @@ def context_from_model(m: StudyContextModel) -> StudyContext:
         blank_corrected=m.blank_corrected)
 
 
+def counts_of(issues: Iterable[Issue]) -> CountsModel:
+    n = {"error": 0, "warning": 0, "info": 0}
+    for i in issues:
+        n[i.severity] += 1
+    return CountsModel(**n)
+
+
 def import_result_to_model(r: ImportResult) -> ImportResultModel:
-    counts = {"error": 0, "warning": 0, "info": 0}
-    for i in r.issues:
-        counts[i.severity] += 1
+    counts = counts_of(r.issues)
     return ImportResultModel(
         records=[record_to_model(x) for x in r.records],
         qc_records=[record_to_model(x) for x in r.qc_records],
