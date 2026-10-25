@@ -1,6 +1,7 @@
 import warnings
 
 import pytest
+from starlette.exceptions import StarletteDeprecationWarning
 
 # Starlette 1.x deprecates httpx in its TestClient in favour of the `httpx2`
 # package. We keep the brief's `httpx` dev dependency and silence only this
@@ -9,6 +10,7 @@ import pytest
 with warnings.catch_warnings():
     warnings.filterwarnings(
         "ignore",
+        category=StarletteDeprecationWarning,
         message=r"Using `httpx` with `starlette\.testclient` is deprecated",
     )
     from fastapi.testclient import TestClient
