@@ -2,10 +2,21 @@ import "server-only";
 import type { BlankCorrected, DataNature } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import { recordAudit, type Tx } from "@/server/audit";
-import { EngineError, engineClient, type StudyContext } from "@/server/engine/client";
+import {
+  ENGINE_TIMEOUT_MS,
+  EngineError,
+  engineClient,
+  type StudyContext,
+} from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import { normalizeTitle } from "@/server/projects";
 import type { SessionUser } from "@/server/users";
+
+/** Options des transactions interactives qui appellent le moteur (délai > ENGINE_TIMEOUT_MS). */
+export const ENGINE_TX_OPTIONS = {
+  maxWait: 10_000,
+  timeout: ENGINE_TIMEOUT_MS + 10_000,
+} as const;
 
 const ARCHIVED = "Étude archivée : lecture seule.";
 
@@ -170,7 +181,7 @@ export async function updateStudy(actor: SessionUser, studyId: string, patch: St
       after,
     });
     return updated;
-  });
+  }, ENGINE_TX_OPTIONS);
 }
 
 export async function declarePseudonymisation(actor: SessionUser, studyId: string) {

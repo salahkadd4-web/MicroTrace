@@ -1,15 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/audit", async (orig) => {
+  const actual = await orig<typeof import("@/server/audit")>();
+  return { ...actual, recordAudit: vi.fn(actual.recordAudit) };
+});
+
 vi.mock("@/server/engine/client", async (orig) => {
   const actual = await orig<typeof import("@/server/engine/client")>();
   return { ...actual, engineClient: { validateContext: vi.fn() } };
 });
 
+import * as auditModule from "@/server/audit";
 import { prisma } from "@/server/db";
-import { EngineError, EngineUnavailableError, engineClient } from "@/server/engine/client";
+import {
+  ENGINE_TIMEOUT_MS,
+  EngineError,
+  EngineUnavailableError,
+  engineClient,
+} from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import { createProject, listProjects } from "@/server/projects";
 import {
+  ENGINE_TX_OPTIONS,
   archiveStudy,
   buildStudyContext,
   createStudy,
@@ -67,6 +79,12 @@ describe("projets", () => {
     });
   });
 
+  it("annule le projet si l'écriture de l'audit échoue", async () => {
+    vi.mocked(auditModule.recordAudit).mockRejectedValueOnce(new Error("audit KO"));
+    await expect(createProject(actor, { title: "P" })).rejects.toThrow("audit KO");
+    expect(await prisma.project.count()).toBe(0);
+  });
+
   it("refuse un titre vide ou trop long", async () => {
     await expect(createProject(actor, { title: "  " })).rejects.toThrow(
       "Le titre est obligatoire.",
@@ -80,6 +98,14 @@ describe("projets", () => {
   it("liste du plus récent au plus ancien avec le nombre d'études", async () => {
     const a = await createProject(actor, { title: "A" });
     const b = await createProject(actor, { title: "B" });
+    await prisma.project.update({
+      where: { id: a.id },
+      data: { createdAt: new Date("2026-01-01") },
+    });
+    await prisma.project.update({
+      where: { id: b.id },
+      data: { createdAt: new Date("2026-02-01") },
+    });
     await createStudy(actor, a.id, {
       title: "E",
       nature: "simulated",
@@ -156,10 +182,41 @@ describe("createStudy", () => {
         blankCorrected: "no",
       }),
     ).rejects.toThrow("Projet introuvable.");
+    expect(validate).not.toHaveBeenCalled();
+    expect(await prisma.study.count()).toBe(0);
   });
 });
 
 describe("updateStudy", () => {
+  it("valide l'état après mise à jour (contexte construit dans la transaction)", async () => {
+    const s = await newStudy();
+    await updateStudy(actor, s.id, {
+      nature: "published",
+      referenceDoi: " 10.1000/new ",
+      referenceLicense: "CC-BY-4.0",
+    });
+    expect(validate).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data_nature: "published",
+        reference_doi: "10.1000/new",
+        reference_license: "CC-BY-4.0",
+      }),
+    );
+  });
+
+  it("annule l'étude si l'écriture de l'audit échoue", async () => {
+    const s = await newStudy();
+    vi.mocked(auditModule.recordAudit).mockRejectedValueOnce(new Error("audit KO"));
+    await expect(updateStudy(actor, s.id, { title: "Autre" })).rejects.toThrow("audit KO");
+    const after = await prisma.study.findUniqueOrThrow({ where: { id: s.id } });
+    expect(after.title).toBe("E");
+  });
+
+  it("transaction moteur : délai strictement supérieur au délai du moteur", () => {
+    expect(ENGINE_TX_OPTIONS.timeout).toBeGreaterThan(ENGINE_TIMEOUT_MS);
+    expect(ENGINE_TX_OPTIONS.maxWait).toBeGreaterThan(0);
+  });
+
   it("met à jour et audite uniquement les champs modifiés", async () => {
     const s = await newStudy();
     const u = await updateStudy(actor, s.id, {
