@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import pg from "pg";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   BlankCorrected,
@@ -61,7 +62,38 @@ describe("journal d'audit en ajout seul", () => {
 const MSG =
   /Le journal d'audit est en ajout seul : (UPDATE|DELETE) interdit sur AuditEvent\./;
 
-describe("déclencheur : autres chemins d'écriture", () => {
+describe("garde-fou : index partiel", () => {
+  it("ImportRun_one_active_per_file existe avec son WHERE", async () => {
+    const rows = await prisma.$queryRaw<{ indexdef: string }[]>`
+      SELECT indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = 'ImportRun_one_active_per_file'`;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].indexdef).toContain("WHERE (status = 'active'");
+  });
+});
+
+describe("dÃ©clencheur : message exact", () => {
+  it.each(["UPDATE", "DELETE"] as const)("%s", async (op) => {
+    await prisma.auditEvent.create({
+      data: { action: "a", entityType: "Study", entityId: "1" },
+    });
+    const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+    await client.connect();
+    try {
+      const sql =
+        op === "UPDATE"
+          ? `UPDATE "AuditEvent" SET action = 'x'`
+          : `DELETE FROM "AuditEvent"`;
+      await expect(client.query(sql)).rejects.toMatchObject({
+        message: `Le journal d'audit est en ajout seul : ${op} interdit sur AuditEvent.`,
+      });
+    } finally {
+      await client.end();
+    }
+  });
+});
+
+describe("dÃ©clencheur : autres chemins d'Ã©criture", () => {
   async function ev() {
     return prisma.auditEvent.create({
       data: { action: "a", entityType: "Study", entityId: "1" },
@@ -90,8 +122,8 @@ describe("déclencheur : autres chemins d'écriture", () => {
   });
 });
 
-describe("intégrité référentielle et import actif", () => {
-  it("suppression d'une étude ou d'un projet avec enfants refusée", async () => {
+describe("intÃ©gritÃ© rÃ©fÃ©rentielle et import actif", () => {
+  it("suppression d'une Ã©tude ou d'un projet avec enfants refusÃ©e", async () => {
     const { study, project } = await makeStudy();
     await expect(
       prisma.study.delete({ where: { id: study.id } }),
@@ -110,7 +142,7 @@ describe("intégrité référentielle et import actif", () => {
     ).rejects.toThrow(/foreign key|Foreign key/i);
   });
 
-  it("un seul import actif par fichier et par étude", async () => {
+  it("un seul import actif par fichier et par Ã©tude", async () => {
     const { user, study } = await makeStudy();
     const file = await prisma.dataFile.create({
       data: {

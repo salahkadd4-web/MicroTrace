@@ -25,6 +25,8 @@ export interface TestDb {
 export interface StartOptions {
   /** Appelé avec le répertoire temporaire dès sa création. */
   onDir?: (dir: string) => void;
+  /** Appelé avec le port choisi. */
+  onPort?: (port: number) => void;
   /** Étape injectée avant la migration (sert à tester le nettoyage). */
   beforeMigrate?: () => void | Promise<void>;
 }
@@ -44,6 +46,7 @@ export async function startTestDb(opts: StartOptions = {}): Promise<TestDb> {
   };
   try {
     const port = await freePort();
+    opts.onPort?.(port);
     pg = new EmbeddedPostgres({
       databaseDir: dir,
       user: "postgres",

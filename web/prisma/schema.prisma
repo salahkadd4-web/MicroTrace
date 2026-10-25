@@ -181,6 +181,10 @@ model DataFile {
   @@unique([studyId, sha256])
 }
 
+// ATTENTION : l'index unique partiel `ImportRun_one_active_per_file`
+// (studyId, dataFileId) WHERE status = 'active' est géré en SQL brut dans la
+// migration 20261025000200 et n'apparaît pas ici. Il doit être conservé :
+// relire systématiquement le SQL généré par `prisma migrate dev`.
 model ImportRun {
   id                   String       @id @default(cuid())
   studyId              String
