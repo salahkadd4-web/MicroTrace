@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from microtrace_core.results import RULES_VERSION, suggest_mapping
-from microtrace_core.results.contact import MAX_SCAN_CHARS, header_has_contact
+from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import RawTable, TableReadError, read_table
 
 from . import ENGINE_API_VERSION
@@ -36,11 +36,33 @@ def make_require_secret(settings: Settings):
 
 
 def _hidden_names(columns: tuple[str, ...]) -> dict[str, str]:
-    """Header -> safe display name (contact data or over-long headers become by position)."""
-    return {
-        c: (f"colonne n° {k}" if len(c) > MAX_SCAN_CHARS or header_has_contact(c) else c)
+    """Header -> unique safe display name.
+
+    A header holding contact data or longer than MAX_SCAN_CHARS is shown by position
+    (B1's header_label rule). Displayed names are guaranteed unique. A mapping that refers
+    to a hidden column cannot be applied (such files are blocked by the PII check).
+    """
+    hidden = {
+        c: f"colonne n° {k}"
         for k, c in enumerate(columns, 1)
+        if header_label(c, k).startswith("colonne n°")
     }
+    taken = {c for c in columns if c not in hidden}
+    out: dict[str, str] = {}
+    for c in columns:
+        if c not in hidden:
+            out[c] = c
+            continue
+        name = hidden[c]
+        if name in taken:
+            name = f"{name} (masquée)"
+        base, n = name, 1
+        while name in taken:
+            n += 1
+            name = f"{base} #{n}"
+        taken.add(name)
+        out[c] = name
+    return out
 
 
 async def _load(file: UploadFile, sheet: str | None) -> tuple[bytes, RawTable]:
@@ -123,7 +145,9 @@ def create_app(settings: Settings) -> FastAPI:
                     k: safe.get(v, v) for k, v in m.field_columns.items()
                 },
                 "polymer_columns": {
-                    safe.get(k, k): v for k, v in m.polymer_columns.items()
+                    k: v
+                    for k, v in m.polymer_columns.items()
+                    if k not in table.columns or safe[k] == k
                 },
             }
         )

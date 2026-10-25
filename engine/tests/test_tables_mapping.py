@@ -126,3 +126,22 @@ def test_mapping_suggest_leslie(client, auth_headers):
 def test_requires_secret(client):
     r = client.post("/tables/read", files={"file": ("t.csv", CSV)})
     assert r.status_code == 401
+
+
+def test_masked_names_unique(client, auth_headers):
+    data = "Échantillon;jean.dupont@chu.fr;colonne n° 2;PE\nS1;secret;visible;1\n".encode()
+    r = _post(client, auth_headers, "t.csv", data)
+    body = r.json()
+    assert "jean.dupont" not in r.text
+    assert len(set(body["columns"])) == 4
+    assert body["columns"][2] == "colonne n° 2"
+    row = body["preview"][0]
+    assert row["colonne n° 2"] == "visible" and "secret" in row.values()
+    assert len(row) == 4
+
+
+def test_polymer_with_contact_dropped(client, auth_headers):
+    data = "Échantillon;PE jean@x.fr;PS\nS1;1;2\n".encode()
+    r = _post(client, auth_headers, "t.csv", data, path="/mapping/suggest")
+    assert r.status_code == 200 and "jean@x.fr" not in r.text
+    assert all("jean" not in k for k in r.json()["polymer_columns"])
