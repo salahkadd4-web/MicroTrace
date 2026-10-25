@@ -34,3 +34,12 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Web (Next.js)
+web/node_modules/
+web/.next/
+web/.env*
+!web/.env.example
+var/
+web/test-results/
+web/coverage/
