@@ -23,16 +23,13 @@ def _result():
 
 def _imp(rules=RULES_VERSION, name="leslie.csv"):
     return {"file": {"name": name, "sha256": SHA, "size": 10, "sheet": None},
-            "rules_version": rules, "date": "2026-10-25", "author": "Test",
-            "counts": {"error": 0, "warning": 1, "info": 2}, "issues": []}
+            "rules_version": rules, "date": "2026-10-25", "author": "Test", "issues": []}
 
 
 def _req(**over):
     r = _result()
     recs = [convert.record_to_model(x).model_dump() for x in r.records]
-    body = {"study": {"title": "Étude fictive", "nature": "simulated",
-                      "doi": "10.0000/fictif", "license": "CC-BY-4.0",
-                      "blank_corrected": "unknown"},
+    body = {"study": {"title": "Étude fictive"},
             "imports": [_imp()], "records": recs, "qc_records": [],
             "context": convert.context_to_model(leslie_like_context()).model_dump()}
     body.update(over)
@@ -121,14 +118,14 @@ HOSTILE = "a|b\\c\n**d** # `e` <script>x</script> [l](javascript:alert(1))"
 def _hostile_req():
     body = _req()
     body["study"]["title"] = HOSTILE
-    body["study"]["license"] = HOSTILE
+    body["context"]["reference_license"] = HOSTILE
     body["context"]["methods"][0]["name"] = HOSTILE
     body["context"]["limits"][0]["source"] = HOSTILE
     body["context"]["limits"][0]["method"] = HOSTILE
     imp = _imp(name=HOSTILE)
     imp["file"]["sheet"] = HOSTILE
     imp["author"] = HOSTILE
-    imp["issues"] = [{"code": "X", "severity": "warning", "message": HOSTILE}]
+    imp["issues"] = [{"code": "W_NO_LIMITS", "severity": "warning", "message": HOSTILE}]
     body["imports"] = [imp]
     return body
 
@@ -154,14 +151,14 @@ def test_hostile_text_is_inert(client, auth_headers):
 
 def test_counters_derived_from_issues(client, auth_headers):
     body = _req()
-    body["imports"][0]["counts"] = {"error": 0, "warning": 0, "info": 0}
     body["imports"][0]["issues"] = [
-        {"code": "X", "severity": "error", "message": "m"},
-        {"code": "X", "severity": "error", "message": "m"}]
+        {"code": "E_DUPLICATE_RECORD", "severity": "error", "message": "m"},
+        {"code": "E_DUPLICATE_RECORD", "severity": "error", "message": "m"}]
     md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
     assert "| 2 | 0 | 0 |" in md
-    del body["imports"][0]["counts"]
-    assert client.post("/report", headers=auth_headers, json=body).status_code == 200
+    # counters are not part of the contract any more
+    body["imports"][0]["counts"] = {"error": 0, "warning": 0, "info": 0}
+    assert client.post("/report", headers=auth_headers, json=body).status_code == 422
 
 
 def test_french_labels(client, auth_headers):
@@ -169,3 +166,39 @@ def test_french_labels(client, auth_headers):
     assert "simulée" in md and "sang total" in md and "inconnu" in md
     for code in ("whole_blood", "mass_concentration", "py_gc_ms", "simulated"):
         assert code not in md
+
+
+def test_study_reference_comes_from_context_only(client, auth_headers):
+    body = _req()
+    body["study"]["nature"] = "published"
+    assert client.post("/report", headers=auth_headers, json=body).status_code == 422
+    body = _req()  # simulated context: banner whatever else is sent
+    body["context"].update(reference_doi="10.1234/abc", reference_license="CC-BY-4.0",
+                           blank_corrected="yes")
+    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
+    assert "SIMULÉ" in md and "simulée" in md
+    assert "10.1234/abc" in md and "CC-BY-4.0" in md and "Correction du blanc : oui" in md
+    body["context"]["data_nature"] = "laboratory"
+    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
+    assert "SIMULÉ" not in md and "laboratoire" in md
+
+
+def test_any_and_unit_labels(client, auth_headers):
+    md = client.post("/report", headers=auth_headers, json=_req()).json()["markdown"]
+    assert "| au moins un polymère | sang total |" in md and "ANY" not in md
+    limits = md[md.index("| Méthode | Polymère | LOD"):md.index("## Imports")]
+    assert "µg/mL" in limits and "ug/mL" not in limits
+
+
+def test_generated_at_datetime(client, auth_headers):
+    body = _req(generated_at="2026-10-25T14:03:00+02:00")
+    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
+    assert "Rapport généré le 25/10/2026 12:03 UTC" in md
+    body = _req(generated_at="2026-10-25T09:30:00")  # naive: taken as UTC
+    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
+    assert "Rapport généré le 25/10/2026 09:30 UTC" in md
+    md = client.post("/report", headers=auth_headers, json=_req()).json()["markdown"]
+    import re
+    assert re.search(r"Rapport généré le \d\d/\d\d/\d{4} \d\d:\d\d UTC", md)
+    r = client.post("/report", headers=auth_headers, json=_req(generated_at="hier"))
+    assert r.status_code == 422

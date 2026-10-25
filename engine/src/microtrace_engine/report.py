@@ -13,6 +13,8 @@ from importlib.metadata import version
 from microtrace_core.results import (
     AGGREGATION_RULE_FR,
     RULES_VERSION,
+    UNITS,
+    DataNature,
     MeasurementRecord,
     StudyContext,
     describe,
@@ -62,13 +64,21 @@ def _where(matrix, detail: str) -> str:
     return f"{name} ({detail})" if detail else name
 
 
+def _when(at: datetime | None) -> str:
+    """JJ/MM/AAAA HH:MM UTC; a naive datetime is taken as UTC, None is now."""
+    at = at or datetime.now(timezone.utc)
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    return at.astimezone(timezone.utc).strftime("%d/%m/%Y %H:%M UTC")
+
+
 def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[MeasurementRecord],
                    qc: list[MeasurementRecord]) -> str:
     """``ctx``, ``records`` and ``qc`` are ``req``'s context and records converted to B1."""
     s = req.study
-    when = req.generated_at or datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    when = _when(req.generated_at)
     L: list[str] = [f"# {_c(s.title)}", "", f"Rapport généré le {_c(when)}", ""]
-    if s.nature == "simulated":
+    if ctx.data_nature is DataNature.simulated:
         L += ["> **SIMULÉ — données fictives**", ""]
     L += [f"> {DISCLAIMER}", ""]
 
@@ -82,19 +92,19 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     L.append("")
 
     L += ["## Étude et référence", "", f"- Titre : {_c(s.title)}",
-          f"- Nature des données : {_c(_lab('nature', s.nature))}",
-          f"- DOI : {_c(s.doi) if s.doi else 'non renseigné'}",
-          f"- Licence : {_c(s.license) if s.license else 'non renseignée'}",
-          f"- Correction du blanc : {_c(_lab('blank', s.blank_corrected))}", ""]
+          f"- Nature des données : {_c(_lab('nature', ctx.data_nature))}",
+          f"- DOI : {_c(doi) if (doi := ctx.reference_doi) else 'non renseigné'}",
+          f"- Licence : {_c(lic) if (lic := ctx.reference_license) else 'non renseignée'}",
+          f"- Correction du blanc : {_c(_lab('blank', ctx.blank_corrected))}", ""]
 
     L += ["## Méthodes et limites de détection", ""]
-    if req.context.methods:
+    if ctx.methods:
         L += _table(["Méthode", "Technique"],
-                    [[m.name, _lab('technique', m.technique)] for m in req.context.methods])
-    if req.context.limits:
+                    [[m.name, _lab('technique', m.technique)] for m in ctx.methods])
+    if ctx.limits:
         L += _table(["Méthode", "Polymère", "LOD", "LOQ", "Unité", "Source"],
-                    [[x.method, x.polymer, _num(x.lod), _num(x.loq), x.unit_code, x.source]
-                     for x in req.context.limits])
+                    [[x.method, x.polymer, _num(x.lod), _num(x.loq), UNITS[x.unit_code].label,
+                      x.source] for x in ctx.limits])
     else:
         L += ["Aucune limite de détection déclarée.", ""]
 
@@ -113,7 +123,7 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     freqs = quantification_frequency(records)
     if freqs:
         L += _table(["Polymère", "Matrice", "Quantifiés/échantillons"],
-                    [[f.polymer, _where(f.matrix, f.matrix_detail),
+                    [[_lab('polymer', f.polymer), _where(f.matrix, f.matrix_detail),
                       f"{f.n_quantified}/{f.n_samples} ({fmt_fr(round(f.fraction * 100, 1))} %)"]
                      for f in freqs])
     else:

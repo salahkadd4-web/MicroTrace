@@ -5,6 +5,7 @@ Enumerations are ``Literal`` types derived from the B1 enums (never copied by ha
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 
 from microtrace_core.results import (
@@ -213,11 +214,9 @@ class SummaryResponse(_Model):
 
 
 class ReportStudyModel(_Model):
+    """Nature, DOI, licence and blank correction come from the report ``context``."""
+
     title: str = Field(min_length=1, max_length=300)
-    nature: DataNatureName
-    doi: str | None = None
-    license: str | None = None
-    blank_corrected: Literal["yes", "no", "unknown"] = "unknown"
 
 
 class ReportFileModel(_Model):
@@ -232,8 +231,7 @@ class ReportImportModel(_Model):
     rules_version: str
     date: str
     author: str
-    counts: CountsModel | None = None  # ignored: the report counts the issues itself
-    issues: list[IssueModel] = Field(default_factory=list)
+    issues: list[IssueModel] = Field(default_factory=list)  # the report counts them itself
 
 
 class ReportRequest(_Model):
@@ -242,7 +240,8 @@ class ReportRequest(_Model):
     records: list[MeasurementRecordModel]
     qc_records: list[MeasurementRecordModel] = Field(default_factory=list)
     context: StudyContextModel
-    generated_at: str | None = None
+    generated_at: datetime | None = Field(
+        default=None, description="ISO 8601; naive values are taken as UTC")
 
 
 class ReportResponse(_Model):
