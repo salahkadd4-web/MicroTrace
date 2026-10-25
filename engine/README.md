@@ -33,14 +33,37 @@ Exemple d'appel (chaque route sauf `/health` exige l'en-tête `X-Engine-Secret`)
 curl http://127.0.0.1:8001/health
 curl -H "X-Engine-Secret: $ENGINE_SECRET" http://127.0.0.1:8001/dictionary
 curl -H "X-Engine-Secret: $ENGINE_SECRET" -F "file=@mesures.csv" http://127.0.0.1:8001/tables/read
+curl -H "X-Engine-Secret: $ENGINE_SECRET" -F "file=@mesures.csv" \
+  -F "mapping=<mapping.json" -F "context=<context.json" \
+  -F "existing=@existing.json;type=application/json" http://127.0.0.1:8001/imports/check
 ```
+
+Dans `/imports/check`, `mapping` et `context` sont des champs texte contenant du JSON
+(schémas `MappingModel` et `StudyContextModel`) ; `existing` (facultatif) est une **partie
+fichier** JSON (liste de `ExistingKeyModel`, 20 Mo au plus), ce qui évite la limite de 1 Mo
+des champs texte multipart.
+
+## Contrat OpenAPI
+
+Le schéma est servi sur `/openapi.json` (secret requis) et versionné dans
+`engine/openapi.json`, d'où l'application Next.js génère ses types. Après toute modification
+des routes ou des modèles :
+
+```bash
+.venv/Scripts/python -m microtrace_engine --dump-openapi engine/openapi.json
+```
+
+(sans secret, sans démarrer le serveur ; un test vérifie que le fichier versionné est à jour).
+Toute erreur a la forme `{"detail": "<message français>"}` (`ErrorModel`) ; une erreur de
+schéma (422) ajoute `errors: [{"loc": [...], "type": "..."}]`, sans jamais la valeur soumise
+(un segment pouvant venir des données, comme une clé de `polymer_columns`, vaut `"*"`).
 
 ## Docker
 
 Le contexte de build est la racine du dépôt :
 
 ```bash
-docker build -f engine/Dockerfile -t microtrace-engine .
+docker build -f engine/Dockerfile -t microtrace-engine .   # versions figées : engine/constraints.txt
 docker run --rm -e ENGINE_SECRET="<au moins 32 caractères>" \
   -p 127.0.0.1:8001:8001 microtrace-engine
 ```
@@ -65,13 +88,18 @@ et ne contient aucun secret.
 
 ## Garanties de confidentialité
 
-- Le service est sans état : aucun fichier ni donnée n'est écrit sur disque ni conservé.
+- Le service est sans état : rien n'est conservé d'une requête à l'autre. Seule exception
+  d'écriture sur disque : Starlette place toute partie multipart de plus de 1 Mo (le fichier,
+  `existing`) dans un fichier temporaire, supprimé à la fin de la requête.
+- Le secret est vérifié avant toute lecture du corps (middleware ASGI) : sans
+  `X-Engine-Secret` valide, réponse 401 immédiate (sauf `/health`) ; un `Content-Length`
+  annoncé au-delà de `MAX_BYTES` + 25 Mo reçoit un 413.
 - Aucune valeur de cellule dans les journaux ni dans les réponses d'erreur ; une exception
   inattendue renvoie `500 {"detail": "Erreur interne du moteur."}` et seul le type
   d'exception et la route sont journalisés (ni message, ni trace de pile).
 - Les en-têtes de colonnes ressemblant à des données de contact ou trop longs sont remplacés par
   leur position (« colonne n° k ») ; les fichiers contenant des e-mails ou téléphones sont bloqués
-  par le contrôle d'import.
+  par le contrôle d'import (un en-tête seulement trop long est masqué, pas bloqué).
 - Comparaison du secret en temps constant ; écoute locale par défaut ; taille des fichiers
   limitée à `MAX_BYTES` du cœur.
 
@@ -80,3 +108,6 @@ et ne contient aucun secret.
 ```bash
 .venv/Scripts/python -m pytest engine/tests -q -W error
 ```
+
+Après une mise à jour des dépendances, régénérer `engine/constraints.txt` (versions exactes de
+l'arbre d'exécution de `core` et `engine`) : un test le compare à l'environnement installé.

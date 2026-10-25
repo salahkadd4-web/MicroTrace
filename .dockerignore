@@ -10,3 +10,7 @@ docs
 **/__pycache__
 **/*.pyc
 **/tests
+web/
+**/node_modules
+var/
+.env*

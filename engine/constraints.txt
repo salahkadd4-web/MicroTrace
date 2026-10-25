@@ -1,0 +1,27 @@
+# Exact versions of the engine's runtime dependency tree (core + engine), as tested.
+# Used by engine/Dockerfile: pip install -c engine/constraints.txt ./core ./engine
+# Regenerate after an upgrade; engine/tests/test_hygiene.py checks it against the venv.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+click==8.5.0
+et-xmlfile==2.0.0
+fastapi==0.162.0
+h11==0.16.0
+idna==3.20
+numpy==2.5.4
+openpyxl==3.1.5
+opentelemetry-api==1.45.1
+pandas==3.1.0
+pyarrow==26.0.0
+pydantic==2.14.1
+pydantic-core==2.50.1
+python-dateutil==3.0.0
+python-multipart==0.0.32
+scipy==1.18.1
+six==1.17.0
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.4
+tzdata==2026.5
+uvicorn==0.54.0

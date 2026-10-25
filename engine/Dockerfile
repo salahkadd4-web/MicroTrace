@@ -11,8 +11,10 @@ WORKDIR /app
 COPY core/pyproject.toml core/pyproject.toml
 COPY core/src core/src
 COPY engine/pyproject.toml engine/pyproject.toml
+COPY engine/constraints.txt engine/constraints.txt
 COPY engine/src engine/src
-RUN pip install ./core ./engine
+# exact, tested versions of the whole runtime dependency tree
+RUN pip install -c engine/constraints.txt ./core ./engine
 
 RUN useradd --system --no-create-home --uid 10001 engine
 USER engine

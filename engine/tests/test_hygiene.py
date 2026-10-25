@@ -66,3 +66,36 @@ def test_unexpected_error_is_generic(auth_headers, caplog):
     assert "RuntimeError" in caplog.text and "/boom" in caplog.text
     # HTTPException handling is untouched
     assert client.get("/boom").status_code == 401
+
+
+def _runtime_tree() -> dict[str, str]:
+    """Installed name -> version for the runtime dependencies of core and engine (Linux)."""
+    from importlib.metadata import distribution
+
+    from packaging.markers import default_environment
+    from packaging.requirements import Requirement
+
+    env = {**default_environment(), "sys_platform": "linux", "platform_system": "Linux",
+           "os_name": "posix", "extra": ""}
+    seen: dict[str, str] = {}
+    stack = ["microtrace-core", "microtrace-engine"]
+    while stack:
+        dist = distribution(stack.pop())
+        name = dist.metadata["Name"].lower().replace("_", "-")
+        if name in seen:
+            continue
+        seen[name] = dist.version
+        for raw in dist.requires or []:
+            req = Requirement(raw)
+            if req.marker is None or req.marker.evaluate(env):
+                stack.append(req.name)
+    return {k: v for k, v in seen.items() if not k.startswith("microtrace-")}
+
+
+def test_constraints_pin_the_tested_runtime_tree():
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "constraints.txt").read_text("utf-8")
+    pins = dict(line.strip().split("==") for line in text.splitlines()
+                if line.strip() and not line.startswith("#"))
+    assert pins == _runtime_tree()
