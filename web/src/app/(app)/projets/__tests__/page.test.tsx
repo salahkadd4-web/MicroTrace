@@ -2,6 +2,17 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/lab-context", () => ({
+  requireDefaultLab: vi.fn(async () => ({
+    userId: "u1",
+    userName: "Alice",
+    laboratoryId: "lab1",
+    labSlug: "labo",
+    labName: "Labo",
+    role: "researcher",
+  })),
+}));
+
 vi.mock("@/server/projects", () => ({
   listProjects: vi.fn(async () => [
     {

@@ -10,7 +10,8 @@ import {
 } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import { normalizeTitle } from "@/server/projects";
-import type { SessionUser } from "@/server/users";
+import { assertRole } from "@/server/lab-role";
+import type { LabContext } from "@/server/lab-context";
 
 /** Options des transactions interactives qui appellent le moteur (délai > ENGINE_TIMEOUT_MS). */
 export const ENGINE_TX_OPTIONS = {
@@ -29,11 +30,12 @@ type ContextDb = Pick<Tx, "study">;
 
 /** Contexte d'étude au format du moteur, construit depuis la base. */
 export async function buildStudyContext(
+  ctx: LabContext,
   studyId: string,
   db: ContextDb = prisma,
 ): Promise<StudyContext> {
-  const study = await db.study.findUnique({
-    where: { id: studyId },
+  const study = await db.study.findFirst({
+    where: { id: studyId, laboratoryId: ctx.laboratoryId },
     include: {
       methods: { orderBy: { name: "asc" } },
       limits: {
@@ -86,11 +88,14 @@ export type NewStudy = {
   blankCorrected: BlankCorrected;
 };
 
-export async function createStudy(actor: SessionUser, projectId: string, input: NewStudy) {
+export async function createStudy(ctx: LabContext, projectId: string, input: NewStudy) {
+  assertRole(ctx, "researcher");
   const title = normalizeTitle(input.title);
   const referenceDoi = blankToNull(input.referenceDoi);
   const referenceLicense = blankToNull(input.referenceLicense);
-  const project = await prisma.project.findUnique({ where: { id: projectId } });
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, laboratoryId: ctx.laboratoryId },
+  });
   if (!project) throw new DomainError("Projet introuvable.");
 
   await validateOrRefuse({
@@ -106,7 +111,7 @@ export async function createStudy(actor: SessionUser, projectId: string, input: 
     const study = await tx.study.create({
       data: {
         projectId,
-        laboratoryId: project.laboratoryId,
+        laboratoryId: ctx.laboratoryId,
         title,
         nature: input.nature,
         referenceDoi,
@@ -115,7 +120,7 @@ export async function createStudy(actor: SessionUser, projectId: string, input: 
       },
     });
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
       action: "study.create",
       entityType: "Study",
       entityId: study.id,
@@ -127,7 +132,7 @@ export async function createStudy(actor: SessionUser, projectId: string, input: 
         referenceLicense,
         blankCorrected: study.blankCorrected,
       },
-      laboratoryId: project.laboratoryId,
+      laboratoryId: ctx.laboratoryId,
     });
     return study;
   });
@@ -141,16 +146,19 @@ export type StudyPatch = {
   blankCorrected?: BlankCorrected;
 };
 
-export async function loadWritable(tx: Tx, studyId: string) {
-  const study = await tx.study.findUnique({ where: { id: studyId } });
+export async function loadWritable(tx: Tx, ctx: LabContext, studyId: string) {
+  const study = await tx.study.findFirst({
+    where: { id: studyId, laboratoryId: ctx.laboratoryId },
+  });
   if (!study) throw new DomainError("Étude introuvable.");
   assertWritable(study);
   return study;
 }
 
-export async function updateStudy(actor: SessionUser, studyId: string, patch: StudyPatch) {
+export async function updateStudy(ctx: LabContext, studyId: string, patch: StudyPatch) {
+  assertRole(ctx, "researcher");
   return prisma.$transaction(async (tx) => {
-    const current = await loadWritable(tx, studyId);
+    const current = await loadWritable(tx, ctx, studyId);
     const next: StudyPatch = {};
     if (patch.title !== undefined) next.title = normalizeTitle(patch.title);
     if (patch.nature !== undefined) next.nature = patch.nature;
@@ -170,15 +178,16 @@ export async function updateStudy(actor: SessionUser, studyId: string, patch: St
     if (Object.keys(after).length === 0) return current;
 
     const updated = await tx.study.update({
-      where: { id: studyId },
+      where: { id: studyId, laboratoryId: ctx.laboratoryId },
       data: next,
     });
-    await validateOrRefuse(await buildStudyContext(studyId, tx));
+    await validateOrRefuse(await buildStudyContext(ctx, studyId, tx));
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
       action: "study.update",
       entityType: "Study",
       entityId: studyId,
+      laboratoryId: ctx.laboratoryId,
       before,
       after,
     });
@@ -186,20 +195,22 @@ export async function updateStudy(actor: SessionUser, studyId: string, patch: St
   }, ENGINE_TX_OPTIONS);
 }
 
-export async function declarePseudonymisation(actor: SessionUser, studyId: string) {
+export async function declarePseudonymisation(ctx: LabContext, studyId: string) {
+  assertRole(ctx, "researcher");
   return prisma.$transaction(async (tx) => {
-    const current = await loadWritable(tx, studyId);
+    const current = await loadWritable(tx, ctx, studyId);
     if (current.pseudonymDeclaredAt) throw new DomainError("Pseudonymisation déjà déclarée.");
     const now = new Date();
     const updated = await tx.study.update({
-      where: { id: studyId },
-      data: { pseudonymDeclaredAt: now, pseudonymDeclaredById: actor.id },
+      where: { id: studyId, laboratoryId: ctx.laboratoryId },
+      data: { pseudonymDeclaredAt: now, pseudonymDeclaredById: ctx.userId },
     });
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
       action: "study.pseudonymisation.declare",
       entityType: "Study",
       entityId: studyId,
+      laboratoryId: ctx.laboratoryId,
       before: { pseudonymDeclaredAt: null },
       after: { pseudonymDeclaredAt: now.toISOString() },
     });
@@ -207,21 +218,23 @@ export async function declarePseudonymisation(actor: SessionUser, studyId: strin
   });
 }
 
-export async function archiveStudy(actor: SessionUser, studyId: string, reason: string) {
+export async function archiveStudy(ctx: LabContext, studyId: string, reason: string) {
+  assertRole(ctx, "researcher");
   const motif = reason.trim();
   return prisma.$transaction(async (tx) => {
-    const current = await loadWritable(tx, studyId);
+    const current = await loadWritable(tx, ctx, studyId);
     if (!motif) throw new DomainError("Le motif d'archivage est obligatoire.");
     const now = new Date();
     const updated = await tx.study.update({
-      where: { id: studyId },
+      where: { id: studyId, laboratoryId: ctx.laboratoryId },
       data: { archivedAt: now },
     });
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
       action: "study.archive",
       entityType: "Study",
       entityId: studyId,
+      laboratoryId: ctx.laboratoryId,
       before: {
         archivedAt: current.archivedAt ? current.archivedAt.toISOString() : null,
       },
@@ -231,16 +244,16 @@ export async function archiveStudy(actor: SessionUser, studyId: string, reason: 
   });
 }
 
-export function getStudy(studyId: string) {
-  return prisma.study.findUnique({
-    where: { id: studyId },
+export function getStudy(ctx: LabContext, studyId: string) {
+  return prisma.study.findFirst({
+    where: { id: studyId, laboratoryId: ctx.laboratoryId },
     include: { project: true, methods: true, limits: true, qcSummaries: true },
   });
 }
 
 /** Étude pour l'affichage : `getStudy` plus le nom de l'auteur de la déclaration de pseudonymisation. */
-export async function getStudyView(studyId: string) {
-  const study = await getStudy(studyId);
+export async function getStudyView(ctx: LabContext, studyId: string) {
+  const study = await getStudy(ctx, studyId);
   if (!study) return null;
   const declarer = study.pseudonymDeclaredById
     ? await prisma.user.findUnique({

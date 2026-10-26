@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import type { LabRole } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import { DomainError } from "@/server/errors";
+import { assertRole } from "@/server/lab-role";
 import { requireUser } from "@/server/session";
+
+export { assertRole };
 
 /** Contexte de laboratoire vérifié (spec §11) : seul `requireLab` en fabrique un pour une requête. */
 export type LabContext = {
@@ -14,19 +17,6 @@ export type LabContext = {
   labName: string;
   role: LabRole;
 };
-
-const RANK: Record<LabRole, number> = { viewer: 0, researcher: 1, lab_admin: 2 };
-
-const ROLE_MESSAGES: Record<LabRole, string> = {
-  viewer: "Action réservée aux membres du laboratoire.",
-  researcher: "Action réservée aux chercheurs du laboratoire.",
-  lab_admin: "Action réservée aux responsables du laboratoire.",
-};
-
-/** Refuse si le rôle du contexte est inférieur au rôle minimum (viewer < researcher < lab_admin). */
-export function assertRole(ctx: Pick<LabContext, "role">, minRole: LabRole): void {
-  if (RANK[ctx.role] < RANK[minRole]) throw new DomainError(ROLE_MESSAGES[minRole]);
-}
 
 /**
  * Contexte du laboratoire `labSlug` pour l'utilisateur de la session. L'appartenance et le statut

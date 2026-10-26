@@ -12,7 +12,8 @@ import {
   loadWritable,
   validateOrRefuse,
 } from "@/server/studies";
-import type { SessionUser } from "@/server/users";
+import { assertRole } from "@/server/lab-role";
+import type { LabContext } from "@/server/lab-context";
 
 /** Clé d'unicité d'un nom de méthode : rogné, minuscules, espaces internes réduits. */
 function toNameKey(name: string): string {
@@ -29,11 +30,12 @@ const DUPLICATE_METHOD = "Méthode déjà définie.";
 
 export type NewMethod = { name: string; technique: Technique };
 
-export async function addMethod(actor: SessionUser, studyId: string, input: NewMethod) {
+export async function addMethod(ctx: LabContext, studyId: string, input: NewMethod) {
+  assertRole(ctx, "researcher");
   const name = required(input.name, "Le nom de la méthode est obligatoire.");
   const nameKey = toNameKey(name);
   return prisma.$transaction(async (tx) => {
-    await loadWritable(tx, studyId);
+    await loadWritable(tx, ctx, studyId);
     const existing = await tx.method.findUnique({
       where: { studyId_nameKey: { studyId, nameKey } },
     });
@@ -51,9 +53,10 @@ export async function addMethod(actor: SessionUser, studyId: string, input: NewM
       }
       throw e;
     }
-    await validateOrRefuse(await buildStudyContext(studyId, tx));
+    await validateOrRefuse(await buildStudyContext(ctx, studyId, tx));
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
       action: "study.method.add",
       entityType: "Method",
       entityId: method.id,
@@ -91,13 +94,14 @@ function limitSnapshot(l: {
 }
 
 export async function upsertDetectionLimit(
-  actor: SessionUser,
+  ctx: LabContext,
   studyId: string,
   input: LimitInput,
 ) {
+  assertRole(ctx, "researcher");
   const polymer = required(input.polymer);
   return prisma.$transaction(async (tx) => {
-    await loadWritable(tx, studyId);
+    await loadWritable(tx, ctx, studyId);
     const method = await tx.method.findFirst({ where: { id: input.methodId, studyId } });
     if (!method) throw new DomainError("Méthode introuvable.");
 
@@ -115,9 +119,10 @@ export async function upsertDetectionLimit(
       create: { studyId, methodId: method.id, polymer, ...data },
       update: data,
     });
-    await validateOrRefuse(await buildStudyContext(studyId, tx));
+    await validateOrRefuse(await buildStudyContext(ctx, studyId, tx));
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
       action: "study.limit.upsert",
       entityType: "DetectionLimit",
       entityId: limit.id,
@@ -128,20 +133,24 @@ export async function upsertDetectionLimit(
   }, ENGINE_TX_OPTIONS);
 }
 
-export async function removeDetectionLimit(actor: SessionUser, id: string) {
+export async function removeDetectionLimit(ctx: LabContext, id: string) {
+  assertRole(ctx, "researcher");
   return prisma.$transaction(async (tx) => {
-    const current = await tx.detectionLimit.findUnique({ where: { id } });
+    const current = await tx.detectionLimit.findFirst({
+      where: { id, study: { laboratoryId: ctx.laboratoryId } },
+    });
     if (!current) throw new DomainError("Limite introuvable.");
-    await loadWritable(tx, current.studyId);
+    await loadWritable(tx, ctx, current.studyId);
     const active = await tx.importRun.count({
       where: { studyId: current.studyId, status: "active" },
     });
     if (active > 0) throw new DomainError("Paramètre utilisé par un import actif.");
 
     await tx.detectionLimit.delete({ where: { id } });
-    await validateOrRefuse(await buildStudyContext(current.studyId, tx));
+    await validateOrRefuse(await buildStudyContext(ctx, current.studyId, tx));
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
       action: "study.limit.remove",
       entityType: "DetectionLimit",
       entityId: id,
@@ -165,7 +174,8 @@ const QC_KIND_SET: ReadonlySet<string> = new Set(QC_KINDS);
 const UNIT_SET: ReadonlySet<string> = new Set(UNIT_CODES);
 
 /** Contrôles qualité : hors contexte moteur, seules des vérifications de forme (pas de règle scientifique). */
-export async function addQcSummary(actor: SessionUser, studyId: string, input: QcInput) {
+export async function addQcSummary(ctx: LabContext, studyId: string, input: QcInput) {
+  assertRole(ctx, "researcher");
   if (!QC_KIND_SET.has(input.kind)) throw new DomainError("Type de contrôle inconnu.");
   if (!UNIT_SET.has(input.unitCode)) throw new DomainError("Unité inconnue.");
   if (!Number.isInteger(input.n) || input.n < 1) throw new DomainError("Effectif invalide.");
@@ -177,7 +187,7 @@ export async function addQcSummary(actor: SessionUser, studyId: string, input: Q
   const source = required(input.source);
 
   return prisma.$transaction(async (tx) => {
-    await loadWritable(tx, studyId);
+    await loadWritable(tx, ctx, studyId);
     const qc = await tx.qualityControlSummary.create({
       data: {
         studyId,
@@ -191,7 +201,8 @@ export async function addQcSummary(actor: SessionUser, studyId: string, input: Q
       },
     });
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
       action: "study.qc.add",
       entityType: "QualityControlSummary",
       entityId: qc.id,
@@ -211,12 +222,13 @@ export async function addQcSummary(actor: SessionUser, studyId: string, input: Q
 }
 
 /** Préremplit méthode et limites du Tableau 3 (Leslie) depuis l'exemple du moteur, sans rien écraser. */
-export async function prefillLeslieTable3(actor: SessionUser, studyId: string) {
+export async function prefillLeslieTable3(ctx: LabContext, studyId: string) {
+  assertRole(ctx, "researcher");
   // Appel au moteur avant d'ouvrir la transaction : s'il échoue, rien n'est écrit.
   const example = (await engineClient.example()).context;
 
   return prisma.$transaction(async (tx) => {
-    await loadWritable(tx, studyId);
+    await loadWritable(tx, ctx, studyId);
     const methodIds = new Map<string, string>(); // nameKey -> id
     for (const m of await tx.method.findMany({ where: { studyId } })) {
       methodIds.set(m.nameKey, m.id);
@@ -260,9 +272,10 @@ export async function prefillLeslieTable3(actor: SessionUser, studyId: string) {
     };
     if (result.methodsCreated === 0 && result.limitsCreated === 0) return result;
 
-    await validateOrRefuse(await buildStudyContext(studyId, tx));
+    await validateOrRefuse(await buildStudyContext(ctx, studyId, tx));
     await recordAudit(tx, {
-      actorId: actor.id,
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
       action: "study.prefill.leslie3",
       entityType: "Study",
       entityId: studyId,

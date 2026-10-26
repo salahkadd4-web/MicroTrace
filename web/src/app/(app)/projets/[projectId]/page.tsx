@@ -13,12 +13,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { NATURE_LABELS, labelOf } from "@/lib/labels";
+import { requireDefaultLab } from "@/server/lab-context";
 import { getProject } from "@/server/projects";
 import { CreateStudyForm } from "./CreateStudyForm";
 
 export default async function ProjetPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
-  const project = await getProject(projectId);
+  // TODO(Tâche 11) : le laboratoire viendra de l'adresse /labo/[labSlug].
+  const ctx = await requireDefaultLab();
+  const project = await getProject(ctx, projectId);
   if (!project) notFound();
   return (
     <>

@@ -23,15 +23,15 @@ import {
   upsertDetectionLimit,
 } from "@/server/study-settings";
 import { archiveStudy, createStudy } from "@/server/studies";
-import { createUser, type SessionUser } from "@/server/users";
+import type { LabContext } from "@/server/lab-context";
 import { resetDb } from "../../../test/db-reset";
-import { makeLab } from "../../../test/labs";
+import { makeLab, makeMember } from "../../../test/labs";
 
 const validate = vi.mocked(engineClient.validateContext);
 const example = vi.mocked(engineClient.example);
 
-let actor: SessionUser;
-let lab: { id: string };
+let ctx: LabContext;
+let lab: Awaited<ReturnType<typeof makeLab>>;
 
 beforeEach(async () => {
   await resetDb();
@@ -39,25 +39,20 @@ beforeEach(async () => {
   validate.mockReset();
   validate.mockResolvedValue({} as never);
   example.mockReset();
-  const u = await createUser({
-    email: "a@example.org",
-    name: "A",
-    password: "mot-de-passe-solide-1",
-  });
-  actor = { id: u.id, name: u.name, email: u.email };
+  ctx = await makeMember(lab, "researcher", "a@example.org", "A");
 });
 
 const audits = (action: string) => prisma.auditEvent.findMany({ where: { action } });
 const auditCount = () => prisma.auditEvent.count();
 
 async function newStudy(title = "E") {
-  const p = await createProject(actor, { laboratoryId: lab.id, title: "P" + title });
-  return createStudy(actor, p.id, { title, nature: "laboratory", blankCorrected: "unknown" });
+  const p = await createProject(ctx, { title: "P" + title });
+  return createStudy(ctx, p.id, { title, nature: "laboratory", blankCorrected: "unknown" });
 }
 
 async function studyWithMethod() {
   const s = await newStudy();
-  const m = await addMethod(actor, s.id, { name: "Py-GC/MS", technique: "py_gc_ms" });
+  const m = await addMethod(ctx, s.id, { name: "Py-GC/MS", technique: "py_gc_ms" });
   return { s, m };
 }
 
@@ -101,7 +96,7 @@ describe("enums", () => {
 describe("addMethod", () => {
   it("crée la méthode, nameKey normalisée, audit, revalidation", async () => {
     const s = await newStudy();
-    const m = await addMethod(actor, s.id, { name: "  Py-GC/MS  ", technique: "py_gc_ms" });
+    const m = await addMethod(ctx, s.id, { name: "  Py-GC/MS  ", technique: "py_gc_ms" });
     expect(m.name).toBe("Py-GC/MS");
     expect(m.nameKey).toBe("py-gc/ms");
     expect(validate).toHaveBeenLastCalledWith(
@@ -109,18 +104,18 @@ describe("addMethod", () => {
     );
     const ev = await audits("study.method.add");
     expect(ev).toHaveLength(1);
-    expect(ev[0]).toMatchObject({ entityType: "Method", entityId: m.id, actorId: actor.id });
+    expect(ev[0]).toMatchObject({ entityType: "Method", entityId: m.id, actorId: ctx.userId });
   });
 
   it("nameKey : minuscules et espaces internes réduits", async () => {
     const s = await newStudy();
-    const m = await addMethod(actor, s.id, { name: "Micro   FTIR \t X", technique: "micro_ftir" });
+    const m = await addMethod(ctx, s.id, { name: "Micro   FTIR \t X", technique: "micro_ftir" });
     expect(m.nameKey).toBe("micro ftir x");
   });
 
   it("refuse un nom vide", async () => {
     const s = await newStudy();
-    await expect(addMethod(actor, s.id, { name: "  ", technique: "other" })).rejects.toThrow(
+    await expect(addMethod(ctx, s.id, { name: "  ", technique: "other" })).rejects.toThrow(
       "Le nom de la méthode est obligatoire.",
     );
   });
@@ -128,7 +123,7 @@ describe("addMethod", () => {
   it("refuse un doublon (casse/espaces) sans nouvelle ligne ni audit", async () => {
     const { s } = await studyWithMethod();
     await expect(
-      addMethod(actor, s.id, { name: " py-gc/ms ", technique: "py_gc_ms" }),
+      addMethod(ctx, s.id, { name: " py-gc/ms ", technique: "py_gc_ms" }),
     ).rejects.toThrow("Méthode déjà définie.");
     expect(await prisma.method.count()).toBe(1);
     expect(await audits("study.method.add")).toHaveLength(1);
@@ -138,13 +133,13 @@ describe("addMethod", () => {
     await studyWithMethod();
     const s2 = await newStudy("E2");
     await expect(
-      addMethod(actor, s2.id, { name: "Py-GC/MS", technique: "py_gc_ms" }),
+      addMethod(ctx, s2.id, { name: "Py-GC/MS", technique: "py_gc_ms" }),
     ).resolves.toBeTruthy();
   });
 
   it("course : une violation unique P2002 devient « Méthode déjà définie. »", async () => {
     const s = await newStudy();
-    await addMethod(actor, s.id, { name: "M", technique: "other" });
+    await addMethod(ctx, s.id, { name: "M", technique: "other" });
     // simule la concurrence : le contrôle préalable ne voit pas la méthode existante
     const real = prisma.$transaction.bind(prisma) as (fn: unknown, opts?: unknown) => unknown;
     const bind = (t: object, k: string | symbol) => {
@@ -163,7 +158,7 @@ describe("addMethod", () => {
           new Proxy(tx, { get: (t, k) => (k === "method" ? methodProxy : bind(t, k)) }),
         );
       }, opts)) as never);
-    await expect(addMethod(actor, s.id, { name: "M", technique: "other" })).rejects.toThrow(
+    await expect(addMethod(ctx, s.id, { name: "M", technique: "other" })).rejects.toThrow(
       "Méthode déjà définie.",
     );
     spy.mockRestore();
@@ -174,7 +169,7 @@ describe("addMethod", () => {
     const s = await newStudy();
     const before = await auditCount();
     validate.mockRejectedValue(new EngineError(422, "Refusé par le moteur."));
-    await expect(addMethod(actor, s.id, { name: "M", technique: "other" })).rejects.toThrow(
+    await expect(addMethod(ctx, s.id, { name: "M", technique: "other" })).rejects.toThrow(
       "Refusé par le moteur.",
     );
     expect(await prisma.method.count()).toBe(0);
@@ -183,11 +178,11 @@ describe("addMethod", () => {
 
   it("étude archivée et étude inconnue", async () => {
     const s = await newStudy();
-    await archiveStudy(actor, s.id, "fin");
-    await expect(addMethod(actor, s.id, { name: "M", technique: "other" })).rejects.toThrow(
+    await archiveStudy(ctx, s.id, "fin");
+    await expect(addMethod(ctx, s.id, { name: "M", technique: "other" })).rejects.toThrow(
       "Étude archivée : lecture seule.",
     );
-    await expect(addMethod(actor, "inconnue", { name: "M", technique: "other" })).rejects.toThrow(
+    await expect(addMethod(ctx, "inconnue", { name: "M", technique: "other" })).rejects.toThrow(
       "Étude introuvable.",
     );
   });
@@ -195,7 +190,7 @@ describe("addMethod", () => {
   it("annule la méthode si l'audit échoue", async () => {
     const s = await newStudy();
     vi.mocked(auditModule.recordAudit).mockRejectedValueOnce(new Error("audit KO"));
-    await expect(addMethod(actor, s.id, { name: "M", technique: "other" })).rejects.toThrow(
+    await expect(addMethod(ctx, s.id, { name: "M", technique: "other" })).rejects.toThrow(
       "audit KO",
     );
     expect(await prisma.method.count()).toBe(0);
@@ -205,7 +200,7 @@ describe("addMethod", () => {
 describe("upsertDetectionLimit", () => {
   it("crée puis met à jour avec before/after, revalide avec la limite", async () => {
     const { s, m } = await studyWithMethod();
-    const l1 = await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
+    const l1 = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
     expect(validate).toHaveBeenLastCalledWith(
       expect.objectContaining({
         limits: [
@@ -213,7 +208,7 @@ describe("upsertDetectionLimit", () => {
         ],
       }),
     );
-    const l2 = await upsertDetectionLimit(actor, s.id, {
+    const l2 = await upsertDetectionLimit(ctx, s.id, {
       methodId: m.id,
       ...LIMIT,
       polymer: " PET ",
@@ -238,10 +233,10 @@ describe("upsertDetectionLimit", () => {
     const { m } = await studyWithMethod();
     const other = await newStudy("E2");
     await expect(
-      upsertDetectionLimit(actor, other.id, { methodId: m.id, ...LIMIT }),
+      upsertDetectionLimit(ctx, other.id, { methodId: m.id, ...LIMIT }),
     ).rejects.toThrow("Méthode introuvable.");
     await expect(
-      upsertDetectionLimit(actor, other.id, { methodId: "x", ...LIMIT }),
+      upsertDetectionLimit(ctx, other.id, { methodId: "x", ...LIMIT }),
     ).rejects.toThrow("Méthode introuvable.");
     expect(await prisma.detectionLimit.count()).toBe(0);
   });
@@ -249,7 +244,7 @@ describe("upsertDetectionLimit", () => {
   it("refuse un polymère vide", async () => {
     const { s, m } = await studyWithMethod();
     await expect(
-      upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT, polymer: " " }),
+      upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT, polymer: " " }),
     ).rejects.toThrow("Champ obligatoire manquant.");
   });
 
@@ -258,7 +253,7 @@ describe("upsertDetectionLimit", () => {
     const before = await auditCount();
     validate.mockRejectedValue(new EngineError(422, "LOD supérieur au LOQ."));
     await expect(
-      upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT, lod: 5, loq: 1 }),
+      upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT, lod: 5, loq: 1 }),
     ).rejects.toThrow("LOD supérieur au LOQ.");
     expect(await prisma.detectionLimit.count()).toBe(0);
     expect(await auditCount()).toBe(before);
@@ -266,19 +261,19 @@ describe("upsertDetectionLimit", () => {
 
   it("422 sur une mise à jour : la limite garde sa valeur", async () => {
     const { s, m } = await studyWithMethod();
-    await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
+    await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
     validate.mockRejectedValue(new EngineError(422, "KO"));
     await expect(
-      upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT, lod: 9 }),
+      upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT, lod: 9 }),
     ).rejects.toThrow("KO");
     expect((await prisma.detectionLimit.findFirstOrThrow()).lod).toBe(0.1);
   });
 
   it("étude archivée refusée", async () => {
     const { s, m } = await studyWithMethod();
-    await archiveStudy(actor, s.id, "fin");
+    await archiveStudy(ctx, s.id, "fin");
     await expect(
-      upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT }),
+      upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT }),
     ).rejects.toThrow("Étude archivée : lecture seule.");
   });
 });
@@ -286,8 +281,8 @@ describe("upsertDetectionLimit", () => {
 describe("removeDetectionLimit", () => {
   it("supprime, revalide et trace l'état précédent complet", async () => {
     const { s, m } = await studyWithMethod();
-    const l = await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
-    await removeDetectionLimit(actor, l.id);
+    const l = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
+    await removeDetectionLimit(ctx, l.id);
     expect(await prisma.detectionLimit.count()).toBe(0);
     expect(validate).toHaveBeenLastCalledWith(expect.objectContaining({ limits: [] }));
     const ev = await audits("study.limit.remove");
@@ -306,12 +301,12 @@ describe("removeDetectionLimit", () => {
   });
 
   it("limite introuvable", async () => {
-    await expect(removeDetectionLimit(actor, "x")).rejects.toThrow("Limite introuvable.");
+    await expect(removeDetectionLimit(ctx, "x")).rejects.toThrow("Limite introuvable.");
   });
 
   it("refusée si un import actif existe dans l'étude", async () => {
     const { s, m } = await studyWithMethod();
-    const l = await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
+    const l = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
     const file = await prisma.dataFile.create({
       data: {
         studyId: s.id,
@@ -320,7 +315,7 @@ describe("removeDetectionLimit", () => {
         sizeBytes: 1,
         mimeType: "text/csv",
         storagePath: "x",
-        uploadedById: actor.id,
+        uploadedById: ctx.userId,
       },
     });
     const run = await prisma.importRun.create({
@@ -332,11 +327,11 @@ describe("removeDetectionLimit", () => {
         rulesVersion: "1",
         engineVersion: "1",
         issues: [],
-        createdById: actor.id,
+        createdById: ctx.userId,
       },
     });
     const before = await auditCount();
-    await expect(removeDetectionLimit(actor, l.id)).rejects.toThrow(
+    await expect(removeDetectionLimit(ctx, l.id)).rejects.toThrow(
       "Paramètre utilisé par un import actif.",
     );
     expect(await prisma.detectionLimit.count()).toBe(1);
@@ -346,15 +341,15 @@ describe("removeDetectionLimit", () => {
       where: { id: run.id },
       data: { status: "retired", retiredAt: new Date(), retiredReason: "t" },
     });
-    await removeDetectionLimit(actor, l.id);
+    await removeDetectionLimit(ctx, l.id);
     expect(await prisma.detectionLimit.count()).toBe(0);
   });
 
   it("étude archivée refusée", async () => {
     const { s, m } = await studyWithMethod();
-    const l = await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
-    await archiveStudy(actor, s.id, "fin");
-    await expect(removeDetectionLimit(actor, l.id)).rejects.toThrow(
+    const l = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
+    await archiveStudy(ctx, s.id, "fin");
+    await expect(removeDetectionLimit(ctx, l.id)).rejects.toThrow(
       "Étude archivée : lecture seule.",
     );
     expect(await prisma.detectionLimit.count()).toBe(1);
@@ -362,9 +357,9 @@ describe("removeDetectionLimit", () => {
 
   it("422 du moteur : la limite est conservée", async () => {
     const { s, m } = await studyWithMethod();
-    const l = await upsertDetectionLimit(actor, s.id, { methodId: m.id, ...LIMIT });
+    const l = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
     validate.mockRejectedValue(new EngineError(422, "KO"));
-    await expect(removeDetectionLimit(actor, l.id)).rejects.toThrow("KO");
+    await expect(removeDetectionLimit(ctx, l.id)).rejects.toThrow("KO");
     expect(await prisma.detectionLimit.count()).toBe(1);
     expect(await audits("study.limit.remove")).toHaveLength(0);
   });
@@ -384,7 +379,7 @@ describe("addQcSummary", () => {
   it("crée avec audit, sans appeler le moteur", async () => {
     const s = await newStudy();
     validate.mockClear();
-    const q = await addQcSummary(actor, s.id, { ...QC, polymer: " PET ", source: " T " });
+    const q = await addQcSummary(ctx, s.id, { ...QC, polymer: " PET ", source: " T " });
     expect(q).toMatchObject({ polymer: "PET", source: "T", kind: "procedural_blank", n: 3 });
     expect(validate).not.toHaveBeenCalled();
     const ev = await audits("study.qc.add");
@@ -394,7 +389,7 @@ describe("addQcSummary", () => {
 
   it("accepte mean/sd nuls", async () => {
     const s = await newStudy();
-    await expect(addQcSummary(actor, s.id, { ...QC, mean: null, sd: null })).resolves.toBeTruthy();
+    await expect(addQcSummary(ctx, s.id, { ...QC, mean: null, sd: null })).resolves.toBeTruthy();
   });
 
   const bad: [string, Partial<typeof QC>, string][] = [
@@ -413,15 +408,15 @@ describe("addQcSummary", () => {
   ];
   it.each(bad)("refuse : %s", async (_n, patch, msg) => {
     const s = await newStudy();
-    await expect(addQcSummary(actor, s.id, { ...QC, ...patch })).rejects.toThrow(msg);
+    await expect(addQcSummary(ctx, s.id, { ...QC, ...patch })).rejects.toThrow(msg);
     expect(await prisma.qualityControlSummary.count()).toBe(0);
     expect(await audits("study.qc.add")).toHaveLength(0);
   });
 
   it("étude archivée refusée", async () => {
     const s = await newStudy();
-    await archiveStudy(actor, s.id, "fin");
-    await expect(addQcSummary(actor, s.id, QC)).rejects.toThrow("Étude archivée : lecture seule.");
+    await archiveStudy(ctx, s.id, "fin");
+    await expect(addQcSummary(ctx, s.id, QC)).rejects.toThrow("Étude archivée : lecture seule.");
   });
 });
 
@@ -429,7 +424,7 @@ describe("prefillLeslieTable3", () => {
   it("crée 1 méthode et 5 limites, puis 0 au second appel (sans audit)", async () => {
     example.mockResolvedValue(leslieExample());
     const s = await newStudy();
-    const r1 = await prefillLeslieTable3(actor, s.id);
+    const r1 = await prefillLeslieTable3(ctx, s.id);
     expect(r1).toEqual({ methodsCreated: 1, limitsCreated: 5 });
     expect(await prisma.method.count()).toBe(1);
     expect(await prisma.detectionLimit.count()).toBe(5);
@@ -439,7 +434,7 @@ describe("prefillLeslieTable3", () => {
     expect(ev[0].after).toMatchObject({ methodsCreated: 1, limitsCreated: 5 });
     const last = validate.mock.calls.at(-1)?.[0];
     expect(last?.limits).toHaveLength(5);
-    const r2 = await prefillLeslieTable3(actor, s.id);
+    const r2 = await prefillLeslieTable3(ctx, s.id);
     expect(r2).toEqual({ methodsCreated: 0, limitsCreated: 0 });
     expect(await audits("study.prefill.leslie3")).toHaveLength(1);
   });
@@ -447,8 +442,8 @@ describe("prefillLeslieTable3", () => {
   it("n'écrase pas l'existant (méthode et limite déjà présentes)", async () => {
     example.mockResolvedValue(leslieExample());
     const s = await newStudy();
-    const m = await addMethod(actor, s.id, { name: "py-gc/ms", technique: "other" });
-    await upsertDetectionLimit(actor, s.id, {
+    const m = await addMethod(ctx, s.id, { name: "py-gc/ms", technique: "other" });
+    await upsertDetectionLimit(ctx, s.id, {
       methodId: m.id,
       polymer: "PET",
       lod: 9,
@@ -456,7 +451,7 @@ describe("prefillLeslieTable3", () => {
       unitCode: "ng/mL",
       source: "perso",
     });
-    const r = await prefillLeslieTable3(actor, s.id);
+    const r = await prefillLeslieTable3(ctx, s.id);
     expect(r).toEqual({ methodsCreated: 0, limitsCreated: 4 });
     const pet = await prisma.detectionLimit.findFirstOrThrow({ where: { polymer: "PET" } });
     expect(pet).toMatchObject({ lod: 9, unitCode: "ng/mL", source: "perso" });
@@ -467,7 +462,7 @@ describe("prefillLeslieTable3", () => {
     example.mockRejectedValue(new EngineUnavailableError());
     const s = await newStudy();
     const before = await auditCount();
-    await expect(prefillLeslieTable3(actor, s.id)).rejects.toBeInstanceOf(EngineUnavailableError);
+    await expect(prefillLeslieTable3(ctx, s.id)).rejects.toBeInstanceOf(EngineUnavailableError);
     expect(await prisma.method.count()).toBe(0);
     expect(await auditCount()).toBe(before);
   });
@@ -477,7 +472,7 @@ describe("prefillLeslieTable3", () => {
     const s = await newStudy();
     const before = await auditCount();
     validate.mockRejectedValue(new EngineError(422, "KO"));
-    await expect(prefillLeslieTable3(actor, s.id)).rejects.toThrow("KO");
+    await expect(prefillLeslieTable3(ctx, s.id)).rejects.toThrow("KO");
     expect(await prisma.method.count()).toBe(0);
     expect(await prisma.detectionLimit.count()).toBe(0);
     expect(await auditCount()).toBe(before);
@@ -486,8 +481,8 @@ describe("prefillLeslieTable3", () => {
   it("étude archivée refusée", async () => {
     example.mockResolvedValue(leslieExample());
     const s = await newStudy();
-    await archiveStudy(actor, s.id, "fin");
-    await expect(prefillLeslieTable3(actor, s.id)).rejects.toThrow(
+    await archiveStudy(ctx, s.id, "fin");
+    await expect(prefillLeslieTable3(ctx, s.id)).rejects.toThrow(
       "Étude archivée : lecture seule.",
     );
   });

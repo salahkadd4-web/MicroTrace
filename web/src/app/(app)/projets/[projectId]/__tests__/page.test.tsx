@@ -2,13 +2,24 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/lab-context", () => ({
+  requireDefaultLab: vi.fn(async () => ({
+    userId: "u1",
+    userName: "Alice",
+    laboratoryId: "lab1",
+    labSlug: "labo",
+    labName: "Labo",
+    role: "researcher",
+  })),
+}));
+
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
 }));
 vi.mock("@/server/projects", () => ({
-  getProject: vi.fn(async (id: string) =>
+  getProject: vi.fn(async (_ctx: unknown, id: string) =>
     id === "p1"
       ? {
           id: "p1",

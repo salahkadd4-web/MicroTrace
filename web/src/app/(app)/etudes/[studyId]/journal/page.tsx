@@ -10,14 +10,17 @@ import {
 } from "@/components/ui/table";
 import { auditActionLabel, auditObjectName, diffChanges, entityTypeLabel } from "@/lib/audit-labels";
 import { listAuditEvents } from "@/server/audit";
+import { requireDefaultLab } from "@/server/lab-context";
 import { loadStudy } from "../load-study";
 import { AuditDetails } from "./AuditDetails";
 
 export default async function JournalPage({ params }: { params: Promise<{ studyId: string }> }) {
   const { studyId } = await params;
   const study = await loadStudy(studyId);
-  const events = await listAuditEvents(study.id);
-  const ctx = { methodNames: new Map((study.methods ?? []).map((m) => [m.id, m.name])) };
+  // TODO(Tâche 11) : le laboratoire viendra de l'adresse /labo/[labSlug].
+  const ctx = await requireDefaultLab();
+  const events = await listAuditEvents(ctx, study.id);
+  const labels = { methodNames: new Map((study.methods ?? []).map((m) => [m.id, m.name])) };
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Journal</h2>
@@ -46,9 +49,9 @@ export default async function JournalPage({ params }: { params: Promise<{ studyI
                   </TableCell>
                   <TableCell>{e.actorName ?? "—"}</TableCell>
                   <TableCell>{label}</TableCell>
-                  <TableCell>{auditObjectName(e, ctx) ?? entityTypeLabel(e.entityType)}</TableCell>
+                  <TableCell>{auditObjectName(e, labels) ?? entityTypeLabel(e.entityType)}</TableCell>
                   <TableCell className="text-right">
-                    <AuditDetails title={label} changes={diffChanges(e.before, e.after, ctx)} />
+                    <AuditDetails title={label} changes={diffChanges(e.before, e.after, labels)} />
                   </TableCell>
                 </TableRow>
               );

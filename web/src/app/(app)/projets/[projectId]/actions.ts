@@ -12,9 +12,9 @@ export async function createStudyAction(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  return runAction(async (user) => {
+  return runAction(async (ctx) => {
     const projectId = text(formData, "projectId");
-    const study = await createStudy(user, projectId, studyFieldsFromForm(formData));
+    const study = await createStudy(ctx, projectId, studyFieldsFromForm(formData));
     revalidatePath(`/projets/${projectId}`);
     redirect(`/etudes/${study.id}/parametres`);
   });

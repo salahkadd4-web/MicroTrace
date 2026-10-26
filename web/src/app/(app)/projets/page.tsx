@@ -11,11 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { requireDefaultLab } from "@/server/lab-context";
 import { listProjects } from "@/server/projects";
 import { CreateProjectForm } from "./CreateProjectForm";
 
 export default async function ProjetsPage() {
-  const projects = await listProjects();
+  // TODO(Tâche 11) : le laboratoire viendra de l'adresse /labo/[labSlug].
+  const ctx = await requireDefaultLab();
+  const projects = await listProjects(ctx);
   return (
     <>
       <PageHeader title="Projets" subtitle="Prototype de recherche, pas un dispositif médical" />

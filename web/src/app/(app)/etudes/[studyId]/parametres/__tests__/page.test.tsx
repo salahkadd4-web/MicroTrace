@@ -1,6 +1,17 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@/server/lab-context", () => ({
+  requireDefaultLab: vi.fn(async () => ({
+    userId: "u1",
+    userName: "Alice",
+    laboratoryId: "lab1",
+    labSlug: "labo",
+    labName: "Labo",
+    role: "researcher",
+  })),
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: () => "/etudes/s1/parametres",
   notFound: () => {

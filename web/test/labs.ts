@@ -13,10 +13,11 @@ export async function makeMember(
   lab: { id: string; slug: string; name: string },
   role: LabRole,
   email: string,
+  name = email.split("@")[0],
 ): Promise<LabContext> {
   const user = await createUser({
     email,
-    name: email.split("@")[0],
+    name,
     password: "mot-de-passe-solide-1",
   });
   await prisma.membership.create({ data: { userId: user.id, laboratoryId: lab.id, role } });
