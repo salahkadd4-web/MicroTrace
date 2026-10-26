@@ -17,7 +17,7 @@ Un prototype complet et utilisable :
 4. il valide l'import ;
 5. il retrouve ses données enregistrées, ses statistiques honnêtes, ses graphiques, un rapport traçable et l'historique des actions.
 
-C'est le MVP de la section 5 du plan, en version prototype : une seule machine, un seul laboratoire.
+C'est le MVP de la section 5 du plan, en version prototype. **Depuis le 2026-10-26, il est multi-laboratoires dès le départ (SaaS), voir §11** ; cette section §11 prime sur toute mention d'un laboratoire unique ci-dessous.
 
 Les règles scientifiques restent à **un seul endroit** : B1, en Python. L'application TypeScript ne réimplémente aucune règle. Elle orchestre les appels, enregistre les données et affiche les résultats.
 
@@ -193,7 +193,7 @@ Si les imports actifs ont été contrôlés avec des versions de règles différ
 **Comptes et accès.**
 - Le premier compte (et les suivants) est créé par un script : `npm run user:create -- --email … --name …`, qui demande le mot de passe sans écho. Il n'y a pas d'inscription libre.
 - Sessions Auth.js de 8 h. Pas de politique de verrouillage dans le prototype (non-objectif).
-- Un seul laboratoire : tout utilisateur actif voit et modifie tous les projets. Le champ propriétaire est informatif.
+- ~~Un seul laboratoire~~ — remplacé par §11 : chaque utilisateur ne voit que les laboratoires dont il est membre, selon son rôle.
 
 **Tests et audit.** Le déclencheur d'audit refuse `UPDATE` et `DELETE` ligne à ligne. La base de test est réinitialisée par `prisma migrate reset`, ou par `TRUNCATE` dans les tests, que le déclencheur n'empêche pas.
 
@@ -222,6 +222,7 @@ Si les imports actifs ont été contrôlés avec des versions de règles différ
 |---|---|
 | **C1 — moteur** | `engine/` : FastAPI, contrat §3, sérialisation de B1, tests ; image Docker |
 | **C2 — socle web** | `web/` : Next.js, Prisma (schéma §4, migrations, déclencheur d'audit), Auth.js, projets, études, paramètres, journal ; `docker compose` |
+| **C2 (tâches 9–12) — multi-laboratoires** | §11 : laboratoires, rôles, invitations, isolation testée, console de la plateforme |
 | **C3 — import** | assistant d'import §5, magasin de fichiers, enregistrement transactionnel, retrait, étude d'exemple |
 | **C4 — résultats et rapport** | tableau de bord, graphiques, rapport, exports, Playwright de bout en bout |
 
@@ -281,3 +282,54 @@ Chaque sous-projet a son propre plan, ses relectures par tâche et sa relecture 
 
 ### Ordre et dépendances
 C5, C6 et C7 viennent **après C4** : ils ont besoin des écrans d'étude et de la table `ModelPrediction`. Ordre : **C7** (le plus rapide, sans entraînement), puis **C5** (données prêtes), puis **C6** (entraînement le plus long). Chacun a sa conception détaillée, son plan, ses relectures et une **fiche de modèle relue** avant d'être affiché aux chercheurs.
+
+## 11. Multi-laboratoires (SaaS) — décision du fondateur du 2026-10-26
+
+**Intention.** MicroTrace Studio est un SaaS vendu à plusieurs laboratoires, comme SellWasl l'est à plusieurs entreprises. Il est multi-laboratoires dès le prototype. Ordre voulu par le fondateur :
+1. le rendre fonctionnel avec les données existantes ;
+2. le proposer aux laboratoires ;
+3. améliorer les modèles avec leurs données réelles.
+
+**Modèle de données** (ajouts au §4) :
+- `Laboratory` : nom, `slug` unique (utilisé dans les adresses), date de création, `suspendedAt` facultatif.
+- `Membership` : utilisateur, laboratoire, rôle (`lab_admin | researcher | viewer`), date ; unique par (utilisateur, laboratoire). Un utilisateur peut appartenir à plusieurs laboratoires.
+- `Invitation` : laboratoire, e-mail, rôle, empreinte SHA-256 du jeton (jamais le jeton en clair), auteur, expiration (7 jours), date d'utilisation, date de révocation.
+- `User.isPlatformAdmin` : équipe MicroTrace.
+- `laboratoryId` obligatoire sur `Project` et `Study`, et facultatif sur `AuditEvent` (vide pour les événements de la plateforme). Les autres tables sont rattachées par l'étude.
+
+**Isolation (règle non négociable).**
+- Chaque service serveur reçoit un contexte de laboratoire vérifié : `LabContext { userId, laboratoryId, role }`, obtenu par `requireLab(labSlug, rôleMinimum)`. Ce contexte relit l'appartenance et le statut du laboratoire en base à chaque requête.
+- Toute lecture et toute écriture filtrent sur `laboratoryId`.
+- Un identifiant d'un autre laboratoire répond « introuvable », jamais « interdit », pour ne pas révéler son existence.
+- Une suite de tests d'isolation prouve, pour **chaque** service, qu'un membre du laboratoire A ne lit ni ne modifie rien du laboratoire B.
+- La sécurité au niveau des lignes de PostgreSQL (RLS) est un durcissement prévu avant l'hébergement de données réelles. Dans le prototype, l'isolation est applicative et testée.
+
+**Rôles.**
+
+| Rôle | Peut |
+|---|---|
+| `viewer` | tout lire dans son laboratoire |
+| `researcher` | + créer et modifier projets, études, paramètres, imports ; archiver |
+| `lab_admin` | + inviter, changer les rôles et retirer des membres de son laboratoire |
+
+Une écriture refusée pour le rôle affiche « Action réservée aux chercheurs du laboratoire. ». Une action de gestion des membres refusée affiche « Action réservée aux responsables du laboratoire. ».
+
+**Invitations.** Le responsable crée une invitation (e-mail, rôle). Le prototype n'envoie pas d'e-mail : il affiche un lien à usage unique à copier, valable 7 jours. La page `/invitation/[jeton]` permet de créer son compte (nom et mot de passe) ou, si l'on est déjà connecté avec cet e-mail, de rejoindre le laboratoire. Une invitation utilisée, expirée ou révoquée affiche « Invitation invalide ou expirée. ».
+
+**Console de la plateforme** (`/admin`, `isPlatformAdmin` seulement) :
+- liste des laboratoires avec leurs compteurs : membres, études, imports ;
+- création d'un laboratoire et de l'invitation de son premier responsable ;
+- suspension et réactivation : les membres d'un laboratoire suspendu voient « Laboratoire suspendu. ».
+
+L'administrateur de la plateforme **ne voit pas** les données scientifiques des laboratoires, seulement ces compteurs. Le premier administrateur est créé par `npm run user:create -- --platform-admin`.
+
+**Adresses et navigation.** Les pages d'un laboratoire vivent sous `/labo/[labSlug]/…`, par exemple `/labo/[labSlug]/projets` et `/labo/[labSlug]/etudes/[studyId]/parametres`. Un sélecteur de laboratoire figure dans l'en-tête quand l'utilisateur en a plusieurs. `/` mène :
+- au premier laboratoire de l'utilisateur ;
+- sinon à `/admin` pour un administrateur de la plateforme ;
+- sinon à une page « Vous n'êtes membre d'aucun laboratoire. ».
+
+**Hors prototype :** inscription libre, facturation, envoi d'e-mails, authentification unique (SSO). L'hébergement en ligne et le pays d'hébergement (loi algérienne 18-07 sur les données personnelles) seront présentés au fondateur après C4.
+
+**Données existantes (fonctionnel dès C3).** Chaque laboratoire peut créer deux études d'exemple :
+- l'étude fictive (`simulated`, §6) ;
+- l'étude **réelle publiée** Leslie et al. 2022, Tableau S2 : 22 donneurs, `published`, DOI 10.1016/j.envint.2022.107199, licence à confirmer sur la page de l'article avant d'en embarquer les valeurs.
