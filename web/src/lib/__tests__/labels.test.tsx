@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditActionLabel, diffChanges, entityTypeLabel } from "../audit-labels";
+import { auditActionLabel, auditObjectName, diffChanges, entityTypeLabel } from "../audit-labels";
 import { parseDecimal } from "../parse-decimal";
 import { unitLabel } from "../units";
 
@@ -50,7 +50,7 @@ describe("audit-labels", () => {
     );
     expect(changes).toEqual([
       { field: "Titre", before: "Ancien", after: "<b>Nouveau</b>" },
-      { field: "LOD", before: "—", after: "0.5" },
+      { field: "LOD", before: "—", after: "0,5" },
       { field: "Unité", before: "—", after: "µg/mL" },
     ]);
   });
@@ -59,5 +59,53 @@ describe("audit-labels", () => {
       { field: "Nom", before: "—", after: "M1" },
     ]);
     expect(diffChanges(null, null)).toEqual([]);
+  });
+
+  it("humanise énumérations, nombres, dates et identifiants", () => {
+    const methodNames = new Map([["m1", "Py-GC/MS"]]);
+    const changes = diffChanges(
+      null,
+      {
+        nature: "published",
+        blankCorrected: "unknown",
+        technique: "py_gc_ms",
+        kind: "procedural_blank",
+        loq: 1234.5,
+        archivedAt: "2026-03-02T10:00:00.000Z",
+        methodId: "m1",
+        studyId: "s1",
+        ids: { methods: ["a"], limits: [] },
+        methodsCreated: 2,
+      },
+      { methodNames },
+    );
+    const byField = Object.fromEntries(changes.map((c) => [c.field, c.after]));
+    expect(byField["Nature des données"]).toBe("Publiée");
+    expect(byField["Correction du blanc"]).toBe("Inconnu");
+    expect(byField["Technique"]).toBe("Py-GC/MS");
+    expect(byField["Type"]).toBe("Blanc procédural");
+    expect(byField["LOQ"]).toMatch(/^1\s234,5$/u);
+    expect(byField["Archivée le"]).toBe("02/03/2026 11:00");
+    expect(byField["Méthode"]).toBe("Py-GC/MS");
+    expect(byField["Méthodes créées"]).toBe("2");
+    expect(Object.keys(byField)).not.toContain("Étude");
+    expect(Object.keys(byField)).not.toContain("Identifiants");
+    expect(changes.some((c) => c.after.includes("{") || c.after.includes("["))).toBe(false);
+  });
+
+  it("omet une méthode introuvable au lieu d'afficher son identifiant", () => {
+    expect(diffChanges(null, { methodId: "zzz", polymer: "PE" })).toEqual([
+      { field: "Polymère", before: "—", after: "PE" },
+    ]);
+  });
+
+  it("donne le nom de l'objet quand il est connu", () => {
+    const methodNames = new Map([["m1", "Py-GC/MS"]]);
+    expect(auditObjectName({ entityType: "Method", before: null, after: { name: "M1" } })).toBe("M1");
+    expect(auditObjectName({ entityType: "Study", before: null, after: { title: "Étude A" } })).toBe("Étude A");
+    expect(
+      auditObjectName({ entityType: "DetectionLimit", before: null, after: { polymer: "PE", methodId: "m1" } }, { methodNames }),
+    ).toBe("PE (Py-GC/MS)");
+    expect(auditObjectName({ entityType: "Study", before: null, after: { methodsCreated: 1 } })).toBeNull();
   });
 });

@@ -96,10 +96,10 @@ export async function prefillAction(_prev: ActionState, formData: FormData): Pro
   });
 }
 
-export async function removeLimitAction(studyId: string, limitId: string): Promise<ActionState> {
+export async function removeLimitAction(limitId: string): Promise<ActionState> {
   return runAction(async (user) => {
-    await removeDetectionLimit(user, limitId);
-    refresh(studyId);
+    const removed = await removeDetectionLimit(user, limitId);
+    refresh(removed.studyId);
   });
 }
 

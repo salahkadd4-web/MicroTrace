@@ -25,6 +25,26 @@ describe("ConfirmDialog", () => {
     expect(onConfirm).toHaveBeenCalledWith("Étude terminée");
   });
 
+  it("reste ouvert avec le motif et l'erreur quand la confirmation échoue", async () => {
+    const user = userEvent.setup();
+    const onConfirm = vi.fn(async () => "Refus du serveur.");
+    render(
+      <ConfirmDialog
+        title="Archiver l'étude"
+        description="Lecture seule."
+        requireReason
+        onConfirm={onConfirm}
+        trigger={<button>Ouvrir</button>}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Ouvrir" }));
+    await user.type(screen.getByLabelText("Motif"), "Terminée");
+    await user.click(screen.getByRole("button", { name: "Confirmer" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Refus du serveur.");
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText("Motif")).toHaveValue("Terminée");
+  });
+
   it("n'exige pas de motif par défaut", async () => {
     const user = userEvent.setup();
     render(

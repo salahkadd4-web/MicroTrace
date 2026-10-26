@@ -113,7 +113,7 @@ export default async function ParametresPage({
                     <TableCell>{unitLabel(l.unitCode)}</TableCell>
                     <TableCell>{l.source}</TableCell>
                     <TableCell>
-                      <RemoveLimitButton studyId={study.id} limitId={l.id} />
+                      <RemoveLimitButton limitId={l.id} />
                     </TableCell>
                   </TableRow>
                 ))}

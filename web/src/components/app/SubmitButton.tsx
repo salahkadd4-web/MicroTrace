@@ -10,13 +10,17 @@ export function SubmitButton({
   pendingLabel,
   className,
   variant,
+  pending: pendingProp,
 }: {
   children: ReactNode;
   pendingLabel: string;
   className?: string;
   variant?: ComponentProps<typeof Button>["variant"];
+  /** Envoi en cours quand le formulaire n'est pas soumis par `action` (sinon lu via useFormStatus). */
+  pending?: boolean;
 }) {
-  const { pending } = useFormStatus();
+  const status = useFormStatus();
+  const pending = pendingProp ?? status.pending;
   return (
     <Button type="submit" disabled={pending} className={className} variant={variant}>
       {pending ? pendingLabel : children}

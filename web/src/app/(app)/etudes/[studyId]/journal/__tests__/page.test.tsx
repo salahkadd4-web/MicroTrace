@@ -15,6 +15,7 @@ vi.mock("@/server/studies", () => ({
     nature: "laboratory",
     archivedAt: null,
     project: { id: "p1", title: "Projet un" },
+    methods: [{ id: "m1", name: "Py-GC/MS" }],
   })),
 }));
 vi.mock("@/server/audit", () => ({ listAuditEvents: vi.fn() }));
@@ -62,6 +63,13 @@ describe("page Journal", () => {
     expect(within(dialog).getByText("Nom")).toBeInTheDocument();
     expect(within(dialog).getByText("<b>Py</b>")).toBeInTheDocument();
     expect(dialog.querySelector("b")).toBeNull();
+  });
+
+  it("montre le nom de l'objet dans la colonne Objet", async () => {
+    vi.mocked(listAuditEvents).mockResolvedValue([event] as never);
+    await renderPage();
+    const cells = within(screen.getByRole("row", { name: /Méthode ajoutée/ })).getAllByRole("cell");
+    expect(cells[3]).toHaveTextContent("Py-GC/MS");
   });
 
   it("affiche un état vide sans événement", async () => {

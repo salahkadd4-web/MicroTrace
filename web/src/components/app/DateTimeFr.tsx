@@ -10,12 +10,16 @@ const FORMAT = new Intl.DateTimeFormat("fr-FR", {
   hourCycle: "h23",
 });
 
-export function DateTimeFr({ value }: { value: string | Date | null | undefined }) {
+/** `JJ/MM/AAAA HH:MM` (Europe/Paris), ou null si la date est absente ou invalide. */
+export function formatDateTimeFr(value: string | Date | null | undefined): string | null {
   const date = value === null || value === undefined ? null : new Date(value);
-  if (!date || Number.isNaN(date.getTime())) return <span>—</span>;
-  const parts = Object.fromEntries(
-    FORMAT.formatToParts(date).map((p) => [p.type, p.value]),
-  );
-  const text = `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
-  return <time dateTime={date.toISOString()}>{text}</time>;
+  if (!date || Number.isNaN(date.getTime())) return null;
+  const parts = Object.fromEntries(FORMAT.formatToParts(date).map((p) => [p.type, p.value]));
+  return `${parts.day}/${parts.month}/${parts.year} ${parts.hour}:${parts.minute}`;
+}
+
+export function DateTimeFr({ value }: { value: string | Date | null | undefined }) {
+  const text = formatDateTimeFr(value);
+  if (text === null) return <span>—</span>;
+  return <time dateTime={new Date(value as string | Date).toISOString()}>{text}</time>;
 }

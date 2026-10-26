@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { ConfirmDialog } from "@/components/app/ConfirmDialog";
-import { FormError } from "@/components/app/FormError";
 import { FormField } from "@/components/app/FormField";
 import { SelectField } from "@/components/app/SelectField";
 import { StudyFields, type StudyFieldValues } from "@/components/app/StudyFields";
@@ -49,6 +48,7 @@ export function ReferenceForm({
       submitLabel="Enregistrer"
       pendingLabel="Enregistrement…"
       className="max-w-xl"
+      resetOnSuccess={false}
     >
       {() => (
         <>
@@ -176,7 +176,7 @@ export function PrefillForm({ studyId }: { studyId: string }) {
   );
 }
 
-/** Bouton qui demande confirmation puis appelle une action ; l'erreur éventuelle reste affichée. */
+/** Bouton qui demande confirmation puis appelle une action ; une erreur garde le dialogue ouvert. */
 function ConfirmActionButton({
   label,
   title,
@@ -196,30 +196,23 @@ function ConfirmActionButton({
   disabled?: boolean;
   run: (reason?: string) => Promise<ActionState>;
 }) {
-  const [error, setError] = useState<string | undefined>();
   return (
-    <div className="space-y-2">
-      <ConfirmDialog
-        title={title}
-        description={description}
-        confirmLabel={confirmLabel}
-        requireReason={requireReason}
-        onConfirm={async (reason) => {
-          const result = await run(reason);
-          setError(result.error);
-        }}
-        trigger={
-          <Button type="button" variant={variant} disabled={disabled}>
-            {label}
-          </Button>
-        }
-      />
-      <FormError message={error} />
-    </div>
+    <ConfirmDialog
+      title={title}
+      description={description}
+      confirmLabel={confirmLabel}
+      requireReason={requireReason}
+      onConfirm={async (reason) => (await run(reason)).error}
+      trigger={
+        <Button type="button" variant={variant} disabled={disabled}>
+          {label}
+        </Button>
+      }
+    />
   );
 }
 
-export function RemoveLimitButton({ studyId, limitId }: { studyId: string; limitId: string }) {
+export function RemoveLimitButton({ limitId }: { limitId: string }) {
   return (
     <ConfirmActionButton
       label="Supprimer"
@@ -227,7 +220,7 @@ export function RemoveLimitButton({ studyId, limitId }: { studyId: string; limit
       description="Cette limite de détection sera supprimée. L'opération est enregistrée au journal."
       confirmLabel="Supprimer"
       variant="destructive"
-      run={() => removeLimitAction(studyId, limitId)}
+      run={() => removeLimitAction(limitId)}
     />
   );
 }

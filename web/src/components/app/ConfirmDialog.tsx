@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { FormError } from "@/components/app/FormError";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,19 +26,26 @@ export function ConfirmDialog({
   title: string;
   description: string;
   requireReason?: boolean;
-  onConfirm: (reason?: string) => void | Promise<void>;
+  /** Renvoie un message d'erreur pour garder le dialogue ouvert ; rien (ou une promesse sans valeur) pour fermer. */
+  onConfirm: (reason?: string) => void | string | undefined | Promise<void | string | undefined>;
   trigger: ReactNode;
   confirmLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | undefined>();
   const blocked = pending || (requireReason && reason.trim() === "");
 
   async function confirm() {
     setPending(true);
     try {
-      await onConfirm(requireReason ? reason.trim() : undefined);
+      const failure = await onConfirm(requireReason ? reason.trim() : undefined);
+      if (failure) {
+        setError(failure);
+        return;
+      }
+      setError(undefined);
       setOpen(false);
       setReason("");
     } finally {
@@ -63,6 +71,7 @@ export function ConfirmDialog({
             />
           </div>
         ) : null}
+        <FormError message={error} />
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>
             Annuler

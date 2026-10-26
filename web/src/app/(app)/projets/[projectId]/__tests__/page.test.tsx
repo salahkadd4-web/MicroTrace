@@ -69,6 +69,20 @@ describe("page Projet", () => {
     expect(screen.getByLabelText("Licence de référence")).toBeInTheDocument();
   });
 
+  it("conserve titre, nature « publiée » et DOI après une erreur", async () => {
+    const user = userEvent.setup();
+    render(await ProjetPage(params("p1")));
+    await user.type(screen.getByLabelText("Titre"), "Nouvelle étude");
+    await user.click(screen.getByLabelText("Nature des données"));
+    await user.click(await screen.findByRole("option", { name: "Publiée" }));
+    await user.type(screen.getByLabelText("DOI de référence"), "10.1000/xyz");
+    await user.click(screen.getByRole("button", { name: "Créer l'étude" }));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Titre")).toHaveValue("Nouvelle étude");
+    expect(screen.getByLabelText("Nature des données")).toHaveTextContent("Publiée");
+    expect(screen.getByLabelText("DOI de référence")).toHaveValue("10.1000/xyz");
+  });
+
   it("affiche l'erreur du moteur dans role=alert", async () => {
     const user = userEvent.setup();
     render(await ProjetPage(params("p1")));

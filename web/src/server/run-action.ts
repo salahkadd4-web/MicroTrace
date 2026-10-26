@@ -10,7 +10,7 @@ export async function runAction(
 ): Promise<ActionState> {
   try {
     const user = await requireUser();
-    return (await fn(user)) ?? {};
+    return (await fn(user)) ?? { ok: true };
   } catch (e) {
     return actionError(e);
   }
