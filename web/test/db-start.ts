@@ -29,6 +29,8 @@ export interface StartOptions {
   onPort?: (port: number) => void;
   /** Étape injectée avant la migration (sert à tester le nettoyage). */
   beforeMigrate?: () => void | Promise<void>;
+  /** false : base vide sans migration (le test applique lui-même les fichiers SQL). */
+  migrate?: boolean;
 }
 
 /** Démarre une instance PostgreSQL embarquée migrée ; nettoie tout en cas d'échec. */
@@ -60,11 +62,13 @@ export async function startTestDb(opts: StartOptions = {}): Promise<TestDb> {
     await pg.createDatabase("microtrace_test");
     await opts.beforeMigrate?.();
     const url = `postgresql://postgres:postgres@127.0.0.1:${port}/microtrace_test`;
-    execFileSync(
-      process.execPath,
-      ["node_modules/prisma/build/index.js", "migrate", "deploy"],
-      { env: { ...process.env, DATABASE_URL: url }, stdio: "inherit" },
-    );
+    if (opts.migrate !== false) {
+      execFileSync(
+        process.execPath,
+        ["node_modules/prisma/build/index.js", "migrate", "deploy"],
+        { env: { ...process.env, DATABASE_URL: url }, stdio: "inherit" },
+      );
+    }
     return { url, dir, stop };
   } catch (err) {
     try {

@@ -361,6 +361,29 @@ describe("multi-laboratoires (spec §11)", () => {
     await expect(prisma.invitation.create({ data: inv })).rejects.toThrow();
   });
 
+  it("une étude ne peut pas citer un laboratoire différent de celui de son projet", async () => {
+    const { project } = await makeStudy();
+    const other = await prisma.laboratory.create({ data: { name: "Autre", slug: "autre" } });
+    await expect(
+      prisma.$executeRaw`INSERT INTO "Study" (id, "projectId", "laboratoryId", title, nature)
+        VALUES ('mix', ${project.id}, ${other.id}, 'E', 'simulated')`,
+    ).rejects.toThrow(/Study_projectId_laboratoryId_fkey|violates foreign key/);
+    expect(await prisma.study.count({ where: { id: "mix" } })).toBe(0);
+  });
+
+  it("AuditEvent.laboratoryId doit citer un laboratoire existant (RESTRICT)", async () => {
+    await expect(
+      prisma.auditEvent.create({
+        data: { action: "a", entityType: "Study", entityId: "1", laboratoryId: "inexistant" },
+      }),
+    ).rejects.toThrow();
+    const { lab } = await makeStudy();
+    await prisma.auditEvent.create({
+      data: { action: "a", entityType: "Study", entityId: "1", laboratoryId: lab.id },
+    });
+    await expect(prisma.laboratory.delete({ where: { id: lab.id } })).rejects.toThrow();
+  });
+
   it("AuditEvent.laboratoryId est facultatif ; index sur laboratoryId", async () => {
     await prisma.auditEvent.create({ data: { action: "a", entityType: "User", entityId: "1" } });
     const rows = await prisma.$queryRaw<{ indexname: string }[]>`

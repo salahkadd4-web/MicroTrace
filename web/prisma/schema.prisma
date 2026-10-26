@@ -108,6 +108,7 @@ model Laboratory {
   invitations Invitation[]
   projects    Project[]
   studies     Study[]
+  auditEvents AuditEvent[]
 }
 
 model Membership {
@@ -153,13 +154,14 @@ model Project {
 
   studies Study[]
 
+  @@unique([id, laboratoryId])
   @@index([laboratoryId])
 }
 
 model Study {
   id                    String         @id @default(cuid())
   projectId             String
-  project               Project        @relation(fields: [projectId], references: [id])
+  project               Project        @relation(fields: [projectId, laboratoryId], references: [id, laboratoryId])
   laboratoryId          String
   laboratory            Laboratory     @relation(fields: [laboratoryId], references: [id])
   title                 String
@@ -381,7 +383,7 @@ model ModelPrediction {
 }
 
 model AuditEvent {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   actorId      String?
   action       String
   entityType   String
@@ -390,7 +392,8 @@ model AuditEvent {
   after        Json?
   // Vide pour les événements de la plateforme (connexion, création d'utilisateur).
   laboratoryId String?
-  createdAt    DateTime @default(now())
+  laboratory   Laboratory? @relation(fields: [laboratoryId], references: [id], onDelete: Restrict)
+  createdAt    DateTime    @default(now())
 
   @@index([entityType, entityId])
   @@index([laboratoryId])

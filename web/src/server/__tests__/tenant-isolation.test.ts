@@ -4,7 +4,10 @@ vi.mock("@/server/engine/client", async (orig) => {
   const actual = await orig<typeof import("@/server/engine/client")>();
   return {
     ...actual,
-    engineClient: { validateContext: vi.fn(async () => ({})), example: vi.fn() },
+    engineClient: {
+      validateContext: vi.fn(async () => ({})),
+      example: vi.fn(),
+    },
   };
 });
 
@@ -50,10 +53,23 @@ type Ids = {
 };
 
 type Outcome = { throws: string } | { returns: (r: unknown, ids: Ids) => void };
-type Case = { run: (ctx: LabContext, ids: Ids) => Promise<unknown>; outcome: Outcome };
+type Case = {
+  run: (ctx: LabContext, ids: Ids) => Promise<unknown>;
+  outcome: Outcome;
+};
 
-const STUDY_INPUT = { title: "X", nature: "laboratory", blankCorrected: "unknown" } as const;
-const LIMIT_INPUT = { polymer: "PET", lod: 0.1, loq: 0.3, unitCode: "ug/mL", source: "s" };
+const STUDY_INPUT = {
+  title: "X",
+  nature: "laboratory",
+  blankCorrected: "unknown",
+} as const;
+const LIMIT_INPUT = {
+  polymer: "PET",
+  lod: 0.1,
+  loq: 0.3,
+  unitCode: "ug/mL",
+  source: "s",
+};
 const QC_INPUT = {
   polymer: "PET",
   kind: "procedural_blank",
@@ -80,7 +96,9 @@ const CASES: Record<string, Record<string, Case>> = {
       run: (ctx) => listProjects(ctx),
       outcome: {
         returns: (r, ids) =>
-          expect((r as { id: string }[]).map((p) => p.id)).not.toContain(ids.project),
+          expect((r as { id: string }[]).map((p) => p.id)).not.toContain(
+            ids.project,
+          ),
       },
     },
     getProject: {
@@ -98,7 +116,8 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Projet introuvable." },
     },
     loadWritable: {
-      run: (ctx, ids) => prisma.$transaction((tx) => loadWritable(tx, ctx, ids.study)),
+      run: (ctx, ids) =>
+        prisma.$transaction((tx) => loadWritable(tx, ctx, ids.study)),
       outcome: { throws: "Étude introuvable." },
     },
     updateStudy: {
@@ -130,7 +149,10 @@ const CASES: Record<string, Record<string, Case>> = {
     },
     upsertDetectionLimit: {
       run: (ctx, ids) =>
-        upsertDetectionLimit(ctx, ids.study, { methodId: ids.method, ...LIMIT_INPUT }),
+        upsertDetectionLimit(ctx, ids.study, {
+          methodId: ids.method,
+          ...LIMIT_INPUT,
+        }),
       outcome: { throws: "Étude introuvable." },
     },
     removeDetectionLimit: {
@@ -164,7 +186,8 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   },
   "study-settings": {},
   audit: {
-    recordAudit: "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
+    recordAudit:
+      "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
 };
 
@@ -176,19 +199,25 @@ const MODULES: Record<string, Record<string, unknown>> = {
 };
 
 /** Écritures d'un chercheur, pour le test du rôle viewer. */
-const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> = {
-  createProject: (ctx) => createProject(ctx, { title: "V" }),
-  createStudy: (ctx, ids) => createStudy(ctx, ids.project, STUDY_INPUT),
-  updateStudy: (ctx, ids) => updateStudy(ctx, ids.study, { title: "V" }),
-  declarePseudonymisation: (ctx, ids) => declarePseudonymisation(ctx, ids.study),
-  archiveStudy: (ctx, ids) => archiveStudy(ctx, ids.study, "motif"),
-  addMethod: (ctx, ids) => addMethod(ctx, ids.study, { name: "V", technique: "py_gc_ms" }),
-  upsertDetectionLimit: (ctx, ids) =>
-    upsertDetectionLimit(ctx, ids.study, { methodId: ids.method, ...LIMIT_INPUT }),
-  removeDetectionLimit: (ctx, ids) => removeDetectionLimit(ctx, ids.limit),
-  addQcSummary: (ctx, ids) => addQcSummary(ctx, ids.study, QC_INPUT),
-  prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
-};
+const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
+  {
+    createProject: (ctx) => createProject(ctx, { title: "V" }),
+    createStudy: (ctx, ids) => createStudy(ctx, ids.project, STUDY_INPUT),
+    updateStudy: (ctx, ids) => updateStudy(ctx, ids.study, { title: "V" }),
+    declarePseudonymisation: (ctx, ids) =>
+      declarePseudonymisation(ctx, ids.study),
+    archiveStudy: (ctx, ids) => archiveStudy(ctx, ids.study, "motif"),
+    addMethod: (ctx, ids) =>
+      addMethod(ctx, ids.study, { name: "V", technique: "py_gc_ms" }),
+    upsertDetectionLimit: (ctx, ids) =>
+      upsertDetectionLimit(ctx, ids.study, {
+        methodId: ids.method,
+        ...LIMIT_INPUT,
+      }),
+    removeDetectionLimit: (ctx, ids) => removeDetectionLimit(ctx, ids.limit),
+    addQcSummary: (ctx, ids) => addQcSummary(ctx, ids.study, QC_INPUT),
+    prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
+  };
 
 let ctxA: LabContext;
 let viewerA: LabContext;
@@ -198,8 +227,14 @@ let idsB: Ids;
 
 async function seed(ctx: LabContext, tag: string): Promise<Ids> {
   const project = await createProject(ctx, { title: `Projet ${tag}` });
-  const study = await createStudy(ctx, project.id, { ...STUDY_INPUT, title: `Étude ${tag}` });
-  const method = await addMethod(ctx, study.id, { name: `M ${tag}`, technique: "py_gc_ms" });
+  const study = await createStudy(ctx, project.id, {
+    ...STUDY_INPUT,
+    title: `Étude ${tag}`,
+  });
+  const method = await addMethod(ctx, study.id, {
+    name: `M ${tag}`,
+    technique: "py_gc_ms",
+  });
   const limit = await upsertDetectionLimit(ctx, study.id, {
     methodId: method.id,
     ...LIMIT_INPUT,
@@ -212,7 +247,12 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     polymer: "PS",
   });
   await removeDetectionLimit(ctx, removed.id);
-  return { project: project.id, study: study.id, method: method.id, limit: limit.id };
+  return {
+    project: project.id,
+    study: study.id,
+    method: method.id,
+    limit: limit.id,
+  };
 }
 
 beforeEach(async () => {
@@ -237,7 +277,9 @@ async function fullSnapshot() {
     studies: await prisma.study.findMany({ orderBy: { id: "asc" } }),
     methods: await prisma.method.findMany({ orderBy: { id: "asc" } }),
     limits: await prisma.detectionLimit.findMany({ orderBy: { id: "asc" } }),
-    qcs: await prisma.qualityControlSummary.findMany({ orderBy: { id: "asc" } }),
+    qcs: await prisma.qualityControlSummary.findMany({
+      orderBy: { id: "asc" },
+    }),
     audits: await prisma.auditEvent.findMany({ orderBy: { id: "asc" } }),
   });
 }
@@ -246,11 +288,26 @@ async function fullSnapshot() {
 async function snapshotOfB() {
   const study = { laboratoryId: ctxB.laboratoryId };
   return JSON.stringify({
-    projects: await prisma.project.findMany({ where: study, orderBy: { id: "asc" } }),
-    studies: await prisma.study.findMany({ where: study, orderBy: { id: "asc" } }),
-    methods: await prisma.method.findMany({ where: { study }, orderBy: { id: "asc" } }),
-    limits: await prisma.detectionLimit.findMany({ where: { study }, orderBy: { id: "asc" } }),
-    qcs: await prisma.qualityControlSummary.findMany({ where: { study }, orderBy: { id: "asc" } }),
+    projects: await prisma.project.findMany({
+      where: study,
+      orderBy: { id: "asc" },
+    }),
+    studies: await prisma.study.findMany({
+      where: study,
+      orderBy: { id: "asc" },
+    }),
+    methods: await prisma.method.findMany({
+      where: { study },
+      orderBy: { id: "asc" },
+    }),
+    limits: await prisma.detectionLimit.findMany({
+      where: { study },
+      orderBy: { id: "asc" },
+    }),
+    qcs: await prisma.qualityControlSummary.findMany({
+      where: { study },
+      orderBy: { id: "asc" },
+    }),
     audits: await prisma.auditEvent.findMany({
       where: { laboratoryId: ctxB.laboratoryId },
       orderBy: { id: "asc" },
@@ -273,7 +330,12 @@ describe("un membre de A sur les objets de B", () => {
     for (const [fn, c] of Object.entries(cases)) {
       if (fn === "createProject") continue; // pas d'objet de B en entrée : voir « création »
       it(`${moduleName}.${fn} : même réponse que pour un identifiant inexistant, B inchangé`, async () => {
-        const missing: Ids = { project: MISSING, study: MISSING, method: MISSING, limit: MISSING };
+        const missing: Ids = {
+          project: MISSING,
+          study: MISSING,
+          method: MISSING,
+          limit: MISSING,
+        };
         const before = await fullSnapshot();
         const attempt = async (ids: Ids) => {
           if ("throws" in c.outcome) {
@@ -298,22 +360,31 @@ describe("un membre de A sur les objets de B", () => {
   it("la limite de B vue depuis une étude de A : « Méthode introuvable. », rien n'est écrit", async () => {
     const before = await fullSnapshot();
     await expect(
-      upsertDetectionLimit(ctxA, idsA.study, { methodId: idsB.method, ...LIMIT_INPUT }),
+      upsertDetectionLimit(ctxA, idsA.study, {
+        methodId: idsB.method,
+        ...LIMIT_INPUT,
+      }),
     ).rejects.toThrow("Méthode introuvable.");
     await expect(
-      upsertDetectionLimit(ctxA, idsA.study, { methodId: MISSING, ...LIMIT_INPUT }),
+      upsertDetectionLimit(ctxA, idsA.study, {
+        methodId: MISSING,
+        ...LIMIT_INPUT,
+      }),
     ).rejects.toThrow("Méthode introuvable.");
     expect(await fullSnapshot()).toBe(before);
   });
 
   it("createStudy sur le projet de B (IDOR) : « Projet introuvable. », aucune étude créée dans B", async () => {
-    const studiesInB = () => prisma.study.count({ where: { laboratoryId: ctxB.laboratoryId } });
+    const studiesInB = () =>
+      prisma.study.count({ where: { laboratoryId: ctxB.laboratoryId } });
     const before = await studiesInB();
     await expect(createStudy(ctxA, idsB.project, STUDY_INPUT)).rejects.toThrow(
       "Projet introuvable.",
     );
     expect(await studiesInB()).toBe(before);
-    expect(await prisma.study.count({ where: { projectId: idsB.project } })).toBe(1);
+    expect(
+      await prisma.study.count({ where: { projectId: idsB.project } }),
+    ).toBe(1);
   });
 
   it("le moteur n'est pas sollicité pour un objet d'un autre laboratoire", async () => {
@@ -322,7 +393,9 @@ describe("un membre de A sur les objets de B", () => {
     await expect(createStudy(ctxA, idsB.project, STUDY_INPUT)).rejects.toThrow(
       "Projet introuvable.",
     );
-    await expect(buildStudyContext(ctxA, idsB.study)).rejects.toThrow("Étude introuvable.");
+    await expect(buildStudyContext(ctxA, idsB.study)).rejects.toThrow(
+      "Étude introuvable.",
+    );
     expect(validate).not.toHaveBeenCalled();
   });
 });
@@ -339,22 +412,31 @@ describe("création et lectures dans son propre laboratoire", () => {
       where: { entityId: { in: [p.id, s.id] } },
     });
     expect(events).toHaveLength(2);
-    expect(events.every((e) => e.laboratoryId === ctxA.laboratoryId)).toBe(true);
+    expect(events.every((e) => e.laboratoryId === ctxA.laboratoryId)).toBe(
+      true,
+    );
   });
 
   it("tout événement du jeu de données porte son laboratoire (aucun événement sans laboratoire)", async () => {
     // Seuls les événements de plateforme (création d'utilisateur) n'ont pas de laboratoire.
     expect(
-      await prisma.auditEvent.count({ where: { laboratoryId: null, entityType: { not: "User" } } }),
+      await prisma.auditEvent.count({
+        where: { laboratoryId: null, entityType: { not: "User" } },
+      }),
     ).toBe(0);
     for (const ctx of [ctxA, ctxB]) {
-      const n = await prisma.auditEvent.count({ where: { laboratoryId: ctx.laboratoryId } });
+      const n = await prisma.auditEvent.count({
+        where: { laboratoryId: ctx.laboratoryId },
+      });
       expect(n).toBe(7); // projet, étude, méthode, 2 limites (upsert), qc, retrait
     }
   });
 
   it("chaque écriture de service journalise le laboratoire de l'acteur", async () => {
-    const m = await addMethod(ctxA, idsA.study, { name: "Autre", technique: "other" });
+    const m = await addMethod(ctxA, idsA.study, {
+      name: "Autre",
+      technique: "other",
+    });
     await updateStudy(ctxA, idsA.study, { title: "Titre 2" });
     await declarePseudonymisation(ctxA, idsA.study);
     vi.mocked(engineClient.example).mockResolvedValueOnce({
@@ -366,10 +448,13 @@ describe("création et lectures dans son propre laboratoire", () => {
     } as never);
     await prefillLeslieTable3(ctxA, idsA.study);
     await archiveStudy(ctxA, idsA.study, "fin");
-    const events = await prisma.auditEvent.findMany({ where: { actorId: ctxA.userId, entityType: { not: "User" } },
+    const events = await prisma.auditEvent.findMany({
+      where: { actorId: ctxA.userId, entityType: { not: "User" } },
     });
     expect(events.length).toBeGreaterThan(10);
-    expect(events.every((e) => e.laboratoryId === ctxA.laboratoryId)).toBe(true);
+    expect(events.every((e) => e.laboratoryId === ctxA.laboratoryId)).toBe(
+      true,
+    );
     expect(m.studyId).toBe(idsA.study);
   });
 
@@ -387,9 +472,11 @@ describe("journal", () => {
     const eventsA = await listAuditEvents(ctxA, idsA.study);
     expect(eventsA.length).toBeGreaterThan(0);
     const idsOfB = new Set(
-      (await prisma.auditEvent.findMany({ where: { laboratoryId: ctxB.laboratoryId } })).map(
-        (e) => e.id,
-      ),
+      (
+        await prisma.auditEvent.findMany({
+          where: { laboratoryId: ctxB.laboratoryId },
+        })
+      ).map((e) => e.id),
     );
     expect(eventsA.every((e) => !idsOfB.has(e.id))).toBe(true);
     expect(await listAuditEvents(ctxA, idsB.study)).toEqual([]);
@@ -442,7 +529,9 @@ describe("un viewer de A", () => {
       "loadWritable",
       "listAuditEvents",
     ]);
-    const exported = Object.entries(CASES).flatMap(([, cases]) => Object.keys(cases));
+    const exported = Object.entries(CASES).flatMap(([, cases]) =>
+      Object.keys(cases),
+    );
     const writers = exported.filter((f) => !readers.has(f));
     expect(Object.keys(WRITES).sort()).toEqual(writers.sort());
   });
@@ -454,6 +543,8 @@ describe("un viewer de A", () => {
     expect(await buildStudyContext(viewerA, idsA.study)).toMatchObject({
       data_nature: "laboratory",
     });
-    expect((await listAuditEvents(viewerA, idsA.study)).length).toBeGreaterThan(0);
+    expect((await listAuditEvents(viewerA, idsA.study)).length).toBeGreaterThan(
+      0,
+    );
   });
 });
