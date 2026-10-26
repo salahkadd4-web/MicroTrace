@@ -5,7 +5,7 @@ vi.mock("@/server/session", () => ({ requireUser: vi.fn() }));
 import { prisma } from "@/server/db";
 import { DomainError } from "@/server/errors";
 import { createLaboratory, listMyLaboratories, slugify } from "@/server/labs";
-import { assertRole, requireDefaultLab, requireLab } from "@/server/lab-context";
+import { assertRole, LabSuspendedError, requireLab } from "@/server/lab-context";
 import { requireUser } from "@/server/session";
 import { createUser } from "@/server/users";
 import { resetDb } from "../../../test/db-reset";
@@ -56,7 +56,7 @@ describe("requireLab", () => {
     await createUser({ email: "x@example.org", name: "X", password: "mot-de-passe-solide-1" });
     await prisma.laboratory.update({ where: { id: lab.id }, data: { suspendedAt: new Date() } });
     await login("m@example.org");
-    await expect(requireLab("labo-a")).rejects.toThrow(new DomainError("Laboratoire suspendu."));
+    await expect(requireLab("labo-a")).rejects.toBeInstanceOf(LabSuspendedError);
     await login("x@example.org");
     await expect(requireLab("labo-a")).rejects.toEqual(NOT_FOUND);
   });
@@ -102,29 +102,6 @@ describe("assertRole", () => {
     );
     expect(() => assertRole({ role: "lab_admin" }, "lab_admin")).not.toThrow();
     expect(() => assertRole({ role: "lab_admin" }, "researcher")).not.toThrow();
-  });
-});
-
-describe("requireDefaultLab (temporaire, tâche 11)", () => {
-  it("prend le premier laboratoire par date de création ; sans appartenance : notFound", async () => {
-    const newer = await makeLab("Récent", "recent");
-    const older = await makeLab("Ancien", "ancien");
-    await prisma.laboratory.update({
-      where: { id: older.id },
-      data: { createdAt: new Date("2020-01-01") },
-    });
-    const m = await makeMember(newer, "researcher", "m@example.org");
-    await prisma.membership.create({
-      data: { userId: m.userId, laboratoryId: older.id, role: "viewer" },
-    });
-    await login("m@example.org");
-    await expect(requireDefaultLab()).resolves.toMatchObject({ labSlug: "ancien", role: "viewer" });
-    await expect(requireDefaultLab("researcher")).rejects.toThrow(
-      "Action réservée aux chercheurs du laboratoire.",
-    );
-    await createUser({ email: "x@example.org", name: "X", password: "mot-de-passe-solide-1" });
-    await login("x@example.org");
-    await expect(requireDefaultLab()).rejects.toEqual(NOT_FOUND);
   });
 });
 

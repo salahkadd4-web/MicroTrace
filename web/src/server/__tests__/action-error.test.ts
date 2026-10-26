@@ -30,7 +30,7 @@ describe("actionError", () => {
   it("relance les redirections de Next.js", () => {
     let caught: unknown;
     try {
-      redirect("/projets/p1");
+      redirect("/labo/labo-a/projets/p1");
     } catch (e) {
       caught = e;
     }

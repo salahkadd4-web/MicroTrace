@@ -101,3 +101,12 @@ export async function listMyLaboratories(userId: string): Promise<MyLaboratory[]
     suspended: m.laboratory.suspendedAt !== null,
   }));
 }
+
+/** Équipe de la plateforme : relu en base (un compte inactif n'en fait plus partie). */
+export async function isPlatformAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isPlatformAdmin: true, active: true },
+  });
+  return Boolean(user?.active && user.isPlatformAdmin);
+}

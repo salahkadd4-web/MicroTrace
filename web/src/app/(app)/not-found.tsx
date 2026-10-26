@@ -5,10 +5,10 @@ export default function NotFound() {
   return (
     <EmptyState
       title="Page introuvable"
-      description="Ce projet ou cette étude n'existe pas, ou a été déplacé."
+      description="Cette page n'existe pas, ou vous n'y avez pas accès."
       action={
-        <Link href="/projets" className="underline">
-          Retour aux projets
+        <Link href="/" className="underline">
+          Retour à l&apos;accueil
         </Link>
       }
     />

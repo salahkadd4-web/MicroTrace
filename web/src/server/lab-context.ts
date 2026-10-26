@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound } from "next/navigation";
+import { cache } from "react";
 import type { LabRole } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import { DomainError } from "@/server/errors";
@@ -16,17 +17,20 @@ export type LabContext = {
   labSlug: string;
   labName: string;
   role: LabRole;
-};
+} & { readonly __brand: "LabContext" };
+
+/** Laboratoire suspendu : les pages affichent un avis dédié, les actions le message du refus. */
+export class LabSuspendedError extends DomainError {
+  constructor() {
+    super("Laboratoire suspendu.");
+  }
+}
 
 /**
- * Contexte du laboratoire `labSlug` pour l'utilisateur de la session. L'appartenance et le statut
- * du laboratoire sont relus en base à chaque appel. Un non-membre et un laboratoire inconnu
- * reçoivent le même 404, pour ne pas révéler l'existence du laboratoire.
+ * Résolution de l'appartenance, mémorisée pour la durée d'une requête (une seule lecture en base
+ * même si le layout et la page la demandent) ; relue à chaque nouvelle requête.
  */
-export async function requireLab(
-  labSlug: string,
-  minRole: LabRole = "viewer",
-): Promise<LabContext> {
+const resolveLab = cache(async (labSlug: string): Promise<LabContext> => {
   const user = await requireUser();
   const membership = await prisma.membership.findFirst({
     where: { userId: user.id, laboratory: { slug: labSlug } },
@@ -34,30 +38,27 @@ export async function requireLab(
   });
   if (!membership) notFound();
   const lab = membership.laboratory;
-  if (lab.suspendedAt) throw new DomainError("Laboratoire suspendu.");
-  const ctx: LabContext = {
+  if (lab.suspendedAt) throw new LabSuspendedError();
+  return {
     userId: user.id,
     userName: user.name,
     laboratoryId: lab.id,
     labSlug: lab.slug,
     labName: lab.name,
     role: membership.role,
-  };
-  assertRole(ctx, minRole);
-  return ctx;
-}
+  } as LabContext;
+});
 
 /**
- * Laboratoire par défaut de l'utilisateur : son premier laboratoire (par date de création).
- * TODO(Tâche 11) : à supprimer quand les pages vivront sous /labo/[labSlug] et recevront le slug.
+ * Contexte du laboratoire `labSlug` pour l'utilisateur de la session. L'appartenance et le statut
+ * du laboratoire sont relus en base à chaque requête. Un non-membre et un laboratoire inconnu
+ * reçoivent le même 404, pour ne pas révéler l'existence du laboratoire.
  */
-export async function requireDefaultLab(minRole: LabRole = "viewer"): Promise<LabContext> {
-  const user = await requireUser();
-  const first = await prisma.membership.findFirst({
-    where: { userId: user.id },
-    orderBy: [{ laboratory: { createdAt: "asc" } }, { id: "asc" }],
-    select: { laboratory: { select: { slug: true } } },
-  });
-  if (!first) notFound();
-  return requireLab(first.laboratory.slug, minRole);
+export async function requireLab(
+  labSlug: string,
+  minRole: LabRole = "viewer",
+): Promise<LabContext> {
+  const ctx = await resolveLab(labSlug);
+  assertRole(ctx, minRole);
+  return ctx;
 }

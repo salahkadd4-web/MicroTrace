@@ -28,5 +28,5 @@ export async function makeMember(
     labSlug: lab.slug,
     labName: lab.name,
     role,
-  };
+  } as LabContext;
 }
