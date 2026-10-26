@@ -28,12 +28,29 @@ vi.mock("../actions", () => ({
   createProjectAction: vi.fn(async () => ({ error: "Le titre est obligatoire." })),
 }));
 
+import { requireLab } from "@/server/lab-context";
 import { listProjects } from "@/server/projects";
 import ProjetsPage from "../page";
 
 const props = { params: Promise.resolve({ labSlug: "labo" }) };
 
 describe("page Projets", () => {
+  it("un lecteur voit la liste sans formulaire ni bouton de création", async () => {
+    vi.mocked(requireLab).mockResolvedValueOnce({ role: "viewer", labSlug: "labo" } as never);
+    render(await ProjetsPage(props));
+    expect(screen.getByRole("row", { name: /Microplastiques sanguins/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Titre")).not.toBeInTheDocument();
+  });
+
+  it("un lecteur sans projet voit un état vide neutre", async () => {
+    vi.mocked(requireLab).mockResolvedValueOnce({ role: "viewer", labSlug: "labo" } as never);
+    vi.mocked(listProjects).mockResolvedValueOnce([]);
+    render(await ProjetsPage(props));
+    expect(screen.getByText("Aucun projet pour le moment.")).toBeInTheDocument();
+    expect(screen.queryByText(/ci-dessous/)).not.toBeInTheDocument();
+  });
+
   it("a un seul h1 et liste titre, nombre d'études et date", async () => {
     render(await ProjetsPage(props));
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);

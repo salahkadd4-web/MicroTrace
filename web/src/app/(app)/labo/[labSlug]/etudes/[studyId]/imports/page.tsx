@@ -1,6 +1,13 @@
+import { requireLab } from "@/server/lab-context";
 import { EmptyState } from "@/components/app/EmptyState";
 
-export default function ImportsPage() {
+export default async function ImportsPage({
+  params,
+}: {
+  params: Promise<{ labSlug: string }>;
+}) {
+  const { labSlug } = await params;
+  await requireLab(labSlug);
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold">Imports</h2>

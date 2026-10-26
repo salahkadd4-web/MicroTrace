@@ -45,11 +45,20 @@ vi.mock("../actions", () => ({
   })),
 }));
 
+import { requireLab } from "@/server/lab-context";
 import ProjetPage from "../page";
 
 const params = (projectId: string) => ({ params: Promise.resolve({ labSlug: "labo", projectId }) });
 
 describe("page Projet", () => {
+  it("un lecteur voit les études sans formulaire ni bouton de création", async () => {
+    vi.mocked(requireLab).mockResolvedValueOnce({ role: "viewer", labSlug: "labo" } as never);
+    render(await ProjetPage(params("p1")));
+    expect(screen.getByRole("link", { name: "Étude Leslie" })).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Titre")).not.toBeInTheDocument();
+  });
+
   it("a un seul h1 et liste les études avec leur statut", async () => {
     render(await ProjetPage(params("p1")));
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);

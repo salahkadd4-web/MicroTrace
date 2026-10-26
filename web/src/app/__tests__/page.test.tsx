@@ -50,6 +50,16 @@ describe("page d'accueil /", () => {
     expect(await destination()).toBe("/aucun-laboratoire");
   });
 
+  it("saute un laboratoire suspendu et mène au premier laboratoire actif", async () => {
+    vi.mocked(listMyLaboratories).mockResolvedValue([{ ...lab("alpha"), suspended: true }, lab("beta")]);
+    expect(await destination()).toBe("/labo/beta/projets");
+  });
+
+  it("seul laboratoire suspendu : mène à lui, pour y voir l'avis", async () => {
+    vi.mocked(listMyLaboratories).mockResolvedValue([{ ...lab("alpha"), suspended: true }]);
+    expect(await destination()).toBe("/labo/alpha/projets");
+  });
+
   it("un laboratoire passe avant le rôle d'administrateur de la plateforme", async () => {
     vi.mocked(listMyLaboratories).mockResolvedValue([lab("alpha")]);
     vi.mocked(isPlatformAdmin).mockResolvedValue(true);

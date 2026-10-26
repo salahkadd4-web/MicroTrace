@@ -31,7 +31,7 @@ export default async function ProjetPage({ params }: { params: Promise<{ labSlug
         {project.studies.length === 0 ? (
           <EmptyState
             title="Aucune étude dans ce projet."
-            description="Créez une première étude ci-dessous."
+            description={canWrite(ctx.role) ? "Créez une première étude ci-dessous." : undefined}
           />
         ) : (
           <Table>

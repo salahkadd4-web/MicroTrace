@@ -52,6 +52,21 @@ describe("layout /labo/[labSlug]", () => {
     expect(screen.getByText("Laboratoire suspendu.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Retour à l'accueil" })).toHaveAttribute("href", "/");
     expect(screen.queryByText("page")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("laboratoire suspendu : propose les autres laboratoires actifs", async () => {
+    vi.mocked(requireLab).mockRejectedValue(new LabSuspendedError());
+    vi.mocked(listMyLaboratories).mockResolvedValue([
+      { ...mine("alpha")[0], suspended: true },
+      ...mine("beta"),
+    ]);
+    render(await LaboLayout({ ...props, children: <p>page</p> }));
+    expect(screen.getByRole("link", { name: "Labo beta" })).toHaveAttribute(
+      "href",
+      "/labo/beta/projets",
+    );
+    expect(screen.queryByRole("link", { name: "Labo alpha" })).not.toBeInTheDocument();
   });
 
   it("relance un 404 (non-membre) tel quel", async () => {

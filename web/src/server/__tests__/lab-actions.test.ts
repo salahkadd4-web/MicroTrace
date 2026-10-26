@@ -36,8 +36,9 @@ beforeEach(async () => {
 describe("actions par laboratoire (slug revérifié côté serveur)", () => {
   it("slug d'un laboratoire dont on n'est pas membre : introuvable, rien n'est écrit", async () => {
     const a = await makeLab("Labo A", "labo-a");
-    await makeLab("Labo B", "labo-b");
+    const b = await makeLab("Labo B", "labo-b");
     await makeMember(a, "researcher", "a@example.org");
+    await makeMember(b, "researcher", "b@example.org");
     await login("a@example.org");
     await expect(
       createProjectAction("labo-b", {}, form({ title: "Intrus", description: "" })),
@@ -85,7 +86,7 @@ describe("actions par laboratoire (slug revérifié côté serveur)", () => {
       {},
       form({ projectId: project.id, title: "E", nature: "laboratory", blankCorrected: "unknown" }),
     );
-    expect(result.error).toBeTruthy();
+    expect(result).toEqual({ error: "Projet introuvable." });
     expect(await prisma.study.count()).toBe(0);
   });
 
@@ -93,9 +94,22 @@ describe("actions par laboratoire (slug revérifié côté serveur)", () => {
     const a = await makeLab("Labo A", "labo-a");
     const b = await makeLab("Labo B", "labo-b");
     await makeMember(a, "researcher", "a@example.org");
-    await makeMember(b, "researcher", "b@example.org");
+    const other = await makeMember(b, "researcher", "b@example.org");
+    const project = await prisma.project.create({
+      data: { title: "P", description: "", ownerId: other.userId, laboratoryId: b.id },
+    });
+    const study = await prisma.study.create({
+      data: { title: "E", projectId: project.id, laboratoryId: b.id, nature: "laboratory" },
+    });
+    const audits = await prisma.auditEvent.count();
     await login("a@example.org");
-    await expect(archiveStudyAction("labo-b", "x", "motif")).rejects.toEqual(NOT_FOUND);
+    await expect(archiveStudyAction("labo-b", study.id, "motif")).rejects.toEqual(NOT_FOUND);
+    // Même avec son propre slug, l'étude d'un autre laboratoire reste introuvable.
+    await expect(archiveStudyAction("labo-a", study.id, "motif")).resolves.toEqual({
+      error: "Étude introuvable.",
+    });
+    expect((await prisma.study.findUniqueOrThrow({ where: { id: study.id } })).archivedAt).toBeNull();
+    expect(await prisma.auditEvent.count()).toBe(audits);
   });
 
   it("laboratoire suspendu : le refus métier est renvoyé au formulaire", async () => {

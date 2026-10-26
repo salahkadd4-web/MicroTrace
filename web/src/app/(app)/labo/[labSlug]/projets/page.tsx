@@ -32,7 +32,7 @@ export default async function ProjetsPage({
         {projects.length === 0 ? (
           <EmptyState
             title="Aucun projet pour le moment."
-            description="Créez un premier projet ci-dessous."
+            description={canWrite(ctx.role) ? "Créez un premier projet ci-dessous." : undefined}
           />
         ) : (
           <Table>

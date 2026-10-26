@@ -8,7 +8,9 @@ import { requireUser } from "@/server/session";
  */
 export default async function Home() {
   const user = await requireUser();
-  const [first] = await listMyLaboratories(user.id);
+  const labs = await listMyLaboratories(user.id);
+  // Premier laboratoire actif ; à défaut le premier (l'utilisateur y voit l'avis de suspension).
+  const first = labs.find((l) => !l.suspended) ?? labs[0];
   if (first) redirect(`/labo/${first.slug}/projets`);
   if (await isPlatformAdmin(user.id)) redirect("/admin");
   redirect("/aucun-laboratoire");

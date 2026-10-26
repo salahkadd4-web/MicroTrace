@@ -9,6 +9,8 @@ import { requireUser } from "@/server/session";
 
 export { assertRole };
 
+declare const labContextBrand: unique symbol;
+
 /** Contexte de laboratoire vérifié (spec §11) : seul `requireLab` en fabrique un pour une requête. */
 export type LabContext = {
   userId: string;
@@ -17,7 +19,7 @@ export type LabContext = {
   labSlug: string;
   labName: string;
   role: LabRole;
-} & { readonly __brand: "LabContext" };
+} & { readonly [labContextBrand]: true };
 
 /** Laboratoire suspendu : les pages affichent un avis dédié, les actions le message du refus. */
 export class LabSuspendedError extends DomainError {
