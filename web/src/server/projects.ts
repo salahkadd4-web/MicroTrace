@@ -16,14 +16,14 @@ export function normalizeTitle(raw: string): string {
 
 export async function createProject(
   actor: SessionUser,
-  input: { title: string; description?: string | null },
+  input: { title: string; description?: string | null; laboratoryId: string },
 ) {
   const title = normalizeTitle(input.title);
   // La colonne est non nulle : une description vide est stockée comme "".
   const description = (input.description ?? "").trim();
   return prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
-      data: { title, description, ownerId: actor.id },
+      data: { title, description, ownerId: actor.id, laboratoryId: input.laboratoryId },
     });
     await recordAudit(tx, {
       actorId: actor.id,
@@ -31,6 +31,7 @@ export async function createProject(
       entityType: "Project",
       entityId: project.id,
       after: { title, description },
+      laboratoryId: input.laboratoryId,
     });
     return project;
   });

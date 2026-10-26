@@ -31,14 +31,17 @@ import {
 } from "@/server/studies";
 import { createUser, type SessionUser } from "@/server/users";
 import { resetDb } from "../../../test/db-reset";
+import { makeLab } from "../../../test/labs";
 
 const validate = vi.mocked(engineClient.validateContext);
 const DOI_MSG = "Une étude publiée doit indiquer un DOI.";
 
 let actor: SessionUser;
+let lab: { id: string };
 
 beforeEach(async () => {
   await resetDb();
+  lab = await makeLab("Labo");
   validate.mockReset();
   validate.mockResolvedValue({} as never);
   const u = await createUser({
@@ -54,7 +57,7 @@ async function audits(action: string) {
 }
 
 async function newStudy() {
-  const p = await createProject(actor, { title: "P", description: "" });
+  const p = await createProject(actor, { laboratoryId: lab.id, title: "P", description: "" });
   return createStudy(actor, p.id, {
     title: "E",
     nature: "laboratory",
@@ -65,6 +68,7 @@ async function newStudy() {
 describe("projets", () => {
   it("crée un projet avec son AuditEvent, titre rogné, description vide", async () => {
     const p = await createProject(actor, {
+      laboratoryId: lab.id,
       title: "  Mon projet ",
       description: "  ",
     });
@@ -81,23 +85,23 @@ describe("projets", () => {
 
   it("annule le projet si l'écriture de l'audit échoue", async () => {
     vi.mocked(auditModule.recordAudit).mockRejectedValueOnce(new Error("audit KO"));
-    await expect(createProject(actor, { title: "P" })).rejects.toThrow("audit KO");
+    await expect(createProject(actor, { laboratoryId: lab.id, title: "P" })).rejects.toThrow("audit KO");
     expect(await prisma.project.count()).toBe(0);
   });
 
   it("refuse un titre vide ou trop long", async () => {
-    await expect(createProject(actor, { title: "  " })).rejects.toThrow(
+    await expect(createProject(actor, { laboratoryId: lab.id, title: "  " })).rejects.toThrow(
       "Le titre est obligatoire.",
     );
-    await expect(createProject(actor, { title: "x".repeat(201) })).rejects.toThrow(
+    await expect(createProject(actor, { laboratoryId: lab.id, title: "x".repeat(201) })).rejects.toThrow(
       "Le titre ne doit pas dépasser 200 caractères.",
     );
     expect(await prisma.project.count()).toBe(0);
   });
 
   it("liste du plus récent au plus ancien avec le nombre d'études", async () => {
-    const a = await createProject(actor, { title: "A" });
-    const b = await createProject(actor, { title: "B" });
+    const a = await createProject(actor, { laboratoryId: lab.id, title: "A" });
+    const b = await createProject(actor, { laboratoryId: lab.id, title: "B" });
     await prisma.project.update({
       where: { id: a.id },
       data: { createdAt: new Date("2026-01-01") },
@@ -120,7 +124,7 @@ describe("projets", () => {
 
 describe("createStudy", () => {
   it("crée l'étude et son AuditEvent après validation du contexte", async () => {
-    const p = await createProject(actor, { title: "P" });
+    const p = await createProject(actor, { laboratoryId: lab.id, title: "P" });
     const s = await createStudy(actor, p.id, {
       title: " Étude ",
       nature: "published",
@@ -148,7 +152,7 @@ describe("createStudy", () => {
 
   it("renvoie le message du moteur tel quel et n'écrit rien (422)", async () => {
     validate.mockRejectedValue(new EngineError(422, DOI_MSG));
-    const p = await createProject(actor, { title: "P" });
+    const p = await createProject(actor, { laboratoryId: lab.id, title: "P" });
     await expect(
       createStudy(actor, p.id, {
         title: "E",
@@ -162,7 +166,7 @@ describe("createStudy", () => {
 
   it("moteur indisponible : EngineUnavailableError et aucune ligne écrite", async () => {
     validate.mockRejectedValue(new EngineUnavailableError());
-    const p = await createProject(actor, { title: "P" });
+    const p = await createProject(actor, { laboratoryId: lab.id, title: "P" });
     await expect(
       createStudy(actor, p.id, {
         title: "E",
@@ -289,7 +293,7 @@ describe("pseudonymisation et archivage", () => {
 
 describe("buildStudyContext / getStudy", () => {
   it("projette méthodes et limites en snake_case", async () => {
-    const p = await createProject(actor, { title: "P" });
+    const p = await createProject(actor, { laboratoryId: lab.id, title: "P" });
     const s = await createStudy(actor, p.id, {
       title: "E",
       nature: "published",

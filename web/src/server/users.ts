@@ -17,7 +17,12 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-export async function createUser(input: { email: string; name: string; password: string }) {
+export async function createUser(input: {
+  email: string;
+  name: string;
+  password: string;
+  isPlatformAdmin?: boolean;
+}) {
   const email = normalizeEmail(input.email);
   const name = input.name.trim();
   if (!/^[^\s@]+@[^\s@]+$/.test(email)) throw new Error("Adresse e-mail invalide.");
@@ -31,14 +36,21 @@ export async function createUser(input: { email: string; name: string; password:
   const passwordHash = await bcrypt.hash(input.password, COST);
   try {
     return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({ data: { email, name, passwordHash } });
+      const user = await tx.user.create({
+        data: { email, name, passwordHash, isPlatformAdmin: input.isPlatformAdmin ?? false },
+      });
       await tx.auditEvent.create({
         data: {
           actorId: user.id,
           action: "user.create",
           entityType: "User",
           entityId: user.id,
-          after: { email: user.email, name: user.name, active: user.active },
+          after: {
+          email: user.email,
+          name: user.name,
+          active: user.active,
+          isPlatformAdmin: user.isPlatformAdmin,
+        },
         },
       });
       return user;

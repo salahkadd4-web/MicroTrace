@@ -106,6 +106,7 @@ export async function createStudy(actor: SessionUser, projectId: string, input: 
     const study = await tx.study.create({
       data: {
         projectId,
+        laboratoryId: project.laboratoryId,
         title,
         nature: input.nature,
         referenceDoi,
@@ -126,6 +127,7 @@ export async function createStudy(actor: SessionUser, projectId: string, input: 
         referenceLicense,
         blankCorrected: study.blankCorrected,
       },
+      laboratoryId: project.laboratoryId,
     });
     return study;
   });

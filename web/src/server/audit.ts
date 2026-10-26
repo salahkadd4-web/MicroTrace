@@ -11,6 +11,8 @@ export type AuditInput = {
   entityId: string;
   before?: Prisma.InputJsonValue;
   after?: Prisma.InputJsonValue;
+  /** Laboratoire de l'événement ; absent pour les événements de la plateforme. */
+  laboratoryId?: string | null;
 };
 
 /** Écrit un AuditEvent dans la transaction de l'appelant (journal en ajout seul). */
@@ -23,6 +25,7 @@ export async function recordAudit(tx: Tx, e: AuditInput): Promise<void> {
       entityId: e.entityId,
       before: e.before,
       after: e.after,
+      laboratoryId: e.laboratoryId ?? null,
     },
   });
 }

@@ -25,14 +25,17 @@ import {
 import { archiveStudy, createStudy } from "@/server/studies";
 import { createUser, type SessionUser } from "@/server/users";
 import { resetDb } from "../../../test/db-reset";
+import { makeLab } from "../../../test/labs";
 
 const validate = vi.mocked(engineClient.validateContext);
 const example = vi.mocked(engineClient.example);
 
 let actor: SessionUser;
+let lab: { id: string };
 
 beforeEach(async () => {
   await resetDb();
+  lab = await makeLab("Labo");
   validate.mockReset();
   validate.mockResolvedValue({} as never);
   example.mockReset();
@@ -48,7 +51,7 @@ const audits = (action: string) => prisma.auditEvent.findMany({ where: { action 
 const auditCount = () => prisma.auditEvent.count();
 
 async function newStudy(title = "E") {
-  const p = await createProject(actor, { title: "P" + title });
+  const p = await createProject(actor, { laboratoryId: lab.id, title: "P" + title });
   return createStudy(actor, p.id, { title, nature: "laboratory", blankCorrected: "unknown" });
 }
 

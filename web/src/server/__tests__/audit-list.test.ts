@@ -11,11 +11,14 @@ import { addMethod, removeDetectionLimit, upsertDetectionLimit } from "@/server/
 import { createStudy, declarePseudonymisation, getStudyView } from "@/server/studies";
 import { createUser, type SessionUser } from "@/server/users";
 import { resetDb } from "../../../test/db-reset";
+import { makeLab } from "../../../test/labs";
 
 let actor: SessionUser;
+let lab: { id: string };
 
 beforeEach(async () => {
   await resetDb();
+  lab = await makeLab("Labo");
   const u = await createUser({
     email: "a@example.org",
     name: "Alice Martin",
@@ -25,7 +28,7 @@ beforeEach(async () => {
 });
 
 async function newStudy(title: string, projectId?: string) {
-  const pid = projectId ?? (await createProject(actor, { title: "P" })).id;
+  const pid = projectId ?? (await createProject(actor, { laboratoryId: lab.id, title: "P" })).id;
   return createStudy(actor, pid, { title, nature: "laboratory", blankCorrected: "unknown" });
 }
 
@@ -71,7 +74,7 @@ describe("lecture des vues", () => {
   });
 
   it("getProject renvoie les études, la plus récente d'abord", async () => {
-    const project = await createProject(actor, { title: "P" });
+    const project = await createProject(actor, { laboratoryId: lab.id, title: "P" });
     await newStudy("Première", project.id);
     await newStudy("Seconde", project.id);
     const found = await getProject(project.id);

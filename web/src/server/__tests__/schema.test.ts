@@ -18,13 +18,14 @@ async function makeStudy() {
   const user = await prisma.user.create({
     data: { name: "Test", email: "t@example.org", passwordHash: "x" },
   });
+  const lab = await prisma.laboratory.create({ data: { name: "Labo", slug: "labo" } });
   const project = await prisma.project.create({
-    data: { title: "P", description: "", ownerId: user.id },
+    data: { title: "P", description: "", ownerId: user.id, laboratoryId: lab.id },
   });
   const study = await prisma.study.create({
-    data: { projectId: project.id, title: "E", nature: "simulated" },
+    data: { projectId: project.id, laboratoryId: lab.id, title: "E", nature: "simulated" },
   });
-  return { user, project, study };
+  return { user, lab, project, study };
 }
 
 beforeEach(async () => {
@@ -124,12 +125,12 @@ describe("déclencheur : autres chemins d'écriture", () => {
 
 describe("intégrité référentielle et import actif", () => {
   it("suppression d'une étude ou d'un projet avec enfants refusée", async () => {
-    const { study, project } = await makeStudy();
+    const { study, project, lab } = await makeStudy();
     await expect(
       prisma.study.delete({ where: { id: study.id } }),
     ).resolves.toBeDefined(); // sans enfant : possible en base
     const s2 = await prisma.study.create({
-      data: { projectId: project.id, title: "E2", nature: "simulated" },
+      data: { projectId: project.id, laboratoryId: lab.id, title: "E2", nature: "simulated" },
     });
     await prisma.method.create({
       data: { studyId: s2.id, name: "M", nameKey: "m", technique: "other" },
@@ -315,5 +316,57 @@ describe("cohérence des enums avec le moteur", () => {
     ["IdentificationStatus", IdentificationStatus, rec.identification_status.enum],
   ])("%s", (_n, prismaEnum, engine) => {
     expect(sorted(prismaEnum)).toEqual([...(engine as string[])].sort());
+  });
+});
+
+describe("multi-laboratoires (spec §11)", () => {
+  it("laboratoryId est obligatoire sur Project et Study", async () => {
+    const { user, project } = await makeStudy();
+    await expect(
+      prisma.$executeRawUnsafe(
+        `INSERT INTO "Project" (id, title, "ownerId") VALUES ('x', 'P', '${user.id}')`,
+      ),
+    ).rejects.toThrow();
+    await expect(
+      prisma.$executeRawUnsafe(
+        `INSERT INTO "Study" (id, "projectId", title, nature) VALUES ('y', '${project.id}', 'E', 'simulated')`,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it("clés étrangères RESTRICT : un laboratoire avec projets ou membres ne se supprime pas", async () => {
+    const { user, lab } = await makeStudy();
+    await prisma.membership.create({
+      data: { userId: user.id, laboratoryId: lab.id, role: "viewer" },
+    });
+    await expect(prisma.laboratory.delete({ where: { id: lab.id } })).rejects.toThrow();
+    await expect(prisma.user.delete({ where: { id: user.id } })).rejects.toThrow();
+  });
+
+  it("slug de laboratoire unique ; jeton d'invitation unique ; isPlatformAdmin faux par défaut", async () => {
+    const { user, lab } = await makeStudy();
+    await expect(
+      prisma.laboratory.create({ data: { name: "Autre", slug: "labo" } }),
+    ).rejects.toThrow();
+    expect(user.isPlatformAdmin).toBe(false);
+    const inv = {
+      laboratoryId: lab.id,
+      email: "x@example.org",
+      role: "viewer" as const,
+      tokenHash: "h",
+      invitedById: user.id,
+      expiresAt: new Date(),
+    };
+    await prisma.invitation.create({ data: inv });
+    await expect(prisma.invitation.create({ data: inv })).rejects.toThrow();
+  });
+
+  it("AuditEvent.laboratoryId est facultatif ; index sur laboratoryId", async () => {
+    await prisma.auditEvent.create({ data: { action: "a", entityType: "User", entityId: "1" } });
+    const rows = await prisma.$queryRaw<{ indexname: string }[]>`
+      SELECT indexname FROM pg_indexes WHERE schemaname = 'public'
+        AND indexname IN ('Project_laboratoryId_idx', 'Study_laboratoryId_idx',
+                          'AuditEvent_laboratoryId_idx', 'Membership_laboratoryId_idx')`;
+    expect(rows).toHaveLength(4);
   });
 });

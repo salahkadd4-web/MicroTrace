@@ -49,7 +49,11 @@ function askHidden(question: string): Promise<string> {
 
 async function main() {
   const { values } = parseArgs({
-    options: { email: { type: "string" }, name: { type: "string" } },
+    options: {
+      email: { type: "string" },
+      name: { type: "string" },
+      "platform-admin": { type: "boolean", default: false },
+    },
   });
   if (!values.email || !values.name) {
     console.error("Usage : npm run user:create -- --email <adresse> --name <nom>");
@@ -74,7 +78,12 @@ async function main() {
   const { createUser } = await import("../src/server/users");
   const { prisma } = await import("../src/server/db");
   try {
-    const user = await createUser({ email: values.email, name: values.name, password });
+    const user = await createUser({
+      email: values.email,
+      name: values.name,
+      password,
+      isPlatformAdmin: values["platform-admin"],
+    });
     console.log(`Utilisateur créé : ${user.email}`);
   } catch (e) {
     console.error(e instanceof Error ? e.message : String(e));

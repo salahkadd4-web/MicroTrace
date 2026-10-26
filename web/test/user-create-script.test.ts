@@ -25,6 +25,23 @@ describe("user:create", () => {
     expect(await prisma.auditEvent.count({ where: { action: "user.create" } })).toBe(1);
   }, 60000);
 
+  it("--platform-admin donne isPlatformAdmin, sinon faux", async () => {
+    const r = run("mot-de-passe-solide-1\nmot-de-passe-solide-1\n", [
+      "--email",
+      "root@example.org",
+      "--name",
+      "Root",
+      "--platform-admin",
+    ]);
+    expect(r.status, r.stderr).toBe(0);
+    const root = await prisma.user.findUniqueOrThrow({ where: { email: "root@example.org" } });
+    expect(root.isPlatformAdmin).toBe(true);
+    const r2 = run("mot-de-passe-solide-1\nmot-de-passe-solide-1\n");
+    expect(r2.status, r2.stderr).toBe(0);
+    const zoe = await prisma.user.findUniqueOrThrow({ where: { email: "zoe@example.org" } });
+    expect(zoe.isPlatformAdmin).toBe(false);
+  }, 120000);
+
   it("refuse deux mots de passe différents", async () => {
     const r = run("mot-de-passe-solide-1\nautre-mot-de-passe-2\n");
     expect(r.status).toBe(1);
