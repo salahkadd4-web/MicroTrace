@@ -52,4 +52,30 @@ describe("AppShell", () => {
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Projets" })).not.toBeInTheDocument();
   });
+
+  it("« Membres » seulement pour un responsable, « Console » seulement pour la plateforme", () => {
+    const { rerender } = render(
+      <AppShell userName="A" signOutAction={async () => {}} lab={{ slug: "alpha", name: "Alpha" }}>
+        x
+      </AppShell>,
+    );
+    expect(screen.queryByRole("link", { name: "Membres" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Console" })).not.toBeInTheDocument();
+    rerender(
+      <AppShell
+        userName="A"
+        signOutAction={async () => {}}
+        lab={{ slug: "alpha", name: "Alpha" }}
+        canManageMembers
+        isPlatformAdmin
+      >
+        x
+      </AppShell>,
+    );
+    expect(screen.getByRole("link", { name: "Membres" })).toHaveAttribute(
+      "href",
+      "/labo/alpha/membres",
+    );
+    expect(screen.getByRole("link", { name: "Console" })).toHaveAttribute("href", "/admin");
+  });
 });

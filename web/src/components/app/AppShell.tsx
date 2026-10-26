@@ -9,9 +9,15 @@ export function AppShell({
   signOutAction,
   lab,
   labs = [],
+  canManageMembers = false,
+  isPlatformAdmin = false,
   children,
 }: {
   userName: string;
+  /** Responsable du laboratoire courant : lien « Membres ». */
+  canManageMembers?: boolean;
+  /** Équipe de la plateforme : lien « Console ». */
+  isPlatformAdmin?: boolean;
   lab?: LabLink;
   /** Laboratoires de l'utilisateur : le sélecteur n'apparaît qu'à partir de deux. */
   labs?: LabLink[];
@@ -36,8 +42,24 @@ export function AppShell({
                   >
                     Projets
                   </Link>
+                  {canManageMembers ? (
+                    <Link
+                      href={`/labo/${lab.slug}/membres`}
+                      className="ml-4 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Membres
+                    </Link>
+                  ) : null}
                 </nav>
               </>
+            ) : null}
+            {isPlatformAdmin ? (
+              <Link
+                href="/admin"
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Console
+              </Link>
             ) : null}
             {lab && labs.length >= 2 ? (
               <nav aria-label="Laboratoires" className="flex gap-3 text-sm">

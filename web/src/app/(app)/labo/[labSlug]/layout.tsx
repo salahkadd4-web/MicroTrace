@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app/AppShell";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
 import { LabSuspendedError, requireLab } from "@/server/lab-context";
-import { listMyLaboratories } from "@/server/labs";
+import { isPlatformAdmin, listMyLaboratories } from "@/server/labs";
 import { requireUser } from "@/server/session";
 import { logout } from "../../actions";
 
@@ -55,6 +55,8 @@ export default async function LaboLayout({
       signOutAction={logout}
       lab={{ slug: lab.labSlug, name: lab.labName }}
       labs={labs.filter((l) => !l.suspended)}
+      canManageMembers={lab.role === "lab_admin"}
+      isPlatformAdmin={await isPlatformAdmin(user.id)}
     >
       {children}
     </AppShell>

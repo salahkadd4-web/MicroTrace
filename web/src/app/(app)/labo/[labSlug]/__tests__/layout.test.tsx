@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/lab-context", () => ({
@@ -8,11 +8,11 @@ vi.mock("@/server/lab-context", () => ({
 vi.mock("@/server/session", () => ({
   requireUser: vi.fn(async () => ({ id: "u1", name: "Alice", email: "a@example.org" })),
 }));
-vi.mock("@/server/labs", () => ({ listMyLaboratories: vi.fn() }));
+vi.mock("@/server/labs", () => ({ listMyLaboratories: vi.fn(), isPlatformAdmin: vi.fn(async () => false) }));
 vi.mock("../../../actions", () => ({ logout: vi.fn() }));
 
 import { LabSuspendedError, requireLab } from "@/server/lab-context";
-import { listMyLaboratories } from "@/server/labs";
+import { isPlatformAdmin, listMyLaboratories } from "@/server/labs";
 import LaboLayout from "../layout";
 
 const mine = (...slugs: string[]) =>
@@ -67,6 +67,26 @@ describe("layout /labo/[labSlug]", () => {
       "/labo/beta/projets",
     );
     expect(screen.queryByRole("link", { name: "Labo alpha" })).not.toBeInTheDocument();
+  });
+
+  it("« Membres » pour un responsable seulement, « Console » pour la plateforme seulement", async () => {
+    vi.mocked(listMyLaboratories).mockResolvedValue(mine("alpha"));
+    render(await LaboLayout({ ...props, children: <p>page</p> }));
+    expect(screen.queryByRole("link", { name: "Membres" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Console" })).not.toBeInTheDocument();
+    cleanup();
+    vi.mocked(requireLab).mockResolvedValue({
+      labSlug: "alpha",
+      labName: "Labo alpha",
+      role: "lab_admin",
+    } as never);
+    vi.mocked(isPlatformAdmin).mockResolvedValueOnce(true);
+    render(await LaboLayout({ ...props, children: <p>page</p> }));
+    expect(screen.getByRole("link", { name: "Membres" })).toHaveAttribute(
+      "href",
+      "/labo/alpha/membres",
+    );
+    expect(screen.getByRole("link", { name: "Console" })).toHaveAttribute("href", "/admin");
   });
 
   it("relance un 404 (non-membre) tel quel", async () => {

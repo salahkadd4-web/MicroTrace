@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -24,5 +24,16 @@ describe("LoginForm", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Identifiants invalides.");
     expect(alert.textContent).not.toMatch(/inconnu/i);
+  });
+});
+
+describe("page Connexion : avis après création de compte", () => {
+  it("affiche « Compte créé. Connectez-vous. » avec le drapeau, sinon rien", async () => {
+    const { default: ConnexionPage } = await import("../page");
+    render(await ConnexionPage({ searchParams: Promise.resolve({ compte: "cree" }) }));
+    expect(screen.getByText("Compte créé. Connectez-vous.")).toBeInTheDocument();
+    cleanup();
+    render(await ConnexionPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.queryByText("Compte créé. Connectez-vous.")).not.toBeInTheDocument();
   });
 });

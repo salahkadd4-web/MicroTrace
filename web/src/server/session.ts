@@ -16,3 +16,16 @@ export async function requireUser(): Promise<SessionUser> {
   if (!user || !user.active) redirect("/connexion");
   return { id: user.id, name: user.name, email: user.email };
 }
+
+/** Utilisateur de la session s'il y en a une valide ; sinon null (pages publiques). */
+export async function getOptionalUser(): Promise<SessionUser | null> {
+  const session = await auth();
+  const id = session?.user?.id;
+  if (!id) return null;
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { id: true, name: true, email: true, active: true },
+  });
+  if (!user || !user.active) return null;
+  return { id: user.id, name: user.name, email: user.email };
+}

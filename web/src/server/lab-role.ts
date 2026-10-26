@@ -13,3 +13,12 @@ const ROLE_MESSAGES: Record<LabRole, string> = {
 export function assertRole(ctx: { role: LabRole }, minRole: LabRole): void {
   if (RANK[ctx.role] < RANK[minRole]) throw new DomainError(ROLE_MESSAGES[minRole]);
 }
+
+const LAB_ROLES: readonly LabRole[] = ["lab_admin", "researcher", "viewer"];
+
+/** Rôle d'une liste fermée ; refus en français pour toute autre valeur. */
+export function parseLabRole(value: string): LabRole {
+  const role = LAB_ROLES.find((r) => r === value);
+  if (!role) throw new DomainError("Rôle invalide.");
+  return role;
+}

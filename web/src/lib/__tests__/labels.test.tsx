@@ -109,3 +109,30 @@ describe("audit-labels", () => {
     expect(auditObjectName({ entityType: "Study", before: null, after: { methodsCreated: 1 } })).toBeNull();
   });
 });
+
+describe("libellés d'audit des laboratoires, invitations et membres", () => {
+  it.each([
+    ["lab.create", "Laboratoire créé"],
+    ["lab.suspend", "Laboratoire suspendu"],
+    ["lab.reactivate", "Laboratoire réactivé"],
+    ["invitation.create", "Invitation créée"],
+    ["invitation.accept", "Invitation acceptée"],
+    ["invitation.revoke", "Invitation révoquée"],
+    ["member.role.change", "Rôle modifié"],
+    ["member.remove", "Membre retiré"],
+  ])("%s -> %s", (code, label) => {
+    expect(auditActionLabel(code)).toBe(label);
+  });
+
+  it("montre le rôle en français et l'adresse, jamais de jeton", () => {
+    const changes = diffChanges(
+      { email: "a@example.org", role: "researcher" },
+      { email: "a@example.org", role: "lab_admin" },
+    );
+    expect(changes).toEqual([{ field: "Rôle", before: "Chercheur", after: "Responsable" }]);
+    expect(
+      auditObjectName({ entityType: "Membership", before: { email: "a@example.org" }, after: null }),
+    ).toBe("a@example.org");
+    expect(entityTypeLabel("Invitation")).toBe("Invitation");
+  });
+});

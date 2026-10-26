@@ -2,6 +2,8 @@ import "server-only";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
+import { DomainError } from "@/server/errors";
+import type { Tx } from "@/server/audit";
 
 const COST = 12;
 const MAX_PASSWORD_BYTES = 72; // limite de bcrypt
@@ -18,57 +20,78 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** Forme d'une adresse e-mail (déjà normalisée) ; refus en français. */
+export function assertEmailShape(email: string): void {
+  if (email.length > MAX_EMAIL_LENGTH || !/^[^\s@]+@[^\s@]+$/.test(email))
+    throw new DomainError("Adresse e-mail invalide.");
+}
+
+export type PreparedUser = { email: string; name: string; passwordHash: string };
+
+/** Valide (forme seulement) et hache : à faire avant d'ouvrir une transaction (bcrypt est lent). */
+export async function prepareUser(input: {
+  email: string;
+  name: string;
+  password: string;
+}): Promise<PreparedUser> {
+  const email = normalizeEmail(input.email);
+  const name = input.name.trim();
+  assertEmailShape(email);
+  if (!name) throw new DomainError("Le nom est obligatoire.");
+  if (input.password.length < MIN_PASSWORD_LENGTH)
+    throw new DomainError(
+      `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`,
+    );
+  if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES)
+    throw new DomainError(
+      `Le mot de passe ne doit pas dépasser ${MAX_PASSWORD_BYTES} octets.`,
+    );
+  return { email, name, passwordHash: await bcrypt.hash(input.password, COST) };
+}
+
+/** Crée l'utilisateur et son audit `user.create` dans la transaction de l'appelant. */
+export async function createPreparedUser(
+  tx: Tx,
+  prepared: PreparedUser,
+  isPlatformAdmin = false,
+) {
+  const user = await tx.user.create({ data: { ...prepared, isPlatformAdmin } });
+  await tx.auditEvent.create({
+    data: {
+      actorId: user.id,
+      action: "user.create",
+      entityType: "User",
+      entityId: user.id,
+      after: {
+        email: user.email,
+        name: user.name,
+        active: user.active,
+        isPlatformAdmin: user.isPlatformAdmin,
+      },
+    },
+  });
+  return user;
+}
+
+export const EMAIL_TAKEN = "Cette adresse e-mail est déjà utilisée.";
+
+export function isUniqueViolation(e: unknown): boolean {
+  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+}
+
 export async function createUser(input: {
   email: string;
   name: string;
   password: string;
   isPlatformAdmin?: boolean;
 }) {
-  const email = normalizeEmail(input.email);
-  const name = input.name.trim();
-  if (!/^[^\s@]+@[^\s@]+$/.test(email))
-    throw new Error("Adresse e-mail invalide.");
-  if (!name) throw new Error("Le nom est obligatoire.");
-  if (input.password.length < MIN_PASSWORD_LENGTH)
-    throw new Error(
-      `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`,
-    );
-
-  if (Buffer.byteLength(input.password, "utf8") > MAX_PASSWORD_BYTES)
-    throw new Error(
-      `Le mot de passe ne doit pas dépasser ${MAX_PASSWORD_BYTES} octets.`,
-    );
-
-  const passwordHash = await bcrypt.hash(input.password, COST);
+  const prepared = await prepareUser(input);
   try {
-    return await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          email,
-          name,
-          passwordHash,
-          isPlatformAdmin: input.isPlatformAdmin ?? false,
-        },
-      });
-      await tx.auditEvent.create({
-        data: {
-          actorId: user.id,
-          action: "user.create",
-          entityType: "User",
-          entityId: user.id,
-          after: {
-            email: user.email,
-            name: user.name,
-            active: user.active,
-            isPlatformAdmin: user.isPlatformAdmin,
-          },
-        },
-      });
-      return user;
-    });
+    return await prisma.$transaction((tx) =>
+      createPreparedUser(tx, prepared, input.isPlatformAdmin ?? false),
+    );
   } catch (e) {
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
-      throw new Error("Cette adresse e-mail est déjà utilisée.");
+    if (isUniqueViolation(e)) throw new DomainError(EMAIL_TAKEN);
     throw e;
   }
 }

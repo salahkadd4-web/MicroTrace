@@ -8,7 +8,11 @@ const { auth } = NextAuth(() => authConfig());
 const guarded = auth((req) => {
   const { pathname, search } = req.nextUrl;
   const isPublic =
-    pathname === "/connexion" || pathname === "/api/auth" || pathname.startsWith("/api/auth/");
+    pathname === "/connexion" ||
+    pathname === "/api/auth" ||
+    pathname.startsWith("/api/auth/") ||
+    // Lien d'invitation à jeton : public, c'est le jeton qui fait foi (seul ce préfixe).
+    pathname.startsWith("/invitation/");
   if (isPublic || req.auth) return NextResponse.next();
   const url = new URL("/connexion", req.nextUrl);
   url.search = "";

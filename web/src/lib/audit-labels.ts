@@ -4,6 +4,7 @@ import {
   BLANK_CORRECTED_LABELS,
   NATURE_LABELS,
   QC_KIND_LABELS,
+  ROLE_LABELS,
   TECHNIQUE_LABELS,
   labelOf,
 } from "@/lib/labels";
@@ -22,6 +23,14 @@ const ACTION_LABELS: Record<string, string> = {
   "study.limit.remove": "Limite supprimée",
   "study.qc.add": "Contrôle qualité ajouté",
   "study.prefill.leslie3": "Préremplissage Leslie 2022 (Tableau 3)",
+  "lab.create": "Laboratoire créé",
+  "lab.suspend": "Laboratoire suspendu",
+  "lab.reactivate": "Laboratoire réactivé",
+  "invitation.create": "Invitation créée",
+  "invitation.accept": "Invitation acceptée",
+  "invitation.revoke": "Invitation révoquée",
+  "member.role.change": "Rôle modifié",
+  "member.remove": "Membre retiré",
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -31,6 +40,9 @@ const ENTITY_LABELS: Record<string, string> = {
   Method: "Méthode",
   DetectionLimit: "Limite de détection",
   QualityControlSummary: "Contrôle qualité",
+  Laboratory: "Laboratoire",
+  Invitation: "Invitation",
+  Membership: "Membre",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -61,6 +73,12 @@ const FIELD_LABELS: Record<string, string> = {
   methodsCreated: "Méthodes créées",
   limitsCreated: "Limites créées",
   ids: "Identifiants",
+  email: "Adresse e-mail",
+  role: "Rôle",
+  slug: "Adresse",
+  expiresAt: "Expire le",
+  revokedAt: "Révoquée le",
+  suspendedAt: "Suspendu le",
   id: "Identifiant",
 };
 
@@ -88,6 +106,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   blankCorrected: BLANK_CORRECTED_LABELS,
   technique: TECHNIQUE_LABELS,
   kind: QC_KIND_LABELS,
+  role: ROLE_LABELS,
 };
 
 const ABSENT = "—";
@@ -143,7 +162,11 @@ export function auditObjectName(
     case "Project":
       return str("title");
     case "Method":
+    case "Laboratory":
       return str("name");
+    case "Invitation":
+    case "Membership":
+      return str("email");
     case "DetectionLimit":
     case "QualityControlSummary": {
       const polymer = str("polymer");

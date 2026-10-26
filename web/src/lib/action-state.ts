@@ -6,4 +6,6 @@ export type ActionState = {
   error?: string;
   /** Erreurs de format par champ, affichées sous le champ. */
   fieldErrors?: Record<string, string>;
+  /** Lien d'invitation à usage unique, affiché une seule fois après la création. */
+  link?: string;
 };

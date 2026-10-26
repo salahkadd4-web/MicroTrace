@@ -12,6 +12,8 @@ vi.mock("@/server/engine/client", async (orig) => {
 });
 
 import * as auditModule from "@/server/audit";
+import * as invitationsModule from "@/server/invitations";
+import * as membersModule from "@/server/members";
 import { prisma } from "@/server/db";
 import { engineClient } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
@@ -23,6 +25,14 @@ import { resetDb } from "../../../test/db-reset";
 import { makeLab, makeMember } from "../../../test/labs";
 
 const { listAuditEvents } = auditModule;
+const { createInvitation } = invitationsModule;
+const {
+  changeMemberRole,
+  listMembers,
+  listPendingInvitations,
+  removeMember,
+  revokeInvitation,
+} = membersModule;
 const { createProject, getProject, listProjects } = projectsModule;
 const {
   archiveStudy,
@@ -43,6 +53,7 @@ const {
 } = settingsModule;
 
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
+const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";
 
 type Ids = {
@@ -50,6 +61,8 @@ type Ids = {
   study: string;
   method: string;
   limit: string;
+  member: string;
+  invitation: string;
 };
 
 type Outcome = { throws: string } | { returns: (r: unknown, ids: Ids) => void };
@@ -174,6 +187,42 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { returns: (r) => expect(r).toEqual([]) },
     },
   },
+  members: {
+    listMembers: {
+      run: (ctx) => listMembers(ctx),
+      outcome: {
+        returns: (r, ids) =>
+          expect((r as { id: string }[]).map((m) => m.id)).not.toContain(ids.member),
+      },
+    },
+    listPendingInvitations: {
+      run: (ctx) => listPendingInvitations(ctx),
+      outcome: {
+        returns: (r, ids) =>
+          expect((r as { id: string }[]).map((i) => i.id)).not.toContain(ids.invitation),
+      },
+    },
+    revokeInvitation: {
+      run: (ctx, ids) => revokeInvitation(ctx, ids.invitation),
+      outcome: { throws: "Invitation introuvable." },
+    },
+    changeMemberRole: {
+      run: (ctx, ids) => changeMemberRole(ctx, ids.member, "viewer"),
+      outcome: { throws: "Membre introuvable." },
+    },
+    removeMember: {
+      run: (ctx, ids) => removeMember(ctx, ids.member),
+      outcome: { throws: "Membre introuvable." },
+    },
+  },
+  invitations: {
+    createInvitation: {
+      run: (ctx) => createInvitation(ctx, { email: "invite@example.org", role: "viewer" }),
+      outcome: {
+        returns: (r) => expect(r).toMatchObject({ invitation: { email: "invite@example.org" } }),
+      },
+    },
+  },
 };
 
 /** Exports qui ne portent pas de donnée de laboratoire, avec la raison. */
@@ -189,6 +238,12 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
     recordAudit:
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
+  members: {},
+  invitations: {
+    acceptInvitation: "adressée par jeton secret, sans contexte de laboratoire (voir invitations-members)",
+    createFirstAdminInvitation: "réservée à l'équipe de la plateforme (voir invitations-members)",
+    previewInvitation: "lecture par jeton secret, sans contexte de laboratoire",
+  },
 };
 
 const MODULES: Record<string, Record<string, unknown>> = {
@@ -196,6 +251,8 @@ const MODULES: Record<string, Record<string, unknown>> = {
   studies: studiesModule,
   "study-settings": settingsModule,
   audit: auditModule,
+  members: membersModule,
+  invitations: invitationsModule,
 };
 
 /** Écritures d'un chercheur, pour le test du rôle viewer. */
@@ -219,7 +276,16 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
   };
 
+/** Écritures réservées aux responsables. */
+const ADMIN_WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> = {
+  createInvitation: (ctx) => createInvitation(ctx, { email: "v@example.org", role: "viewer" }),
+  revokeInvitation: (ctx, ids) => revokeInvitation(ctx, ids.invitation),
+  changeMemberRole: (ctx, ids) => changeMemberRole(ctx, ids.member, "viewer"),
+  removeMember: (ctx, ids) => removeMember(ctx, ids.member),
+};
+
 let ctxA: LabContext;
+let researcherA: LabContext;
 let viewerA: LabContext;
 let ctxB: LabContext;
 let idsA: Ids;
@@ -247,11 +313,25 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     polymer: "PS",
   });
   await removeDetectionLimit(ctx, removed.id);
+  const member = await makeMember(
+    { id: ctx.laboratoryId, slug: ctx.labSlug, name: ctx.labName },
+    "researcher",
+    `membre-${tag}@example.org`,
+  );
+  const membership = await prisma.membership.findFirstOrThrow({
+    where: { userId: member.userId },
+  });
+  const invitation = await createInvitation(ctx, {
+    email: `invite-${tag}@example.org`,
+    role: "viewer",
+  });
   return {
     project: project.id,
     study: study.id,
     method: method.id,
     limit: limit.id,
+    member: membership.id,
+    invitation: invitation.invitation.id,
   };
 }
 
@@ -263,9 +343,10 @@ beforeEach(async () => {
   } as never);
   const labA = await makeLab("Labo A", "labo-a");
   const labB = await makeLab("Labo B", "labo-b");
-  ctxA = await makeMember(labA, "researcher", "a@example.org");
+  ctxA = await makeMember(labA, "lab_admin", "a@example.org");
+  researcherA = await makeMember(labA, "researcher", "ra@example.org");
   viewerA = await makeMember(labA, "viewer", "va@example.org");
-  ctxB = await makeMember(labB, "researcher", "b@example.org");
+  ctxB = await makeMember(labB, "lab_admin", "b@example.org");
   idsA = await seed(ctxA, "A");
   idsB = await seed(ctxB, "B");
 });
@@ -281,6 +362,8 @@ async function fullSnapshot() {
       orderBy: { id: "asc" },
     }),
     audits: await prisma.auditEvent.findMany({ orderBy: { id: "asc" } }),
+    memberships: await prisma.membership.findMany({ orderBy: { id: "asc" } }),
+    invitations: await prisma.invitation.findMany({ orderBy: { id: "asc" } }),
   });
 }
 
@@ -312,6 +395,14 @@ async function snapshotOfB() {
       where: { laboratoryId: ctxB.laboratoryId },
       orderBy: { id: "asc" },
     }),
+    memberships: await prisma.membership.findMany({
+      where: study,
+      orderBy: { id: "asc" },
+    }),
+    invitations: await prisma.invitation.findMany({
+      where: study,
+      orderBy: { id: "asc" },
+    }),
   });
 }
 
@@ -328,13 +419,15 @@ describe("couverture : chaque fonction exportée des services est testée", () =
 describe("un membre de A sur les objets de B", () => {
   for (const [moduleName, cases] of Object.entries(CASES)) {
     for (const [fn, c] of Object.entries(cases)) {
-      if (fn === "createProject") continue; // pas d'objet de B en entrée : voir « création »
+      if (fn === "createProject" || fn === "createInvitation") continue; // pas d'objet de B en entrée : voir « création »
       it(`${moduleName}.${fn} : même réponse que pour un identifiant inexistant, B inchangé`, async () => {
         const missing: Ids = {
           project: MISSING,
           study: MISSING,
           method: MISSING,
           limit: MISSING,
+          member: MISSING,
+          invitation: MISSING,
         };
         const before = await fullSnapshot();
         const attempt = async (ids: Ids) => {
@@ -428,7 +521,7 @@ describe("création et lectures dans son propre laboratoire", () => {
       const n = await prisma.auditEvent.count({
         where: { laboratoryId: ctx.laboratoryId },
       });
-      expect(n).toBe(7); // projet, étude, méthode, 2 limites (upsert), qc, retrait
+      expect(n).toBe(8); // projet, étude, méthode, 2 limites (upsert), qc, retrait, invitation
     }
   });
 
@@ -519,6 +612,20 @@ describe("un viewer de A", () => {
     });
   }
 
+  for (const [fn, write] of Object.entries(ADMIN_WRITES)) {
+    it(`${fn} : refusé au lecteur et au chercheur, sans aucune écriture`, async () => {
+      const before = await fullSnapshot();
+      await expect(write(viewerA, idsA)).rejects.toThrow(FORBIDDEN_ADMIN);
+      await expect(write(researcherA, idsA)).rejects.toThrow(FORBIDDEN_ADMIN);
+      expect(await fullSnapshot()).toBe(before);
+    });
+  }
+
+  it("la gestion des membres lui est fermée, même en lecture", async () => {
+    await expect(listMembers(viewerA)).rejects.toThrow(FORBIDDEN_ADMIN);
+    await expect(listPendingInvitations(researcherA)).rejects.toThrow(FORBIDDEN_ADMIN);
+  });
+
   it("couvre toutes les écritures des services", () => {
     const readers = new Set([
       "listProjects",
@@ -528,12 +635,16 @@ describe("un viewer de A", () => {
       "getStudyView",
       "loadWritable",
       "listAuditEvents",
+      "listMembers",
+      "listPendingInvitations",
     ]);
     const exported = Object.entries(CASES).flatMap(([, cases]) =>
       Object.keys(cases),
     );
     const writers = exported.filter((f) => !readers.has(f));
-    expect(Object.keys(WRITES).sort()).toEqual(writers.sort());
+    expect([...Object.keys(WRITES), ...Object.keys(ADMIN_WRITES)].sort()).toEqual(
+      writers.sort(),
+    );
   });
 
   it("lit tout dans son laboratoire", async () => {

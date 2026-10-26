@@ -27,6 +27,12 @@ export const QC_KIND_LABELS: Record<(typeof QC_KINDS)[number], string> = {
   spiked: "Échantillon dopé",
 };
 
+export const ROLE_LABELS: Record<"lab_admin" | "researcher" | "viewer", string> = {
+  lab_admin: "Responsable",
+  researcher: "Chercheur",
+  viewer: "Lecteur",
+};
+
 /** Libellé d'une valeur de liste ; un code inconnu est montré tel quel. */
 export function labelOf(labels: Record<string, string>, code: string): string {
   return labels[code] ?? code;
