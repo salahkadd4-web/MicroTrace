@@ -296,6 +296,9 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   },
   "study-settings": {},
   imports: {
+    INSERT_BATCH_SIZE: "constante",
+    MAX_IMPORT_RECORDS: "constante",
+    saveTxOptions: "assistant pur (délai de transaction), sans accès à la base",
     measurementRow: "assistant pur (record du moteur -> colonnes), sans accès à la base",
   },
   audit: {

@@ -30,7 +30,10 @@ import {
 } from "@/server/engine/client";
 import type { LabContext } from "@/server/lab-context";
 import { putStaging } from "@/server/file-store";
+import { formatNumberFr } from "@/components/app/NumberFr";
 import {
+  INSERT_BATCH_SIZE,
+  MAX_IMPORT_RECORDS,
   checkStagedImport,
   existingKeys,
   getImport,
@@ -577,5 +580,137 @@ describe("listImports, getImport et journal", () => {
     expect(actions).toEqual(
       expect.arrayContaining(["import.create", "import.retire", "import.refused_pii"]),
     );
+  });
+});
+
+/** Enveloppe `prisma.$transaction` pour observer ou perturber le client de la transaction. */
+function wrapTx(
+  wrap: (tx: any) => any, // eslint-disable-line @typescript-eslint/no-explicit-any
+  onError?: (e: unknown) => void,
+) {
+  const original = prisma.$transaction.bind(prisma) as (
+    fn: (tx: unknown) => Promise<unknown>,
+    opts?: unknown,
+  ) => Promise<unknown>;
+  return vi
+    .spyOn(prisma, "$transaction")
+    .mockImplementation(((fn: unknown, opts: unknown) => {
+      if (typeof fn !== "function") return original(fn as never, opts);
+      return original((tx) => (fn as (t: unknown) => Promise<unknown>)(wrap(tx)), opts).catch(
+        (e: unknown) => {
+          onError?.(e);
+          throw e;
+        },
+      );
+    }) as never);
+}
+
+describe("gros imports", () => {
+  it("20 000 mesures sont enregistrées par tranches (jamais plus de INSERT_BATCH_SIZE lignes)", async () => {
+    const records = Array.from({ length: 20_000 }, (_, i) => ({
+      ...RECORD,
+      sample_id: `S${i}`,
+      source_row: i,
+    }));
+    check.mockResolvedValue(result({ records, qc_records: [] }));
+    const sizes: number[] = [];
+    const spy = wrapTx((tx) => ({
+      ...tx,
+      measurement: {
+        createMany: (args: { data: unknown[] }) => {
+          sizes.push(args.data.length);
+          return tx.measurement.createMany(args);
+        },
+      },
+    }));
+    const { token } = await stage();
+    await saveImport(ctx, studyId, input(token));
+    spy.mockRestore();
+    expect(await prisma.measurement.count()).toBe(20_000);
+    expect(Math.max(...sizes)).toBe(INSERT_BATCH_SIZE);
+    expect(sizes.length).toBe(20_000 / INSERT_BATCH_SIZE);
+  }, 120_000);
+
+  it("au-delà du plafond : refus avant tout stockage, dépôt effacé, rien d'écrit", async () => {
+    const records = Array.from({ length: MAX_IMPORT_RECORDS + 1 }, () => RECORD);
+    check.mockResolvedValue(result({ records, qc_records: [] }));
+    const { token } = await stage();
+    await expect(saveImport(ctx, studyId, input(token))).rejects.toThrow(
+      `Import trop volumineux : ${formatNumberFr(MAX_IMPORT_RECORDS + 1)} mesures (maximum ${formatNumberFr(MAX_IMPORT_RECORDS)}).`,
+    );
+    expect(storedFiles()).toEqual([]);
+    expect(stagingFiles()).toEqual([]);
+    expect(await prisma.dataFile.count()).toBe(0);
+    expect(await prisma.importRun.count()).toBe(0);
+  });
+});
+
+describe("doublon : index partiel et erreurs inattendues", () => {
+  it("deux jetons du même contenu après un retrait, en course dans la transaction : un succès, doublon, contrainte de l'index partiel", async () => {
+    const first = await stage();
+    const { importRunId } = await saveImport(ctx, studyId, input(first.token));
+    await retireImport(ctx, importRunId, "m");
+    const a = await stage();
+    const b = await stage();
+    let arrived = 0;
+    let release!: () => void;
+    const both = new Promise<void>((r) => (release = r));
+    const errors: unknown[] = [];
+    const spy = wrapTx(
+      (tx) => ({
+        ...tx,
+        importRun: {
+          ...tx.importRun,
+          create: tx.importRun.create.bind(tx.importRun),
+          findFirst: async (args: unknown) => {
+            const found = await tx.importRun.findFirst(args);
+            // Les deux transactions ont constaté l'absence d'import actif avant de créer.
+            if (++arrived === 2) release();
+            await both;
+            return found;
+          },
+        },
+      }),
+      (e) => errors.push(e),
+    );
+    const out = await Promise.allSettled([
+      saveImport(ctx, studyId, input(a.token)),
+      saveImport(ctx, studyId, input(b.token)),
+    ]);
+    spy.mockRestore();
+    expect(out.filter((o) => o.status === "fulfilled")).toHaveLength(1);
+    const ko = out.find((o): o is PromiseRejectedResult => o.status === "rejected")!;
+    expect((ko.reason as Error).message).toBe(
+      "Ce fichier a déjà un import actif dans cette étude.",
+    );
+    const meta = (errors[0] as { meta?: { driverAdapterError?: { cause?: { constraint?: { index?: string } } } } }).meta;
+    expect(meta?.driverAdapterError?.cause?.constraint?.index).toBe(
+      "ImportRun_one_active_per_file",
+    );
+    expect(await prisma.importRun.count({ where: { status: "active" } })).toBe(1);
+  });
+
+  it("une erreur inattendue de la base ne laisse sortir aucune valeur", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const spy = wrapTx((tx) => ({
+      ...tx,
+      measurement: {
+        createMany: () => {
+          throw new Error("Invalid value SECRET-CELL-VALUE for column");
+        },
+      },
+    }));
+    const { token } = await stage();
+    const error = await saveImport(ctx, studyId, input(token)).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+    spy.mockRestore();
+    expect(error?.message).toBe("Échec de l'enregistrement de l'import.");
+    expect(JSON.stringify(error)).not.toContain("SECRET");
+    expect(JSON.stringify(logged.mock.calls)).not.toContain("SECRET");
+    logged.mockRestore();
+    expect(await prisma.importRun.count()).toBe(0);
+    expect(stagingFiles()).not.toEqual([]);
   });
 });

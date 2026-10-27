@@ -2,7 +2,10 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/server/db";
 import { recordAudit } from "@/server/audit";
+import { formatNumberFr } from "@/components/app/NumberFr";
 import {
+  EngineError,
+  EngineUnavailableError,
   engineClient,
   type ExistingKey,
   type ImportResult,
@@ -74,7 +77,25 @@ export function measurementRow(record: MeasurementRecord): MeasurementColumns {
 const PII_CODES: ReadonlySet<string> = new Set(["E_PII_COLUMN", "E_PII_VALUE"]);
 const PII_REFUSED = "Import refusé : le fichier contient des données personnelles.";
 const DUPLICATE = "Ce fichier a déjà un import actif dans cette étude.";
-const SAVE_TX_OPTIONS = { maxWait: 10_000, timeout: 60_000 } as const;
+/** Plafond de mesures (échantillons + contrôles qualité) par import. */
+export const MAX_IMPORT_RECORDS = 100_000;
+/** Taille des tranches d'insertion (dans la même transaction). */
+export const INSERT_BATCH_SIZE = 1_000;
+const SAVE_FAILED = "Échec de l'enregistrement de l'import.";
+/** Contraintes dont la violation signifie « fichier déjà importé ». */
+const DUPLICATE_CONSTRAINTS = new Set([
+  "ImportRun_one_active_per_file",
+  "DataFile_studyId_sha256_key",
+]);
+
+/** Délai de la transaction d'enregistrement : 30 s plus un budget par mesure. */
+export function saveTxOptions(records: number) {
+  return { maxWait: 10_000, timeout: 30_000 + records * 2 } as const;
+}
+
+function* slices<T>(rows: T[], size: number): Generator<T[]> {
+  for (let i = 0; i < rows.length; i += size) yield rows.slice(i, i + size);
+}
 
 function owner(ctx: LabContext, studyId: string): StagingOwner {
   return { userId: ctx.userId, laboratoryId: ctx.laboratoryId, studyId };
@@ -206,8 +227,20 @@ export async function checkStagedImport(
 
 export type SaveInput = CheckInput & { acceptWarnings: boolean };
 
-function isUniqueViolation(e: unknown): boolean {
-  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+/** Nom de la contrainte violée (P2002), selon la forme d'erreur de Prisma 7 + adapter-pg. */
+function violatedConstraint(e: unknown): string | null {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError) || e.code !== "P2002") {
+    return null;
+  }
+  const meta = e.meta as
+    | {
+        driverAdapterError?: { cause?: { constraint?: { index?: string } } };
+        target?: unknown;
+      }
+    | undefined;
+  const index = meta?.driverAdapterError?.cause?.constraint?.index;
+  if (typeof index === "string") return index;
+  return typeof meta?.target === "string" ? meta.target : null;
 }
 
 export async function saveImport(
@@ -226,6 +259,13 @@ export async function saveImport(
   const hasWarnings = result.counts.warning > 0;
   if (hasWarnings && !input.acceptWarnings) {
     throw new DomainError("Acceptez les avertissements pour enregistrer.");
+  }
+  const total = result.records.length + result.qc_records.length;
+  if (total > MAX_IMPORT_RECORDS) {
+    await deleteStaging(input.token);
+    throw new DomainError(
+      `Import trop volumineux : ${formatNumberFr(total)} mesures (maximum ${formatNumberFr(MAX_IMPORT_RECORDS)}).`,
+    );
   }
   const storagePath = await storeFile(staged.sha256, staged.bytes);
 
@@ -275,20 +315,24 @@ export async function saveImport(
           createdById: ctx.userId,
         },
       });
-      await tx.measurement.createMany({
-        data: result.records.map((r) => ({
-          ...measurementRow(r),
-          importRunId: run.id,
-          studyId,
-        })),
-      });
-      await tx.qcMeasurement.createMany({
-        data: result.qc_records.map((r) => ({
-          ...measurementRow(r),
-          importRunId: run.id,
-          studyId,
-        })),
-      });
+      for (const slice of slices(result.records, INSERT_BATCH_SIZE)) {
+        await tx.measurement.createMany({
+          data: slice.map((r) => ({
+            ...measurementRow(r),
+            importRunId: run.id,
+            studyId,
+          })),
+        });
+      }
+      for (const slice of slices(result.qc_records, INSERT_BATCH_SIZE)) {
+        await tx.qcMeasurement.createMany({
+          data: slice.map((r) => ({
+            ...measurementRow(r),
+            importRunId: run.id,
+            studyId,
+          })),
+        });
+      }
       await recordAudit(tx, {
         actorId: ctx.userId,
         action: "import.create",
@@ -305,12 +349,30 @@ export async function saveImport(
         },
       });
       return run.id;
-    }, SAVE_TX_OPTIONS);
+    }, saveTxOptions(total));
   } catch (e) {
-    if (isUniqueViolation(e)) throw new DomainError(DUPLICATE);
-    throw e;
+    const constraint = violatedConstraint(e);
+    if (constraint && DUPLICATE_CONSTRAINTS.has(constraint)) {
+      throw new DomainError(DUPLICATE);
+    }
+    if (e instanceof DomainError || e instanceof EngineError || e instanceof EngineUnavailableError) {
+      throw e;
+    }
+    // Les erreurs de Prisma peuvent citer des valeurs de mesure : jamais exposées ni journalisées.
+    console.error(
+      "Échec de l'enregistrement d'un import :",
+      e instanceof Error ? e.name : typeof e,
+      (e as { code?: unknown } | null)?.code ?? "",
+    );
+    const failure = new DomainError(SAVE_FAILED);
+    Object.defineProperty(failure, "cause", { value: e, enumerable: false });
+    throw failure;
   }
-  await deleteStaging(input.token);
+  try {
+    await deleteStaging(input.token);
+  } catch {
+    // purgé au plus tard après 24 h
+  }
   return { importRunId };
 }
 
