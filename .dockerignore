@@ -14,3 +14,10 @@ web/
 **/node_modules
 var/
 .env*
+web/node_modules
+web/.next
+web/test-results
+web/coverage
+**/.env*
+!**/.env.example
+models

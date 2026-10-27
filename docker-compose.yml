@@ -1,0 +1,100 @@
+name: microtrace
+
+x-web-build: &web-build
+  context: ./web
+  target: builder
+
+services:
+  db:
+    image: postgres:17.6-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: microtrace
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Exécutez d’abord node scripts/generate-secrets.mjs}"
+      POSTGRES_DB: microtrace
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U microtrace -d microtrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    networks: [internal]
+
+  engine:
+    build:
+      context: .
+      dockerfile: engine/Dockerfile
+    restart: unless-stopped
+    environment:
+      ENGINE_SECRET: "${ENGINE_SECRET:?Exécutez d’abord node scripts/generate-secrets.mjs}"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).status == 200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks: [internal]
+
+  # Applique les migrations de base de données, puis s'arrête (web attend qu'il ait réussi).
+  migrate:
+    build: *web-build
+    image: microtrace-web-tools
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://microtrace:${POSTGRES_PASSWORD}@db:5432/microtrace
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+
+  web:
+    build:
+      context: ./web
+      target: runner
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://microtrace:${POSTGRES_PASSWORD}@db:5432/microtrace
+      ENGINE_URL: http://engine:8001
+      ENGINE_SECRET: "${ENGINE_SECRET:?Exécutez d’abord node scripts/generate-secrets.mjs}"
+      AUTH_SECRET: "${AUTH_SECRET:?Exécutez d’abord node scripts/generate-secrets.mjs}"
+      AUTH_TRUST_HOST: "true"
+      AUTH_URL: ${APP_URL:-http://localhost:3000}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      engine:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/connexion').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+    networks: [internal, public]
+
+  # Outil ponctuel : docker compose run --rm tools npm run user:create -- --email … --name …
+  tools:
+    build: *web-build
+    image: microtrace-web-tools
+    profiles: [tools]
+    environment:
+      DATABASE_URL: postgresql://microtrace:${POSTGRES_PASSWORD}@db:5432/microtrace
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+
+volumes:
+  db-data:
+
+networks:
+  # Réseau sans accès extérieur : base de données et moteur ne sont joignables que par web.
+  internal:
+    internal: true
+  public:
