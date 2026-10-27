@@ -63,6 +63,7 @@ services:
       AUTH_TRUST_HOST: "true"
       AUTH_URL: ${APP_URL:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
+      MICROTRACE_VAR_DIR: /app/var
     # Fichiers de données téléversés (C3) : volume nommé, distinct de la base.
     volumes:
       - files-data:/app/var

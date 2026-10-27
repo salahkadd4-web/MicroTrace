@@ -53,6 +53,7 @@ describe("docker-compose.yml", () => {
   it("volume nommé files-data monté sur /app/var dans web, dossier créé par le Dockerfile", () => {
     expect(compose.services.web.volumes).toEqual(["files-data:/app/var"]);
     expect(Object.keys(compose.volumes)).toContain("files-data");
+    expect(compose.services.web.environment?.MICROTRACE_VAR_DIR).toBe("/app/var");
     const dockerfile = readFileSync(join(__dirname, "..", "Dockerfile"), "utf8");
     expect(dockerfile).toMatch(/mkdir -p \/app\/var && chown web:web \/app\/var/);
   });

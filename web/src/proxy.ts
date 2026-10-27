@@ -1,5 +1,9 @@
 import NextAuth from "next-auth";
-import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
+import {
+  type NextFetchEvent,
+  type NextRequest,
+  NextResponse,
+} from "next/server";
 import { authConfig } from "@/auth.config";
 
 const { auth } = NextAuth(() => authConfig());
@@ -28,6 +32,11 @@ export async function proxy(req: NextRequest, ev: NextFetchEvent) {
   return handler(req, ev);
 }
 
+// La route de dépôt de fichiers (jusqu'à 50 Mo) est exclue : un corps qui traverse le proxy est
+// mis en mémoire tampon et tronqué au-delà de 10 Mo par défaut. Cette route authentifie elle-même
+// (requireLab, avant toute lecture du corps) et répond 401 JSON sans session.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$).*)",
+  ],
 };
