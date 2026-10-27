@@ -8,7 +8,13 @@ let re: RegExp;
 beforeAll(async () => {
   process.env.AUTH_SECRET = "secret-de-test-pour-le-proxy-0123456789";
   const { config } = await import("@/proxy");
-  re = new RegExp(`^${config.matcher[0]}[/#?]?$`);
+  // Forme compilée par Next (voir .next/server/functions-config-manifest.json) : préfixe de
+  // données, motif, suffixes .json/.rsc/.segments, barre finale facultative.
+  const m = config.matcher[0];
+  const inner = m.slice(2, -1).replace(/\//g, "\/");
+  re = new RegExp(
+    `^(?:\/(_next\/data\/[^/]{1,}))?(?:\/(${inner}))(\.json|\.rsc|\.segments\/.+\.segment\.rsc)?[\/#\?]?$`,
+  );
 });
 
 // Équivalent de la compilation du matcher par Next (path-to-regexp) pour ce motif.
@@ -20,6 +26,10 @@ describe("matcher du proxy", () => {
   it.each([
     "/labo/mon-labo/etudes/abc123/imports",
     "/labo/mon-labo/etudes/abc123/imports/upload/autre",
+    "/labo/mon-labo/etudes/abc123/imports/upload/",
+    "/labo/mon-labo/etudes/abc123/imports/upload.rsc",
+    "/LABO/mon-labo/etudes/abc123/imports/upload",
+    "/labo/mon-labo/etudes/abc123/imports/upload/x",
     "/labo/mon-labo",
     "/connexion",
     "/",

@@ -1,4 +1,10 @@
-import { EngineError, EngineUnavailableError, engineClient } from "@/server/engine/client";
+import busboy from "busboy";
+import { Readable } from "node:stream";
+import {
+  EngineError,
+  EngineUnavailableError,
+  engineClient,
+} from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import { putStaging } from "@/server/file-store";
 import { requireLab } from "@/server/lab-context";
@@ -17,25 +23,84 @@ const TOO_BIG = "Fichier trop volumineux (50 Mo maximum).";
 const ARCHIVED = "Étude archivée : lecture seule.";
 const UNEXPECTED = "Une erreur inattendue est survenue.";
 
-const fail = (error: string, status: number) => Response.json({ error }, { status });
+const fail = (error: string, status: number) =>
+  Response.json({ error }, { status });
 
-/** Lit le corps en comptant les octets ; s'arrête dès que la limite est dépassée. */
-async function readBounded(request: Request, limit: number): Promise<Buffer | null> {
-  if (!request.body) return Buffer.alloc(0);
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > limit) {
-      await reader.cancel().catch(() => undefined);
-      return null;
+type Parsed =
+  | {
+      kind: "ok";
+      name: string;
+      type: string;
+      bytes: Buffer;
+      sheet: string | null;
     }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks);
+  | { kind: "too_big" }
+  | { kind: "invalid" };
+
+/**
+ * Analyse le multipart en flux : seule la partie « file » est conservée, dans un unique tampon
+ * borné ; la lecture s'interrompt dès qu'une limite est franchie.
+ */
+function parseUpload(request: Request, contentType: string): Promise<Parsed> {
+  return new Promise((resolve) => {
+    if (!request.body) return resolve({ kind: "invalid" });
+    let total = 0;
+    const counter = new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        total += chunk.byteLength;
+        if (total > MAX_REQUEST_BYTES) controller.error(new Error("limite"));
+        else controller.enqueue(chunk);
+      },
+    });
+    const source = Readable.fromWeb(request.body.pipeThrough(counter) as never);
+    let bb: ReturnType<typeof busboy>;
+    try {
+      bb = busboy({
+        headers: { "content-type": contentType },
+        defParamCharset: "utf8",
+        // busboy signale « limit » dès que la taille atteint la limite : +1 accepte exactement 50 Mo.
+        limits: { fileSize: MAX_BYTES + 1, files: 1, fields: 5, fieldSize: 1024 },
+      });
+    } catch {
+      source.destroy();
+      return resolve({ kind: "invalid" });
+    }
+    let done = false;
+    const finish = (r: Parsed) => {
+      if (done) return;
+      done = true;
+      source.destroy();
+      resolve(r);
+    };
+    let sheet: string | null = null;
+    let file: { name: string; type: string; chunks: Buffer[] } | null = null;
+    bb.on("field", (name, value) => {
+      if (name === "sheet" && value.trim()) sheet = value;
+    });
+    bb.on("file", (name, stream, info) => {
+      if (name !== "file" || file) return void stream.resume();
+      const current = {
+        name: info.filename ?? "fichier",
+        type: info.mimeType,
+        chunks: [] as Buffer[],
+      };
+      file = current;
+      stream.on("data", (c: Buffer) => current.chunks.push(c));
+      stream.on("limit", () => finish({ kind: "too_big" }));
+    });
+    bb.on("close", () => {
+      if (!file) return finish({ kind: "invalid" });
+      const bytes = Buffer.concat(file.chunks);
+      finish({ kind: "ok", name: file.name, type: file.type, bytes, sheet });
+    });
+    bb.on("error", () => finish({ kind: "invalid" }));
+    source.on("error", () =>
+      finish(
+        total > MAX_REQUEST_BYTES ? { kind: "too_big" } : { kind: "invalid" },
+      ),
+    );
+    source.pipe(bb);
+  });
 }
 
 function digestOf(e: unknown): string {
@@ -57,7 +122,8 @@ export async function POST(
       ctx = await requireLab(labSlug, "researcher");
     } catch (e) {
       const digest = digestOf(e);
-      if (digest.startsWith("NEXT_REDIRECT")) return fail("Authentification requise.", 401);
+      if (digest.startsWith("NEXT_REDIRECT"))
+        return fail("Authentification requise.", 401);
       if (digest.includes("404")) return fail("Introuvable.", 404);
       throw e;
     }
@@ -70,38 +136,37 @@ export async function POST(
     assertWritable(study);
 
     const declared = Number(request.headers.get("content-length"));
-    if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) return fail(TOO_BIG, 413);
+    if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES)
+      return fail(TOO_BIG, 413);
 
     const contentType = request.headers.get("content-type") ?? "";
     if (!contentType.toLowerCase().startsWith("multipart/form-data")) {
       return fail("Requête invalide.", 400);
     }
-    const body = await readBounded(request, MAX_REQUEST_BYTES);
-    if (!body) return fail(TOO_BIG, 413);
-
-    let form: FormData;
-    try {
-      form = await new Response(new Uint8Array(body), {
-        headers: { "content-type": contentType },
-      }).formData();
-    } catch {
-      return fail("Requête invalide.", 400);
+    const parsed = await parseUpload(request, contentType);
+    if (parsed.kind === "too_big") return fail(TOO_BIG, 413);
+    if (parsed.kind === "invalid" || parsed.bytes.length === 0) {
+      return fail("Aucun fichier reçu.", 400);
     }
-    const file = form.get("file");
-    if (!(file instanceof File) || file.size === 0) return fail("Aucun fichier reçu.", 400);
-    if (file.size > MAX_BYTES) return fail(TOO_BIG, 413);
-    const sheetField = form.get("sheet");
-    const sheet = typeof sheetField === "string" && sheetField.trim() ? sheetField : null;
+    const { name, type, sheet } = parsed;
+    const bytes = new Uint8Array(
+      parsed.bytes.buffer,
+      parsed.bytes.byteOffset,
+      parsed.bytes.length,
+    ) as Uint8Array<ArrayBuffer>;
 
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const table = await engineClient.readTable({ data: bytes, filename: file.name }, sheet);
+    const table = await engineClient.readTable(
+      { data: bytes, filename: name },
+      sheet,
+    );
     const { token } = await putStaging(
       { userId: ctx.userId, laboratoryId: ctx.laboratoryId, studyId },
-      { name: file.name, type: file.type, bytes },
+      { name, type, bytes },
     );
     return Response.json({ token, table });
   } catch (e) {
-    if (e instanceof DomainError) return fail(e.message, e.message === ARCHIVED ? 409 : 403);
+    if (e instanceof DomainError)
+      return fail(e.message, e.message === ARCHIVED ? 409 : 403);
     if (e instanceof EngineUnavailableError) {
       return fail("Le moteur d'analyse est indisponible.", 503);
     }
@@ -109,7 +174,10 @@ export async function POST(
       return fail(e.detail, e.status);
     }
     // Journal sans contenu : ni message (qui peut citer le fichier), ni nom de fichier, ni jeton.
-    console.error("[import/upload] erreur inattendue :", e instanceof Error ? e.name : typeof e);
+    console.error(
+      "[import/upload] erreur inattendue :",
+      e instanceof Error ? e.name : typeof e,
+    );
     return fail(UNEXPECTED, 500);
   }
 }

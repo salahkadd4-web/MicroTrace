@@ -219,11 +219,12 @@ describe("POST imports/upload", () => {
     expect(stagingFiles()).toEqual([]);
   });
 
-  it("moteur indisponible : 503", async () => {
+  it("moteur indisponible : 503, aucun dépôt", async () => {
     await setup("researcher");
     readTable.mockRejectedValue(new EngineUnavailableError());
     const res = await call(req(new Uint8Array([1])));
     expect(res.status).toBe(503);
+    expect(stagingFiles()).toEqual([]);
     expect(await res.json()).toEqual({
       error: "Le moteur d'analyse est indisponible.",
     });
@@ -259,5 +260,109 @@ describe("POST imports/upload", () => {
     expect(sha(readFileSync(path.join(dir, "staging", `${token}.bin`)))).toBe(
       sha(big),
     );
+  });
+});
+
+/** Corps en flux dont on compte les tirages : prouve que rien n'est lu avant l'autorisation. */
+function countedRequest() {
+  const state = { pulled: 0 };
+  const chunk = new Uint8Array(64 * 1024);
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) {
+      state.pulled++;
+      c.enqueue(chunk);
+    },
+  });
+  const request = new Request("http://localhost/x", {
+    method: "POST",
+    headers: { "content-type": "multipart/form-data; boundary=x" },
+    body: stream,
+    duplex: "half",
+  } as RequestInit);
+  return { request, state };
+}
+
+describe("autorisation avant lecture du corps", () => {
+  async function expectRefusedUnread(
+    status: number,
+    error: string,
+    slug = "labo-a",
+    id = studyId,
+  ) {
+    const { request, state } = countedRequest();
+    const res = await call(request, slug, id);
+    expect(res.status).toBe(status);
+    expect(await res.json()).toEqual({ error });
+    expect(state.pulled).toBeLessThanOrEqual(1);
+    expect(readTable).not.toHaveBeenCalled();
+    expect(stagingFiles()).toEqual([]);
+  }
+
+  it("401 sans session", async () => {
+    await setup("researcher");
+    sessionUser.mockImplementation(async () => redirect("/connexion"));
+    await expectRefusedUnread(401, "Authentification requise.");
+  });
+
+  it("404 non-membre", async () => {
+    await setup("researcher");
+    await makeLab("Labo B", "labo-b");
+    await expectRefusedUnread(404, "Introuvable.", "labo-b");
+  });
+
+  it("403 viewer", async () => {
+    await setup("viewer");
+    await expectRefusedUnread(
+      403,
+      "Action réservée aux chercheurs du laboratoire.",
+    );
+  });
+
+  it("403 laboratoire suspendu", async () => {
+    await setup("researcher");
+    await prisma.laboratory.update({
+      where: { slug: "labo-a" },
+      data: { suspendedAt: new Date() },
+    });
+    await expectRefusedUnread(403, "Laboratoire suspendu.");
+  });
+
+  it("409 étude archivée", async () => {
+    await setup("researcher");
+    await expectRefusedUnread(
+      409,
+      "Étude archivée : lecture seule.",
+      "labo-a",
+      archivedId,
+    );
+  });
+
+  it("404 étude d'un autre laboratoire posté via son propre slug", async () => {
+    await setup("researcher");
+    const labB = await makeLab("Labo B", "labo-b");
+    const ownerB = await makeMember(labB, "researcher", "b@example.org");
+    const projectB = await prisma.project.create({
+      data: { title: "PB", ownerId: ownerB.userId, laboratoryId: labB.id },
+    });
+    const studyB = await prisma.study.create({
+      data: {
+        projectId: projectB.id,
+        laboratoryId: labB.id,
+        title: "EB",
+        nature: "laboratory",
+      },
+    });
+    await expectRefusedUnread(404, "Introuvable.", "labo-a", studyB.id);
+    const res = await call(req(new Uint8Array([1])), "labo-a", studyB.id);
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("limite exacte", () => {
+  it("un fichier de exactement 50 Mo est accepté", async () => {
+    await setup("researcher");
+    readTable.mockResolvedValue(TABLE);
+    const res = await call(req(new Uint8Array(50 * 1024 * 1024)));
+    expect(res.status).toBe(200);
   });
 });

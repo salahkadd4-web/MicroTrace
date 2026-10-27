@@ -1,6 +1,14 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import path from "node:path";
 import { DomainError } from "@/server/errors";
 
@@ -10,7 +18,11 @@ const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const SHA_RE = /^[0-9a-f]{64}$/;
 const GONE = "Dépôt introuvable ou expiré.";
 
-export type StagingOwner = { userId: string; laboratoryId: string; studyId: string };
+export type StagingOwner = {
+  userId: string;
+  laboratoryId: string;
+  studyId: string;
+};
 
 type StagingMeta = StagingOwner & {
   name: string;
@@ -23,7 +35,9 @@ type StagingMeta = StagingOwner & {
 /** Répertoire de données : `MICROTRACE_VAR_DIR`, sinon `<dossier web>/../var` (développement). */
 export function varDir(): string {
   const configured = process.env.MICROTRACE_VAR_DIR;
-  return configured ? path.resolve(configured) : path.resolve(process.cwd(), "..", "var");
+  return configured
+    ? path.resolve(configured)
+    : path.resolve(process.cwd(), "..", "var");
 }
 
 const stagingDir = () => path.join(varDir(), "staging");
@@ -59,7 +73,9 @@ export async function putStaging(
 
 async function readMeta(token: string): Promise<StagingMeta | null> {
   try {
-    return JSON.parse(await readFile(path.join(stagingDir(), `${token}.json`), "utf8"));
+    return JSON.parse(
+      await readFile(path.join(stagingDir(), `${token}.json`), "utf8"),
+    );
   } catch {
     return null;
   }
@@ -84,7 +100,13 @@ export async function readStaging(owner: StagingOwner, token: string) {
     throw new DomainError(GONE);
   }
   if (sha256Of(bytes) !== meta.sha256) throw new DomainError(GONE);
-  return { bytes, name: meta.name, type: meta.type, sha256: meta.sha256, size: meta.size };
+  return {
+    bytes,
+    name: meta.name,
+    type: meta.type,
+    sha256: meta.sha256,
+    size: meta.size,
+  };
 }
 
 export async function deleteStaging(token: string): Promise<void> {
@@ -124,9 +146,13 @@ export async function purgeStaging(now: Date = new Date()): Promise<void> {
 }
 
 /** Magasin adressé par contenu : écriture atomique, jamais d'écrasement. Renvoie le chemin relatif. */
-export async function storeFile(sha256: string, bytes: Uint8Array): Promise<string> {
+export async function storeFile(
+  sha256: string,
+  bytes: Uint8Array,
+): Promise<string> {
   if (!SHA_RE.test(sha256)) throw new Error("sha256 invalide.");
-  if (sha256Of(bytes) !== sha256) throw new Error("Le contenu ne correspond pas au sha256.");
+  if (sha256Of(bytes) !== sha256)
+    throw new Error("Le contenu ne correspond pas au sha256.");
   const dir = filesDir();
   await mkdir(dir, { recursive: true });
   const target = path.join(dir, sha256);
@@ -138,13 +164,22 @@ export async function storeFile(sha256: string, bytes: Uint8Array): Promise<stri
     existing = null;
   }
   if (existing) {
-    if (sha256Of(existing) !== sha256) throw new Error("Fichier du magasin corrompu.");
+    if (sha256Of(existing) !== sha256)
+      throw new Error("Fichier du magasin corrompu.");
     return relative;
   }
   const tmp = path.join(dir, `${sha256}.tmp-${randomBytes(8).toString("hex")}`);
   try {
     await writeFile(tmp, bytes);
-    await rename(tmp, target);
+    try {
+      await rename(tmp, target);
+    } catch (e) {
+      // Écriture concurrente du même contenu (EEXIST/EPERM sous Windows) : le fichier existe peut-être déjà.
+      const code = (e as NodeJS.ErrnoException).code;
+      if (code !== "EEXIST" && code !== "EPERM") throw e;
+      const winner = await readFile(target).catch(() => null);
+      if (!winner || sha256Of(winner) !== sha256) throw e;
+    }
   } finally {
     await rm(tmp, { force: true });
   }

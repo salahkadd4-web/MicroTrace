@@ -1,5 +1,13 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, rmSync, utimesSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -51,7 +59,10 @@ describe("zone de dépôt", () => {
 
   it("les métadonnées ne contiennent pas le contenu du fichier", async () => {
     const put = await putStaging(owner, file);
-    const meta = readFileSync(path.join(dir, "staging", `${put.token}.json`), "utf8");
+    const meta = readFileSync(
+      path.join(dir, "staging", `${put.token}.json`),
+      "utf8",
+    );
     expect(meta).not.toContain("a,b");
     expect(meta).toContain("createdAt");
   });
@@ -86,6 +97,12 @@ describe("zone de dépôt", () => {
     await expect(readStaging(owner, put.token)).rejects.toThrow(GONE);
   });
 
+  it("octets supprimés après lecture des métadonnées : introuvable", async () => {
+    const put = await putStaging(owner, file);
+    rmSync(path.join(dir, "staging", `${put.token}.bin`));
+    await expect(readStaging(owner, put.token)).rejects.toThrow(GONE);
+  });
+
   it("deleteStaging supprime les deux fichiers", async () => {
     const put = await putStaging(owner, file);
     await deleteStaging(put.token);
@@ -101,7 +118,9 @@ describe("zone de dépôt", () => {
     meta.createdAt = new Date(Date.now() - 25 * 3600_000).toISOString();
     writeFileSync(metaPath, JSON.stringify(meta));
     await purgeStaging();
-    expect(existsSync(path.join(dir, "staging", `${old.token}.bin`))).toBe(false);
+    expect(existsSync(path.join(dir, "staging", `${old.token}.bin`))).toBe(
+      false,
+    );
     expect(existsSync(metaPath)).toBe(false);
     await expect(readStaging(owner, fresh.token)).resolves.toBeTruthy();
   });
@@ -128,6 +147,17 @@ describe("storeFile", () => {
     expect(await storeFile(h, bytes)).toBe(`files/${h}`);
     expect(Buffer.from(before).equals(readFileSync(target))).toBe(true);
     expect(readdirSync(path.join(dir, "files"))).toEqual([h]);
+  });
+
+  it("deux écritures concurrentes du même contenu réussissent, sans résidu", async () => {
+    const big = new Uint8Array(4 * 1024 * 1024).map((_, i) => (i * 7) & 255);
+    const h = sha(big);
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => storeFile(h, big)),
+    );
+    expect(results).toEqual(Array(6).fill(`files/${h}`));
+    expect(readdirSync(path.join(dir, "files"))).toEqual([h]);
+    expect(sha(readFileSync(path.join(dir, "files", h)))).toBe(h);
   });
 
   it("refuse un sha256 mal formé ou qui ne correspond pas aux octets", async () => {

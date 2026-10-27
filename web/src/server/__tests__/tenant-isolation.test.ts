@@ -225,6 +225,12 @@ const CASES: Record<string, Record<string, Case>> = {
   },
 };
 
+/**
+ * Exclusion justifiée : `server/file-store.ts` n'est pas un service de laboratoire (aucun LabContext).
+ * Chaque dépôt est lié à (userId, laboratoryId, studyId) et `readStaging` refuse toute autre
+ * combinaison ; ce comportement est couvert par `file-store.test.ts`.
+ */
+
 /** Exports qui ne portent pas de donnée de laboratoire, avec la raison. */
 const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   projects: { normalizeTitle: "assistant pur (forme du titre)" },
