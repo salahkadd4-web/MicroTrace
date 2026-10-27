@@ -1,0 +1,14 @@
+# Leslie et al. 2022, Table S2 (real data)
+
+`leslie2022_table_s2.csv` reproduces Table S2 of the supplementary material of:
+
+- Leslie H.A., van Velzen M.J.M., Brandsma S.H., Vethaak A.D., Garcia-Vallejo J.J., Lamoree M.H.
+  (2022). *Discovery and quantification of plastic particle pollution in human blood.*
+  Environment International, volume 163, article 107199.
+- DOI: https://doi.org/10.1016/j.envint.2022.107199
+- Licence: CC BY 4.0 (http://creativecommons.org/licenses/by/4.0/), open access article.
+
+Values are copied verbatim from Table S2 of the supplementary material; no modification
+(notations such as `<0.093` and `0.44*` are kept as printed). One row per aliquot
+(`1a`, `1b`, ...); donors 6, 9, 15 and 18 have a single aliquot. The file was generated
+once by `scripts/build_leslie_s2.py` from the supplementary `.docx`.

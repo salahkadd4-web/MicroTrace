@@ -1,7 +1,7 @@
 # Catalogue des sources de données
 
 Toutes les données de ce dossier sont **des données tierces, publiques, de polymères de référence ou environnementaux**.
-Aucune n'est une mesure de microplastiques dans une matrice biologique humaine. Elles ne doivent jamais être présentées comme telles.
+Hormis la section « Résultats de laboratoire » (Tableau S2 de Leslie et al. 2022, publié sous CC BY 4.0), aucune n'est une mesure de microplastiques dans une matrice biologique humaine. Elles ne doivent jamais être présentées comme telles.
 
 Règles :
 - une ligne par jeu de données ; ne rien ajouter dans `datasets/` sans compléter ce fichier ;
@@ -27,7 +27,14 @@ Règles :
 | `Images/*.parquet` | Export Roboflow (format Hugging Face, annotations COCO bbox + segmentation) | Microscopie (type non documenté) | 2 010 images issues de **177 photos originales** ; 1 classe (`category_id = 1`, nom inconnu) | À compléter | À compléter | **À compléter — inutilisable commercialement en l'état** | Augmentations dans tous les splits ; 2 photos présentes dans 2 splits (`Imagen038`, `Imagen051`) |
 | `Images/dataset3/` | Images MEB de microplastiques (billes, fibres, fragments) avec masques d'instances et comptages | MEB Hitachi SU5000 (2020-2021) | 237 images originales + TIFF bruts avec métadonnées d'acquisition | À compléter | À compléter | **À compléter** | `dataset1` et `dataset2` supprimés le 2026-10-23 : doublons stricts de `dataset3` (vérifié par MD5) |
 
+## Résultats de laboratoire
+
+| Dossier / fichiers | Jeu | Technique | Volume | Auteurs / citation | DOI / URL | Licence | Statut |
+|---|---|---|---|---|---|---|---|
+| `resultats/1-s2.0-S0160412022001258-mmc1.docx` (local, non versionné) → `core/src/microtrace_core/results/data/leslie2022_table_s2.csv` (versionné) | Tableau S2 du matériel supplémentaire : polymères dans le sang total de 22 donneurs sains (**mesures réelles**, µg/mL) | Py-GC/MS | 22 donneurs, 40 aliquotes (a/b ; donneurs 6, 9, 15, 18 : une seule) × 5 polymères | Leslie H.A., van Velzen M.J.M., Brandsma S.H., Vethaak A.D., Garcia-Vallejo J.J., Lamoree M.H. (2022). Discovery and quantification of plastic particle pollution in human blood. *Environment International* 163, article 107199 | https://doi.org/10.1016/j.envint.2022.107199 | **CC BY 4.0** (http://creativecommons.org/licenses/by/4.0/) — attribution obligatoire | Valeurs recopiées à l'identique du Tableau S2 du matériel supplémentaire ; aucune modification. CSV généré une fois par `scripts/build_leslie_s2.py`. Anomalies de la source conservées telles quelles : l'étiquette du donneur 9 se lit « 9a 9b » mais ses valeurs b sont vides (traité comme aliquote unique) ; donneur 20a, PET = `<0.61` (limite du PE, pas du PET) |
+
 ## Journal
 
 - **2026-10-22** — premiers téléchargements (spectres, parquet).
 - **2026-10-23** — ajout des images MEB et du paquet BagIt complet MicroPlastiX ; suppression de `Images/dataset1`, `Images/dataset2` et `Images/__MACOSX` (doublons / résidus macOS).
+- **2026-10-27** — ajout du Tableau S2 de Leslie et al. 2022 (CC BY 4.0) comme jeu d'exemple réel.

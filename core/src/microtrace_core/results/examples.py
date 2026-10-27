@@ -9,6 +9,8 @@ fictitious values and the detection limits of Table 3 of that article.
 """
 from __future__ import annotations
 
+from importlib import resources
+
 from microtrace_core.results.mapping import Mapping, suggest_mapping
 from microtrace_core.results.records import DetectionLimit, MethodSpec, StudyContext
 from microtrace_core.results.tables import RawTable, read_table
@@ -78,6 +80,33 @@ def leslie_like_context() -> StudyContext:
 
 def leslie_like_mapping(table: RawTable | None = None) -> Mapping:
     base = suggest_mapping(table or leslie_like_wide_table())
+    return Mapping(
+        base.mode, base.field_columns, base.polymer_columns,
+        {"matrix": "sang total", "unit": UG_ML, "method": PYGC}, split_aliquot_suffix=True)
+
+
+# --- Real data: Leslie et al. 2022, Table S2 of the supplementary material (CC BY 4.0) ---
+LESLIE_2022_FILENAME = "leslie2022_tableau_S2.csv"
+LESLIE_2022_DOI = "10.1016/j.envint.2022.107199"
+LESLIE_2022_LICENSE = "CC BY 4.0"
+_LESLIE_2022_RESOURCE = "data/leslie2022_table_s2.csv"
+
+
+def leslie_2022_csv() -> bytes:
+    """Verbatim Table S2 (22 donors, aliquots a/b), read from the packaged data file."""
+    return resources.files("microtrace_core.results").joinpath(_LESLIE_2022_RESOURCE).read_bytes()
+
+
+def leslie_2022_context() -> StudyContext:
+    limits = tuple(DetectionLimit(PYGC, p, lod, loq, UG_ML, LIMITS_SOURCE)
+                   for p, (lod, loq) in LESLIE_LIMITS.items())
+    return StudyContext(
+        DataNature.published, (MethodSpec(PYGC, Technique.py_gc_ms),), limits,
+        reference_doi=LESLIE_2022_DOI, reference_license=LESLIE_2022_LICENSE)
+
+
+def leslie_2022_mapping(table: RawTable | None = None) -> Mapping:
+    base = suggest_mapping(table or read_table(leslie_2022_csv(), LESLIE_2022_FILENAME))
     return Mapping(
         base.mode, base.field_columns, base.polymer_columns,
         {"matrix": "sang total", "unit": UG_ML, "method": PYGC}, split_aliquot_suffix=True)

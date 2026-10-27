@@ -19,3 +19,6 @@ dev = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"microtrace_core.results" = ["data/*.csv", "data/*.md"]

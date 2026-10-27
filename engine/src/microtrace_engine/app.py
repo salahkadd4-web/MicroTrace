@@ -20,6 +20,10 @@ from microtrace_core.results import (
     data_dictionary_csv,
     data_dictionary_markdown,
     describe,
+    LESLIE_2022_FILENAME,
+    leslie_2022_context,
+    leslie_2022_csv,
+    leslie_2022_mapping,
     leslie_like_context,
     leslie_like_csv,
     leslie_like_mapping,
@@ -431,6 +435,19 @@ def create_app(settings: Settings) -> FastAPI:
             csv_base64=base64.b64encode(leslie_like_csv()).decode("ascii"),
             context=context_to_model(leslie_like_context()),
             mapping=mapping_to_model(leslie_like_mapping()),
+        )
+
+    @app.get(
+        "/examples/leslie-2022",
+        response_model=ExampleResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def example_leslie_2022() -> ExampleResponse:
+        return ExampleResponse(
+            filename=LESLIE_2022_FILENAME,
+            csv_base64=base64.b64encode(leslie_2022_csv()).decode("ascii"),
+            context=context_to_model(leslie_2022_context()),
+            mapping=mapping_to_model(leslie_2022_mapping()),
         )
 
     return app

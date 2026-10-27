@@ -107,6 +107,20 @@ def test_example(client, auth_headers):
     assert body["mapping"]["mode"] == "wide"
 
 
+def test_example_leslie_2022(client, auth_headers):
+    from microtrace_core.results.examples import LESLIE_2022_DOI, leslie_2022_csv
+
+    r = client.get("/examples/leslie-2022", headers=auth_headers)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["filename"] == "leslie2022_tableau_S2.csv"
+    assert base64.b64decode(body["csv_base64"]) == leslie_2022_csv()
+    assert body["context"]["data_nature"] == "published"
+    assert body["context"]["reference_doi"] == LESLIE_2022_DOI
+    assert body["mapping"]["mode"] == "wide"
+    assert client.get("/examples/leslie-2022").status_code == 401
+
+
 def test_secret_required(client):
     assert client.get("/dictionary").status_code == 401
     assert client.post("/summary", json={"records": []}).status_code == 401

@@ -138,6 +138,7 @@ export function createEngineClient(options: ClientOptions = {}) {
         options.timeoutMs ?? ENGINE_VALIDATE_TIMEOUT_MS,
       ),
     example: () => call<Example>("GET", "/examples/leslie-like"),
+    exampleLeslie2022: () => call<Example>("GET", "/examples/leslie-2022"),
     readTable: (file: UploadInput, sheet?: string | null) =>
       call<TableRead>("POST", "/tables/read", { form: fileForm(file, sheet) }),
     suggestMapping: (file: UploadInput, sheet?: string | null) =>

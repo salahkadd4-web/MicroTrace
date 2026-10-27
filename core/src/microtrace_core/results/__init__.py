@@ -1,6 +1,12 @@
 """Laboratory results domain: vocabularies, units, result tables and honest summaries."""
 from microtrace_core.results.examples import (
+    LESLIE_2022_DOI,
+    LESLIE_2022_FILENAME,
+    LESLIE_2022_LICENSE,
     LESLIE_LIKE_FILENAME,
+    leslie_2022_context,
+    leslie_2022_csv,
+    leslie_2022_mapping,
     leslie_like_context,
     leslie_like_csv,
     leslie_like_mapping,
@@ -52,5 +58,7 @@ __all__ = [
     "aggregate_aliquots", "apply_mapping", "canonical_unit", "data_dictionary_csv",
     "data_dictionary_markdown", "describe", "detect_pii", "has_errors", "leslie_like_context", "leslie_like_csv",
     "leslie_like_mapping", "parse_unit",
+    "LESLIE_2022_DOI", "LESLIE_2022_FILENAME", "LESLIE_2022_LICENSE", "leslie_2022_context",
+    "leslie_2022_csv", "leslie_2022_mapping",
     "context_issues", "quantification_frequency", "read_table", "run_import", "suggest_mapping",
 ]
