@@ -23,6 +23,9 @@ const ACTION_LABELS: Record<string, string> = {
   "study.limit.remove": "Limite supprimée",
   "study.qc.add": "Contrôle qualité ajouté",
   "study.prefill.leslie3": "Préremplissage Leslie 2022 (Tableau 3)",
+  "import.create": "Import enregistré",
+  "import.retire": "Import retiré",
+  "import.refused_pii": "Import refusé (données personnelles)",
   "lab.create": "Laboratoire créé",
   "lab.suspend": "Laboratoire suspendu",
   "lab.reactivate": "Laboratoire réactivé",
@@ -43,6 +46,7 @@ const ENTITY_LABELS: Record<string, string> = {
   Laboratory: "Laboratoire",
   Invitation: "Invitation",
   Membership: "Membre",
+  ImportRun: "Import",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -80,6 +84,13 @@ const FIELD_LABELS: Record<string, string> = {
   revokedAt: "Révoquée le",
   suspendedAt: "Suspendu le",
   id: "Identifiant",
+  fileName: "Fichier",
+  sha256: "Empreinte (SHA-256)",
+  rows: "Lignes",
+  errorCount: "Erreurs",
+  warningCount: "Avertissements",
+  infoCount: "Informations",
+  status: "Statut",
 };
 
 /** Libellé français d'un code d'action ; un code inconnu est montré tel quel. */
@@ -107,6 +118,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   technique: TECHNIQUE_LABELS,
   kind: QC_KIND_LABELS,
   role: ROLE_LABELS,
+  status: { active: "Actif", retired: "Retiré" },
 };
 
 const ABSENT = "—";
@@ -161,6 +173,8 @@ export function auditObjectName(
     case "Study":
     case "Project":
       return str("title");
+    case "ImportRun":
+      return str("fileName");
     case "Method":
     case "Laboratory":
       return str("name");

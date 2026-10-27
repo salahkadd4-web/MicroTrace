@@ -7,11 +7,14 @@ vi.mock("@/server/engine/client", async (orig) => {
     engineClient: {
       validateContext: vi.fn(async () => ({})),
       example: vi.fn(),
+      suggestMapping: vi.fn(),
+      checkImport: vi.fn(),
     },
   };
 });
 
 import * as auditModule from "@/server/audit";
+import * as importsModule from "@/server/imports";
 import * as invitationsModule from "@/server/invitations";
 import * as membersModule from "@/server/members";
 import { prisma } from "@/server/db";
@@ -26,6 +29,15 @@ import { makeLab, makeMember } from "../../../test/labs";
 
 const { listAuditEvents } = auditModule;
 const { createInvitation } = invitationsModule;
+const {
+  checkStagedImport,
+  existingKeys,
+  getImport,
+  listImports,
+  retireImport,
+  saveImport,
+  suggestStagedMapping,
+} = importsModule;
 const {
   changeMemberRole,
   listMembers,
@@ -55,6 +67,12 @@ const {
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
 const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";
+const TOKEN = "a".repeat(43);
+const MAPPING = {
+  mode: "long",
+  field_columns: {},
+  split_aliquot_suffix: false,
+} as const;
 
 type Ids = {
   project: string;
@@ -63,6 +81,7 @@ type Ids = {
   limit: string;
   member: string;
   invitation: string;
+  importRun: string;
 };
 
 type Outcome = { throws: string } | { returns: (r: unknown, ids: Ids) => void };
@@ -187,6 +206,42 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { returns: (r) => expect(r).toEqual([]) },
     },
   },
+  imports: {
+    existingKeys: {
+      run: (ctx, ids) => existingKeys(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    suggestStagedMapping: {
+      run: (ctx, ids) => suggestStagedMapping(ctx, ids.study, TOKEN),
+      outcome: { throws: "Étude introuvable." },
+    },
+    checkStagedImport: {
+      run: (ctx, ids) =>
+        checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
+      outcome: { throws: "Étude introuvable." },
+    },
+    saveImport: {
+      run: (ctx, ids) =>
+        saveImport(ctx, ids.study, {
+          token: TOKEN,
+          mapping: MAPPING,
+          acceptWarnings: true,
+        }),
+      outcome: { throws: "Étude introuvable." },
+    },
+    retireImport: {
+      run: (ctx, ids) => retireImport(ctx, ids.importRun, "motif"),
+      outcome: { throws: "Import introuvable." },
+    },
+    listImports: {
+      run: (ctx, ids) => listImports(ctx, ids.study),
+      outcome: { returns: (r) => expect(r).toEqual([]) },
+    },
+    getImport: {
+      run: (ctx, ids) => getImport(ctx, ids.importRun),
+      outcome: { returns: (r) => expect(r).toBeNull() },
+    },
+  },
   members: {
     listMembers: {
       run: (ctx) => listMembers(ctx),
@@ -240,6 +295,9 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
     validateOrRefuse: "appel au moteur sur un contexte déjà construit",
   },
   "study-settings": {},
+  imports: {
+    measurementRow: "assistant pur (record du moteur -> colonnes), sans accès à la base",
+  },
   audit: {
     recordAudit:
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
@@ -258,6 +316,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   studies: studiesModule,
   "study-settings": settingsModule,
   audit: auditModule,
+  imports: importsModule,
   members: membersModule,
   invitations: invitationsModule,
 };
@@ -281,6 +340,17 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     removeDetectionLimit: (ctx, ids) => removeDetectionLimit(ctx, ids.limit),
     addQcSummary: (ctx, ids) => addQcSummary(ctx, ids.study, QC_INPUT),
     prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
+    suggestStagedMapping: (ctx, ids) =>
+      suggestStagedMapping(ctx, ids.study, TOKEN),
+    checkStagedImport: (ctx, ids) =>
+      checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
+    saveImport: (ctx, ids) =>
+      saveImport(ctx, ids.study, {
+        token: TOKEN,
+        mapping: MAPPING,
+        acceptWarnings: true,
+      }),
+    retireImport: (ctx, ids) => retireImport(ctx, ids.importRun, "motif"),
   };
 
 /** Écritures réservées aux responsables. */
@@ -320,6 +390,29 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     polymer: "PS",
   });
   await removeDetectionLimit(ctx, removed.id);
+  const file = await prisma.dataFile.create({
+    data: {
+      studyId: study.id,
+      originalName: `${tag}.csv`,
+      sha256: tag.repeat(64).slice(0, 64),
+      sizeBytes: 1,
+      mimeType: "text/csv",
+      storagePath: "files/x",
+      uploadedById: ctx.userId,
+    },
+  });
+  const run = await prisma.importRun.create({
+    data: {
+      studyId: study.id,
+      dataFileId: file.id,
+      mapping: {},
+      frozenContext: {},
+      rulesVersion: "r",
+      engineVersion: "e",
+      issues: [],
+      createdById: ctx.userId,
+    },
+  });
   const member = await makeMember(
     { id: ctx.laboratoryId, slug: ctx.labSlug, name: ctx.labName },
     "researcher",
@@ -339,6 +432,7 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     limit: limit.id,
     member: membership.id,
     invitation: invitation.invitation.id,
+    importRun: run.id,
   };
 }
 
@@ -371,6 +465,9 @@ async function fullSnapshot() {
     audits: await prisma.auditEvent.findMany({ orderBy: { id: "asc" } }),
     memberships: await prisma.membership.findMany({ orderBy: { id: "asc" } }),
     invitations: await prisma.invitation.findMany({ orderBy: { id: "asc" } }),
+    dataFiles: await prisma.dataFile.findMany({ orderBy: { id: "asc" } }),
+    importRuns: await prisma.importRun.findMany({ orderBy: { id: "asc" } }),
+    measurements: await prisma.measurement.findMany({ orderBy: { id: "asc" } }),
   });
 }
 
@@ -435,6 +532,7 @@ describe("un membre de A sur les objets de B", () => {
           limit: MISSING,
           member: MISSING,
           invitation: MISSING,
+          importRun: MISSING,
         };
         const before = await fullSnapshot();
         const attempt = async (ids: Ids) => {
@@ -644,6 +742,9 @@ describe("un viewer de A", () => {
       "listAuditEvents",
       "listMembers",
       "listPendingInvitations",
+      "existingKeys",
+      "listImports",
+      "getImport",
     ]);
     const exported = Object.entries(CASES).flatMap(([, cases]) =>
       Object.keys(cases),

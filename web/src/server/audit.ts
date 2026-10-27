@@ -45,7 +45,7 @@ export type AuditEventView = {
 };
 
 /**
- * Événements de l'étude et de ses objets (méthodes, limites, contrôles qualité), du plus récent
+ * Événements de l'étude et de ses objets (méthodes, limites, contrôles qualité, imports), du plus récent
  * au plus ancien. Les limites supprimées sont retrouvées par le `studyId` du `before` de leur
  * suppression.
  */
@@ -59,10 +59,11 @@ export async function listAuditEvents(
     select: { id: true },
   });
   if (!study) return [];
-  const [methods, limits, qcs, removals] = await Promise.all([
+  const [methods, limits, qcs, importRuns, removals] = await Promise.all([
     prisma.method.findMany({ where: { studyId }, select: { id: true } }),
     prisma.detectionLimit.findMany({ where: { studyId }, select: { id: true } }),
     prisma.qualityControlSummary.findMany({ where: { studyId }, select: { id: true } }),
+    prisma.importRun.findMany({ where: { studyId }, select: { id: true } }),
     prisma.auditEvent.findMany({
       where: {
         laboratoryId: ctx.laboratoryId,
@@ -83,6 +84,7 @@ export async function listAuditEvents(
         { entityType: "Method", entityId: { in: methods.map((m) => m.id) } },
         { entityType: "DetectionLimit", entityId: { in: limitIds } },
         { entityType: "QualityControlSummary", entityId: { in: qcs.map((q) => q.id) } },
+        { entityType: "ImportRun", entityId: { in: importRuns.map((r) => r.id) } },
       ],
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
