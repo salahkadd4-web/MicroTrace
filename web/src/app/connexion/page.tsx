@@ -1,7 +1,11 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/app/PageHeader";
 import { safeCallbackUrl } from "@/lib/callback-url";
 import { LoginForm } from "./LoginForm";
+
+// Le lien d'invitation peut mener ici avec le jeton dans callbackUrl : pas de Referer sortant.
+export const metadata: Metadata = { title: "Connexion", referrer: "no-referrer" };
 
 export default async function ConnexionPage({
   searchParams,

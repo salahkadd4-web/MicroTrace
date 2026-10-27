@@ -6,7 +6,8 @@ import { FormField } from "@/components/app/FormField";
 import { InvitationLink } from "@/components/app/InvitationLink";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createLaboratoryAction, setSuspendedAction } from "./actions";
+import { SelectField } from "@/components/app/SelectField";
+import { createLaboratoryAction, reinviteFirstAdminAction, setSuspendedAction } from "./actions";
 
 export function CreateLaboratoryForm() {
   return (
@@ -56,5 +57,33 @@ export function SuspendButton({
         </Button>
       }
     />
+  );
+}
+
+/** Laboratoires sans aucun responsable : nouvelle invitation du responsable (revérifiée côté serveur). */
+export function ReinviteForm({ labs }: { labs: { id: string; name: string }[] }) {
+  return (
+    <ActionForm
+      action={reinviteFirstAdminAction}
+      submitLabel="Créer l'invitation"
+      pendingLabel="Création…"
+      className="max-w-xl"
+    >
+      {(state) => (
+        <>
+          <FormField id="reinvite-lab" label="Laboratoire">
+            <SelectField
+              id="reinvite-lab"
+              name="laboratoryId"
+              options={labs.map((l) => ({ value: l.id, label: l.name }))}
+            />
+          </FormField>
+          <FormField id="reinvite-email" label="Adresse e-mail du responsable">
+            <Input id="reinvite-email" name="email" type="email" autoComplete="off" required />
+          </FormField>
+          {state.link ? <InvitationLink link={state.link} /> : null}
+        </>
+      )}
+    </ActionForm>
   );
 }

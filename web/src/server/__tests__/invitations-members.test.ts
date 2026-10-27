@@ -404,14 +404,15 @@ describe("plateforme", () => {
       createFirstAdminInvitation(await sessionUser("admin@example.org"), lab.id, "p@example.org"),
     ).rejects.toThrow("Action réservée à l'équipe de la plateforme.");
     const p = await platformAdmin();
+    const empty = await makeLab("Labo vide", "labo-vide");
     const { token, invitation } = await createFirstAdminInvitation(
       p,
-      other.id,
+      empty.id,
       "premier@example.org",
     );
     expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
     const row = await prisma.invitation.findUniqueOrThrow({ where: { id: invitation.id } });
-    expect(row).toMatchObject({ role: "lab_admin", laboratoryId: other.id, invitedById: p.id });
+    expect(row).toMatchObject({ role: "lab_admin", laboratoryId: empty.id, invitedById: p.id });
     await expect(createFirstAdminInvitation(p, "inconnu", "z@example.org")).rejects.toThrow(
       "Laboratoire introuvable.",
     );

@@ -63,12 +63,20 @@ export function RoleControl({
   const [pending, startTransition] = useTransition();
   const id = `role-${membershipId}`;
 
-  function change(next: string) {
-    if (next === role) return;
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  function apply(next: string) {
     startTransition(async () => {
       const result = await changeRoleAction(labSlug, membershipId, next);
       setError(result.error);
     });
+  }
+
+  function change(next: string) {
+    if (next === role) return;
+    // Rétrograder un responsable (soi-même compris) demande une confirmation.
+    if (role === "lab_admin") setConfirming(next);
+    else apply(next);
   }
 
   return (
@@ -85,6 +93,22 @@ export function RoleControl({
         required={false}
       />
       <FormError message={error} />
+      <ConfirmDialog
+        open={confirming !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirming(null);
+        }}
+        title="Retirer le rôle de responsable ?"
+        description={`${memberName} ne pourra plus gérer les membres du laboratoire.`}
+        confirmLabel="Rétrograder"
+        onConfirm={async () => {
+          const next = confirming;
+          if (!next) return;
+          const result = await changeRoleAction(labSlug, membershipId, next);
+          setError(undefined);
+          return result.error;
+        }}
+      />
     </div>
   );
 }

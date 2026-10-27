@@ -15,6 +15,7 @@ vi.mock("@/server/platform", () => ({
       members: 3,
       studies: 2,
       imports: 5,
+      admins: 1,
     },
     {
       id: "l2",
@@ -25,11 +26,13 @@ vi.mock("@/server/platform", () => ({
       members: 1,
       studies: 0,
       imports: 0,
+      admins: 0,
     },
   ]),
 }));
 vi.mock("../actions", () => ({
   createLaboratoryAction: vi.fn(async () => ({})),
+  reinviteFirstAdminAction: vi.fn(async () => ({})),
   setSuspendedAction: vi.fn(async () => ({})),
 }));
 vi.mock("../../actions", () => ({ logout: vi.fn() }));
@@ -61,6 +64,14 @@ describe("console /admin", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Créer un laboratoire" })).toBeInTheDocument();
     expect(screen.getByLabelText("Nom du laboratoire")).toBeInTheDocument();
     expect(screen.getByLabelText("Adresse e-mail du premier responsable")).toBeInTheDocument();
+  });
+
+  it("propose la nouvelle invitation du responsable seulement pour un laboratoire sans responsable", async () => {
+    render(await AdminPage());
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Nouvelle invitation du responsable" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/sans responsable : Labo Beta\./)).toBeInTheDocument();
   });
 
   it("ne demande que des compteurs au service (aucun titre d'étude dans la page)", async () => {

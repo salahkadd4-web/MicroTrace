@@ -12,11 +12,12 @@ import {
 } from "@/components/ui/table";
 import { listLaboratories } from "@/server/platform";
 import { requirePlatformAdmin } from "@/server/platform-action";
-import { CreateLaboratoryForm, SuspendButton } from "./controls";
+import { CreateLaboratoryForm, ReinviteForm, SuspendButton } from "./controls";
 
 export default async function AdminPage() {
   const admin = await requirePlatformAdmin();
   const labs = await listLaboratories(admin);
+  const orphans = labs.filter((l) => l.admins === 0);
   return (
     <>
       <PageHeader
@@ -77,6 +78,15 @@ export default async function AdminPage() {
         <h2 className="text-lg font-semibold">Créer un laboratoire</h2>
         <CreateLaboratoryForm />
       </section>
+      {orphans.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Nouvelle invitation du responsable</h2>
+          <p className="text-sm text-muted-foreground">
+            Laboratoires sans responsable : {orphans.map((l) => l.name).join(", ")}.
+          </p>
+          <ReinviteForm labs={orphans.map((l) => ({ id: l.id, name: l.name }))} />
+        </section>
+      ) : null}
     </>
   );
 }

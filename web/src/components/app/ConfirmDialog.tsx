@@ -22,16 +22,26 @@ export function ConfirmDialog({
   onConfirm,
   trigger,
   confirmLabel = "Confirmer",
+  open: openProp,
+  onOpenChange,
 }: {
   title: string;
   description: string;
   requireReason?: boolean;
   /** Renvoie un message d'erreur pour garder le dialogue ouvert ; rien (ou une promesse sans valeur) pour fermer. */
   onConfirm: (reason?: string) => void | string | undefined | Promise<void | string | undefined>;
-  trigger: ReactNode;
+  /** Sans déclencheur, le dialogue est piloté par `open` / `onOpenChange`. */
+  trigger?: ReactNode;
   confirmLabel?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = openProp ?? innerOpen;
+  const setOpen = (value: boolean) => {
+    setInnerOpen(value);
+    onOpenChange?.(value);
+  };
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -55,7 +65,7 @@ export function ConfirmDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

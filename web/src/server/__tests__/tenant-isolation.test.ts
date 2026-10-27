@@ -242,6 +242,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   invitations: {
     acceptInvitation: "adressée par jeton secret, sans contexte de laboratoire (voir invitations-members)",
     createFirstAdminInvitation: "réservée à l'équipe de la plateforme (voir invitations-members)",
+    createLaboratoryWithFirstAdmin: "réservée à l'équipe de la plateforme (voir invitation-hardening)",
     previewInvitation: "lecture par jeton secret, sans contexte de laboratoire",
   },
 };

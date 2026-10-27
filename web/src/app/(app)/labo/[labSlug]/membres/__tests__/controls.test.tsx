@@ -12,7 +12,8 @@ vi.mock("../actions", () => ({
   revokeInvitationAction: vi.fn(async () => ({})),
 }));
 
-import { InviteForm, RemoveMemberButton } from "../controls";
+import { changeRoleAction } from "../actions";
+import { InviteForm, RemoveMemberButton, RoleControl } from "../controls";
 
 describe("formulaire d'invitation", () => {
   it("montre le lien complet une fois l'invitation créée, avec un bouton de copie", async () => {
@@ -34,5 +35,36 @@ describe("retrait d'un membre", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Le laboratoire doit garder au moins un responsable.",
     );
+  });
+});
+
+describe("changement de rôle", () => {
+  async function choose(label: string) {
+    await userEvent.click(screen.getByRole("combobox"));
+    await userEvent.click(await screen.findByRole("option", { name: label }));
+  }
+
+  it("rétrograder un responsable demande une confirmation avant l'appel", async () => {
+    vi.mocked(changeRoleAction).mockClear();
+    render(<RoleControl labSlug="labo" membershipId="m1" role="lab_admin" memberName="Alice" />);
+    await choose("Lecteur");
+    expect(changeRoleAction).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("button", { name: "Rétrograder" }));
+    expect(changeRoleAction).toHaveBeenCalledWith("labo", "m1", "viewer");
+  });
+
+  it("annuler la confirmation n'appelle rien", async () => {
+    vi.mocked(changeRoleAction).mockClear();
+    render(<RoleControl labSlug="labo" membershipId="m1" role="lab_admin" memberName="Alice" />);
+    await choose("Chercheur");
+    await userEvent.click(await screen.findByRole("button", { name: "Annuler" }));
+    expect(changeRoleAction).not.toHaveBeenCalled();
+  });
+
+  it("promouvoir un lecteur s'applique sans confirmation", async () => {
+    vi.mocked(changeRoleAction).mockClear();
+    render(<RoleControl labSlug="labo" membershipId="m2" role="viewer" memberName="Bob" />);
+    await choose("Chercheur");
+    expect(changeRoleAction).toHaveBeenCalledWith("labo", "m2", "researcher");
   });
 });

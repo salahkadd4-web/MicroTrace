@@ -2,8 +2,9 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { LabRole } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
-import { recordAudit } from "@/server/audit";
+import { recordAudit, type Tx } from "@/server/audit";
 import { DomainError } from "@/server/errors";
+import { assertPlatformAdmin } from "@/server/platform";
 import type { SessionUser } from "@/server/users";
 
 const MAX_NAME = 120;
@@ -40,42 +41,50 @@ async function freeSlug(name: string, db: Pick<typeof prisma, "laboratory">): Pr
   }
 }
 
-/**
- * Crée un laboratoire (réservé à l'équipe de la plateforme, relue en base). L'invitation du
- * premier responsable est créée à la tâche 12 : seul le nom est demandé pour l'instant.
- */
-export async function createLaboratory(admin: SessionUser, input: { name: string }) {
-  const name = input.name.trim();
+/** Nom de laboratoire nettoyé et vérifié (forme seulement). */
+function parseLabName(input: string): string {
+  const name = input.trim();
   if (!name) throw new DomainError("Le nom du laboratoire est obligatoire.");
   if (name.length > MAX_NAME)
     throw new DomainError(`Le nom ne doit pas dépasser ${MAX_NAME} caractères.`);
+  return name;
+}
+
+/** Rejoue `fn` (une transaction complète) quand la contrainte d'unicité du slug départage une course. */
+export async function withSlugRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await prisma.$transaction(async (tx) => {
-        const actor = await tx.user.findUnique({
-          where: { id: admin.id },
-          select: { isPlatformAdmin: true, active: true },
-        });
-        if (!actor?.active || !actor.isPlatformAdmin)
-          throw new DomainError("Action réservée à l'équipe de la plateforme.");
-        const slug = await freeSlug(name, tx);
-        const lab = await tx.laboratory.create({ data: { name, slug } });
-        await recordAudit(tx, {
-          actorId: admin.id,
-          action: "lab.create",
-          entityType: "Laboratory",
-          entityId: lab.id,
-          after: { name, slug },
-          laboratoryId: lab.id,
-        });
-        return lab;
-      });
+      return await fn();
     } catch (e) {
-      // Course sur le slug : la contrainte d'unicité tranche, on recalcule.
       const clash = e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
       if (!clash || attempt >= 4) throw e;
     }
   }
+}
+
+/** Création du laboratoire et de son audit `lab.create` dans la transaction de l'appelant. */
+export async function createLaboratoryIn(tx: Tx, admin: SessionUser, rawName: string) {
+  const name = parseLabName(rawName);
+  await assertPlatformAdmin(tx, admin);
+  const slug = await freeSlug(name, tx);
+  const lab = await tx.laboratory.create({ data: { name, slug } });
+  await recordAudit(tx, {
+    actorId: admin.id,
+    action: "lab.create",
+    entityType: "Laboratory",
+    entityId: lab.id,
+    after: { name, slug },
+    laboratoryId: lab.id,
+  });
+  return lab;
+}
+
+/** Crée un laboratoire seul (réservé à l'équipe de la plateforme, relue en base). */
+export async function createLaboratory(admin: SessionUser, input: { name: string }) {
+  parseLabName(input.name);
+  return withSlugRetry(() =>
+    prisma.$transaction((tx) => createLaboratoryIn(tx, admin, input.name)),
+  );
 }
 
 export type MyLaboratory = {

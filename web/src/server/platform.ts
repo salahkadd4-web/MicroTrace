@@ -27,6 +27,8 @@ export type ConsoleLaboratory = {
   members: number;
   studies: number;
   imports: number;
+  /** Responsables (lab_admin) : 0 = laboratoire sans responsable, ré-invitation possible. */
+  admins: number;
 };
 
 /**
@@ -46,18 +48,31 @@ export async function listLaboratories(admin: SessionUser): Promise<ConsoleLabor
     },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
-  return Promise.all(
-    labs.map(async (l) => ({
-      id: l.id,
-      name: l.name,
-      slug: l.slug,
-      suspended: l.suspendedAt !== null,
-      createdAt: l.createdAt,
-      members: l._count.memberships,
-      studies: l._count.studies,
-      imports: await prisma.importRun.count({ where: { study: { laboratoryId: l.id } } }),
-    })),
-  );
+  // Un seul passage groupé pour les imports (jointure par l'étude), un pour les responsables.
+  const [importRows, adminRows] = await Promise.all([
+    prisma.$queryRaw<{ laboratoryId: string; n: number }[]>`
+      SELECT s."laboratoryId", count(*)::int AS n
+      FROM "ImportRun" i JOIN "Study" s ON s.id = i."studyId"
+      GROUP BY s."laboratoryId"`,
+    prisma.membership.groupBy({
+      by: ["laboratoryId"],
+      where: { role: "lab_admin" },
+      _count: { _all: true },
+    }),
+  ]);
+  const imports = new Map(importRows.map((r) => [r.laboratoryId, r.n]));
+  const admins = new Map(adminRows.map((r) => [r.laboratoryId, r._count._all]));
+  return labs.map((l) => ({
+    id: l.id,
+    name: l.name,
+    slug: l.slug,
+    suspended: l.suspendedAt !== null,
+    createdAt: l.createdAt,
+    members: l._count.memberships,
+    studies: l._count.studies,
+    imports: imports.get(l.id) ?? 0,
+    admins: admins.get(l.id) ?? 0,
+  }));
 }
 
 /** Suspend ou réactive un laboratoire (audit rattaché à ce laboratoire). */

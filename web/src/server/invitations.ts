@@ -5,6 +5,7 @@ import { recordAudit, type Tx } from "@/server/audit";
 import { prisma } from "@/server/db";
 import { DomainError } from "@/server/errors";
 import type { LabContext } from "@/server/lab-context";
+import { createLaboratoryIn, withSlugRetry } from "@/server/labs";
 import { assertRole, parseLabRole } from "@/server/lab-role";
 import { assertPlatformAdmin } from "@/server/platform";
 import { lockLaboratory } from "@/server/tx-lock";
@@ -107,7 +108,9 @@ export async function createInvitation(
   );
 }
 
-/** Équipe de la plateforme : invite le premier responsable d'un laboratoire. */
+const HAS_ADMIN = "Ce laboratoire a déjà un responsable.";
+
+/** Équipe de la plateforme : (ré)invite le premier responsable d'un laboratoire qui n'en a aucun. */
 export async function createFirstAdminInvitation(
   admin: SessionUser,
   laboratoryId: string,
@@ -120,8 +123,33 @@ export async function createFirstAdminInvitation(
       select: { id: true },
     });
     if (!lab) throw new DomainError("Laboratoire introuvable.");
+    await lockLaboratory(tx, lab.id);
+    // Jamais de responsable ajouté à un laboratoire qui en a déjà un.
+    const admins = await tx.membership.count({
+      where: { laboratoryId: lab.id, role: "lab_admin" },
+    });
+    if (admins > 0) throw new DomainError(HAS_ADMIN);
     return issue(tx, { laboratoryId: lab.id, actorId: admin.id, email, role: "lab_admin" });
   });
+}
+
+/** Crée le laboratoire et l'invitation de son premier responsable dans UNE transaction (aucun laboratoire orphelin). */
+export async function createLaboratoryWithFirstAdmin(
+  admin: SessionUser,
+  input: { name: string; email: string },
+): Promise<CreatedInvitation & { laboratoryId: string }> {
+  return withSlugRetry(() =>
+    prisma.$transaction(async (tx) => {
+      const lab = await createLaboratoryIn(tx, admin, input.name);
+      const created = await issue(tx, {
+        laboratoryId: lab.id,
+        actorId: admin.id,
+        email: input.email,
+        role: "lab_admin",
+      });
+      return { ...created, laboratoryId: lab.id };
+    }),
+  );
 }
 
 /** Invitation valable pour ce jeton (non utilisée, non révoquée, non expirée, laboratoire actif). */

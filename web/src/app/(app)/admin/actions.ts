@@ -4,11 +4,12 @@ import { revalidatePath } from "next/cache";
 import type { ActionState } from "@/lib/action-state";
 import { appOrigin } from "@/server/app-url";
 import { text } from "@/server/form-data";
-import { createFirstAdminInvitation } from "@/server/invitations";
-import { createLaboratory } from "@/server/labs";
+import {
+  createFirstAdminInvitation,
+  createLaboratoryWithFirstAdmin,
+} from "@/server/invitations";
 import { setLaboratorySuspended } from "@/server/platform";
 import { runPlatformAction } from "@/server/platform-action";
-import { assertEmailShape, normalizeEmail } from "@/server/users";
 
 /** Crée le laboratoire puis l'invitation de son premier responsable ; le lien est affiché une fois. */
 export async function createLaboratoryAction(
@@ -16,11 +17,10 @@ export async function createLaboratoryAction(
   formData: FormData,
 ): Promise<ActionState> {
   return runPlatformAction(async (admin) => {
-    const email = normalizeEmail(text(formData, "email"));
-    // Adresse vérifiée avant de créer quoi que ce soit.
-    assertEmailShape(email);
-    const lab = await createLaboratory(admin, { name: text(formData, "name") });
-    const { token } = await createFirstAdminInvitation(admin, lab.id, email);
+    const { token } = await createLaboratoryWithFirstAdmin(admin, {
+      name: text(formData, "name"),
+      email: text(formData, "email"),
+    });
     revalidatePath("/admin");
     return { ok: true, link: `${await appOrigin()}/invitation/${token}` };
   });
@@ -33,5 +33,21 @@ export async function setSuspendedAction(
   return runPlatformAction(async (admin) => {
     await setLaboratorySuspended(admin, laboratoryId, suspended);
     revalidatePath("/admin");
+  });
+}
+
+/** Nouvelle invitation du responsable : refusée côté serveur si le laboratoire a déjà un responsable. */
+export async function reinviteFirstAdminAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runPlatformAction(async (admin) => {
+    const { token } = await createFirstAdminInvitation(
+      admin,
+      text(formData, "laboratoryId"),
+      text(formData, "email"),
+    );
+    revalidatePath("/admin");
+    return { ok: true, link: `${await appOrigin()}/invitation/${token}` };
   });
 }

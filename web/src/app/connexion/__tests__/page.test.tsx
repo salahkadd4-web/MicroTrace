@@ -37,3 +37,10 @@ describe("page Connexion : avis après création de compte", () => {
     expect(screen.queryByText("Compte créé. Connectez-vous.")).not.toBeInTheDocument();
   });
 });
+
+describe("page Connexion : métadonnées", () => {
+  it("n'envoie pas de Referer (le jeton d'invitation peut figurer dans callbackUrl)", async () => {
+    const { metadata } = await import("../page");
+    expect(metadata.referrer).toBe("no-referrer");
+  });
+});
