@@ -26,10 +26,12 @@ vi.mock("@/server/projects", () => ({
 }));
 vi.mock("../actions", () => ({
   createProjectAction: vi.fn(async () => ({ error: "Le titre est obligatoire." })),
+  createExampleStudyAction: vi.fn(async () => ({ error: "L'étude d'exemple a été créée, mais son import a échoué : x." })),
 }));
 
 import { requireLab } from "@/server/lab-context";
 import { listProjects } from "@/server/projects";
+import { createExampleStudyAction } from "../actions";
 import ProjetsPage from "../page";
 
 const props = { params: Promise.resolve({ labSlug: "labo" }) };
@@ -74,5 +76,30 @@ describe("page Projets", () => {
     await userEvent.type(screen.getByLabelText("Titre"), "x");
     await userEvent.click(screen.getByRole("button", { name: "Créer le projet" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Le titre est obligatoire.");
+  });
+
+  it("un chercheur voit la section Études d'exemple avec ses deux boutons et la citation", async () => {
+    render(await ProjetsPage(props));
+    expect(screen.getByRole("heading", { level: 2, name: "Études d'exemple" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Créer l'étude d'exemple (fictive)" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Créer l'étude d'exemple réelle (Leslie et al. 2022)" }),
+    ).toBeEnabled();
+    expect(screen.getByText(/Environment International 163 \(2022\) 107199, licence CC\s+BY 4\.0/)).toBeInTheDocument();
+  });
+
+  it("un lecteur ne voit pas la section Études d'exemple", async () => {
+    vi.mocked(requireLab).mockResolvedValueOnce({ role: "viewer", labSlug: "labo" } as never);
+    render(await ProjetsPage(props));
+    expect(screen.queryByText("Études d'exemple")).not.toBeInTheDocument();
+  });
+
+  it("le clic lance l'action avec le bon exemple et affiche l'erreur", async () => {
+    render(await ProjetsPage(props));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Créer l'étude d'exemple réelle (Leslie et al. 2022)" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent("son import a échoué");
+    expect(vi.mocked(createExampleStudyAction).mock.calls.at(-1)?.[2]).toBe("leslie2022");
   });
 });

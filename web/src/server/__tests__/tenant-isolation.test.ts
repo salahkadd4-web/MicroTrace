@@ -7,6 +7,7 @@ vi.mock("@/server/engine/client", async (orig) => {
     engineClient: {
       validateContext: vi.fn(async () => ({})),
       example: vi.fn(),
+      exampleLeslie2022: vi.fn(),
       suggestMapping: vi.fn(),
       checkImport: vi.fn(),
     },
@@ -15,6 +16,7 @@ vi.mock("@/server/engine/client", async (orig) => {
 
 import * as auditModule from "@/server/audit";
 import * as importsModule from "@/server/imports";
+import * as examplesModule from "@/server/examples";
 import * as invitationsModule from "@/server/invitations";
 import * as membersModule from "@/server/members";
 import { prisma } from "@/server/db";
@@ -28,6 +30,7 @@ import { resetDb } from "../../../test/db-reset";
 import { makeLab, makeMember } from "../../../test/labs";
 
 const { listAuditEvents } = auditModule;
+const { createExampleStudy } = examplesModule;
 const { createInvitation } = invitationsModule;
 const {
   checkStagedImport,
@@ -247,6 +250,12 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { returns: (r) => expect(r).toBeNull() },
     },
   },
+  examples: {
+    createExampleStudy: {
+      run: (ctx) => createExampleStudy(ctx, "fictif"),
+      outcome: { returns: (r) => expect(r).toHaveProperty("importRunId") },
+    },
+  },
   members: {
     listMembers: {
       run: (ctx) => listMembers(ctx),
@@ -310,6 +319,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
     recordAudit:
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
+  examples: {},
   members: {},
   invitations: {
     acceptInvitation: "adressée par jeton secret, sans contexte de laboratoire (voir invitations-members)",
@@ -325,6 +335,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   "study-settings": settingsModule,
   audit: auditModule,
   imports: importsModule,
+  examples: examplesModule,
   members: membersModule,
   invitations: invitationsModule,
 };
@@ -333,6 +344,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
 const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
   {
     createProject: (ctx) => createProject(ctx, { title: "V" }),
+    createExampleStudy: (ctx) => createExampleStudy(ctx, "fictif"),
     createStudy: (ctx, ids) => createStudy(ctx, ids.project, STUDY_INPUT),
     updateStudy: (ctx, ids) => updateStudy(ctx, ids.study, { title: "V" }),
     declarePseudonymisation: (ctx, ids) =>
@@ -532,7 +544,7 @@ describe("couverture : chaque fonction exportée des services est testée", () =
 describe("un membre de A sur les objets de B", () => {
   for (const [moduleName, cases] of Object.entries(CASES)) {
     for (const [fn, c] of Object.entries(cases)) {
-      if (fn === "createProject" || fn === "createInvitation") continue; // pas d'objet de B en entrée : voir « création »
+      if (fn === "createProject" || fn === "createInvitation" || fn === "createExampleStudy") continue; // pas d'objet de B en entrée : voir « création »
       it(`${moduleName}.${fn} : même réponse que pour un identifiant inexistant, B inchangé`, async () => {
         const missing: Ids = {
           project: MISSING,

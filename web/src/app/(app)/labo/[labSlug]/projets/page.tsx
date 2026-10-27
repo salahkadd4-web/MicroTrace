@@ -15,6 +15,7 @@ import { requireLab } from "@/server/lab-context";
 import { canWrite } from "@/lib/roles";
 import { listProjects } from "@/server/projects";
 import { CreateProjectForm } from "./CreateProjectForm";
+import { ExampleStudies } from "./ExampleStudies";
 
 export default async function ProjetsPage({
   params,
@@ -67,6 +68,12 @@ export default async function ProjetsPage({
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Nouveau projet</h2>
           <CreateProjectForm labSlug={labSlug} />
+        </section>
+      ) : null}
+      {canWrite(ctx.role) ? (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Études d&apos;exemple</h2>
+          <ExampleStudies labSlug={labSlug} />
         </section>
       ) : null}
     </>
