@@ -4,6 +4,8 @@ x-web-build: &web-build
   context: ./web
   target: builder
 
+# Règle d'épinglage : les images tirées (postgres) portent une version exacte ;
+# microtrace-web-tools:local est construite localement (migrate et tools la partagent).
 services:
   db:
     image: postgres:17.6-bookworm
@@ -39,7 +41,7 @@ services:
   # Applique les migrations de base de données, puis s'arrête (web attend qu'il ait réussi).
   migrate:
     build: *web-build
-    image: microtrace-web-tools
+    image: microtrace-web-tools:local
     command: ["npx", "prisma", "migrate", "deploy"]
     environment:
       DATABASE_URL: postgresql://microtrace:${POSTGRES_PASSWORD}@db:5432/microtrace
@@ -81,7 +83,7 @@ services:
   # Outil ponctuel : docker compose run --rm tools npm run user:create -- --email … --name …
   tools:
     build: *web-build
-    image: microtrace-web-tools
+    image: microtrace-web-tools:local
     profiles: [tools]
     environment:
       DATABASE_URL: postgresql://microtrace:${POSTGRES_PASSWORD}@db:5432/microtrace

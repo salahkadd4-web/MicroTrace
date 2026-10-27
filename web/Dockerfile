@@ -17,6 +17,7 @@ COPY . .
 RUN npx prisma generate && npm run build
 # Cette étape (avec toutes les dépendances, prisma et tsx) sert au service « tools » :
 # migrations et création d'utilisateurs.
+USER node
 CMD ["npx", "prisma", "migrate", "deploy"]
 
 FROM node:24.14.0-bookworm-slim AS runner

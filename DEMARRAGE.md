@@ -71,28 +71,26 @@ Relancez ensuite les étapes 3 et 4. Si vous avez régénéré `.env` avec `--fo
 
 ## 9. Mode développement
 
-La base et le moteur tournent dans Docker, l'application web tourne sur votre machine avec rechargement automatique. Cela demande de publier temporairement les ports de la base et du moteur sur votre machine : créez un fichier `docker-compose.override.yml` (ignoré par ce guide, à ne pas partager) :
-
-```yaml
-services:
-  db:
-    ports: ["127.0.0.1:5432:5432"]
-  engine:
-    ports: ["127.0.0.1:8001:8001"]
-```
-
-Puis :
+La base et le moteur tournent dans Docker, l'application web tourne sur votre machine avec rechargement automatique. Le fichier `docker-compose.dev.yml` (déjà fourni) publie la base et le moteur, uniquement sur votre PC :
 
 ```powershell
-docker compose up -d db engine
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db engine
 cd web
-copy .env.example .env.local     # renseignez DATABASE_URL, ENGINE_URL, ENGINE_SECRET, AUTH_SECRET
+copy .env.example .env.local
 npm install
 npm run db:migrate
 npm run dev
 ```
 
-Valeurs pour `web/.env.local` : `DATABASE_URL=postgresql://microtrace:<POSTGRES_PASSWORD de .env>@localhost:5432/microtrace`, `ENGINE_URL=http://localhost:8001`, `ENGINE_SECRET` et `AUTH_SECRET` identiques à ceux de `.env`. Le premier administrateur se crée avec `npm run user:create -- --email … --name … --platform-admin`. N'oubliez pas de supprimer le fichier `docker-compose.override.yml` ensuite.
+**Attention : votre PC a déjà un PostgreSQL Windows sur le port 5432. Ne le touchez pas.** La base Docker est donc publiée sur le port **5433**.
+
+Renseignez ces valeurs dans `web/.env.local` (lu avant `web/.env` ; les valeurs de `.env.local` l'emportent) :
+
+- `DATABASE_URL=postgresql://microtrace:<POSTGRES_PASSWORD>@localhost:5433/microtrace` (le mot de passe est dans le `.env` de la racine)
+- `ENGINE_URL=http://localhost:8001`
+- `ENGINE_SECRET` et `AUTH_SECRET` : mêmes valeurs que dans le `.env` de la racine
+
+Le premier administrateur se crée avec `npm run user:create -- --email … --name … --platform-admin`. Pour arrêter : `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`.
 
 ## 10. Mise en production
 

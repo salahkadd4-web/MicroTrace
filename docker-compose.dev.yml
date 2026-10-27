@@ -1,0 +1,16 @@
+# Mode développement : base et moteur accessibles depuis votre PC (127.0.0.1 uniquement).
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db engine
+# La base est publiée sur le port 5433 (le 5432 est souvent déjà pris par un PostgreSQL Windows).
+services:
+  db:
+    ports:
+      - "127.0.0.1:5433:5432"
+    networks: [internal, dev]
+  engine:
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks: [internal, dev]
+
+networks:
+  # Réseau ordinaire (non interne) : nécessaire pour publier des ports sur l'hôte.
+  dev:
