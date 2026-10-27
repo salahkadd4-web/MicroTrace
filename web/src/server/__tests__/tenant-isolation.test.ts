@@ -34,6 +34,7 @@ const {
   existingKeys,
   getImport,
   listImports,
+  readStagedSheet,
   retireImport,
   saveImport,
   suggestStagedMapping,
@@ -215,6 +216,10 @@ const CASES: Record<string, Record<string, Case>> = {
       run: (ctx, ids) => suggestStagedMapping(ctx, ids.study, TOKEN),
       outcome: { throws: "Étude introuvable." },
     },
+    readStagedSheet: {
+      run: (ctx, ids) => readStagedSheet(ctx, ids.study, TOKEN, "A"),
+      outcome: { throws: "Étude introuvable." },
+    },
     checkStagedImport: {
       run: (ctx, ids) =>
         checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
@@ -345,6 +350,7 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
     suggestStagedMapping: (ctx, ids) =>
       suggestStagedMapping(ctx, ids.study, TOKEN),
+    readStagedSheet: (ctx, ids) => readStagedSheet(ctx, ids.study, TOKEN, "A"),
     checkStagedImport: (ctx, ids) =>
       checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
     saveImport: (ctx, ids) =>

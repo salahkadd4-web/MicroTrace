@@ -47,9 +47,12 @@ export function MappingForm({
       (c) => !known.has(c),
     ),
   ];
-  const columnOptions = [
+  const polymerUsed = new Set(Object.keys(mapping.polymer_columns ?? {}));
+  const columnOptionsFor = (field: string) => [
     { value: NONE, label: "— Non utilisé —" },
-    ...[...new Set(allColumns)].map((c) => ({ value: c, label: c })),
+    ...[...new Set(allColumns)]
+      .filter((c) => !polymerUsed.has(c) || mapping.field_columns[field] === c)
+      .map((c) => ({ value: c, label: c })),
   ];
   const used = new Set(Object.values(mapping.field_columns));
   const polymerCandidates = [...new Set(allColumns)].filter((c) => !used.has(c));
@@ -63,7 +66,9 @@ export function MappingForm({
       field_columns[field] = column;
       delete constants[field];
     }
-    onChange(tidy({ ...mapping, field_columns, constants }));
+    const polymer_columns = { ...mapping.polymer_columns };
+    delete polymer_columns[column];
+    onChange(tidy({ ...mapping, field_columns, constants, polymer_columns }));
   }
 
   function setConstant(field: string, value: string) {
@@ -119,7 +124,7 @@ export function MappingForm({
               <SelectField
                 id={`map-col-${f.name}`}
                 name={`column-${f.name}`}
-                options={columnOptions}
+                options={columnOptionsFor(f.name)}
                 value={mapping.field_columns[f.name] ?? NONE}
                 onValueChange={(v) => setColumn(f.name, v)}
                 required={false}

@@ -11,6 +11,7 @@ import {
   type ImportResult,
   type Mapping,
   type StudyContext,
+  type TableRead,
 } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import {
@@ -158,6 +159,22 @@ export async function suggestStagedMapping(
   await requireStudy(ctx, studyId);
   const staged = await readStaging(owner(ctx, studyId), token);
   return engineClient.suggestMapping(
+    { data: new Uint8Array(staged.bytes), filename: staged.name },
+    sheet,
+  );
+}
+
+/** Relit une feuille du dépôt (aperçu, colonnes) sans renvoyer les octets. */
+export async function readStagedSheet(
+  ctx: LabContext,
+  studyId: string,
+  token: string,
+  sheet: string | null,
+): Promise<TableRead> {
+  assertRole(ctx, "researcher");
+  await requireStudy(ctx, studyId);
+  const staged = await readStaging(owner(ctx, studyId), token);
+  return engineClient.readTable(
     { data: new Uint8Array(staged.bytes), filename: staged.name },
     sheet,
   );

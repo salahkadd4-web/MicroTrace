@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import type { ActionResult, ActionState } from "@/lib/action-state";
-import type { ImportResult, Mapping } from "@/server/engine/client";
+import type { ImportResult, Mapping, TableRead } from "@/server/engine/client";
 import {
   checkStagedImport,
   getImport,
+  readStagedSheet,
   retireImport,
   saveImport,
   suggestStagedMapping,
@@ -46,6 +47,19 @@ export async function suggestMappingAction(
   sheet: string | null,
 ): Promise<ActionResult<Mapping>> {
   return withData(labSlug, (ctx) => suggestStagedMapping(ctx, studyId, token, sheet));
+}
+
+/** Relit une autre feuille du dépôt : colonnes et aperçu de cette feuille (jamais les octets). */
+export async function readSheetAction(
+  labSlug: string,
+  studyId: string,
+  token: string,
+  sheet: string | null,
+): Promise<ActionResult<Pick<TableRead, "sheet" | "sheets" | "columns" | "preview" | "n_rows">>> {
+  return withData(labSlug, async (ctx) => {
+    const { sheet: read, sheets, columns, preview, n_rows } = await readStagedSheet(ctx, studyId, token, sheet);
+    return { sheet: read, sheets, columns, preview, n_rows };
+  });
 }
 
 export async function checkImportAction(

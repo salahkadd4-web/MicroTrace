@@ -9,7 +9,9 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const suggest = vi.fn();
 const check = vi.fn();
 const save = vi.fn();
+const readSheet = vi.fn();
 vi.mock("../actions", () => ({
+  readSheetAction: (...a: unknown[]) => readSheet(...a),
   suggestMappingAction: (...a: unknown[]) => suggest(...a),
   checkImportAction: (...a: unknown[]) => check(...a),
   saveImportAction: (...a: unknown[]) => save(...a),
@@ -183,15 +185,72 @@ describe("ImportWizard", () => {
     expect(screen.getByRole("button", { name: "Suivant" })).toBeEnabled();
   });
 
-  it("changer de feuille relance la suggestion sur le dépôt déjà envoyé", async () => {
-    fetchMock.mockResolvedValue(ok({ token: "tok", table: { ...TABLE, sheet: "A", sheets: ["A", "B"] } }));
+  const TABLE_AB = { ...TABLE, sheet: "A", sheets: ["A", "B"], columns: ["ColA1", "ColA2"] };
+  const SHEET_B = {
+    sheet: "B",
+    sheets: ["A", "B"],
+    columns: ["ColB1", "ColB2"],
+    preview: [{ ColB1: "valB", ColB2: "x" }],
+    n_rows: 5,
+  };
+
+  async function pickSheetB(user: User) {
+    await user.click(await screen.findByRole("combobox", { name: "Feuille" }));
+    await user.click(await screen.findByRole("option", { name: "B" }));
+  }
+
+  it("changer de feuille relit le dépôt : aperçu et colonnes de la feuille B remplacent ceux de A", async () => {
+    fetchMock.mockResolvedValue(ok({ token: "tok", table: TABLE_AB }));
+    readSheet.mockResolvedValue({ data: SHEET_B });
+    suggest.mockResolvedValue({ data: { ...MAPPING, field_columns: {} } });
     const user = userEvent.setup();
     render(<ImportWizard labSlug="labo" studyId="s1" fields={FIELDS} />);
     await upload(user);
-    await user.click(await screen.findByRole("combobox", { name: "Feuille" }));
-    await user.click(await screen.findByRole("option", { name: "B" }));
-    await waitFor(() => expect(suggest).toHaveBeenLastCalledWith("labo", "s1", "tok", "B"));
+    expect(screen.getByText("ColA1")).toBeInTheDocument();
+    await pickSheetB(user);
+    await waitFor(() => expect(readSheet).toHaveBeenCalledWith("labo", "s1", "tok", "B"));
+    expect(await screen.findByText("valB")).toBeInTheDocument();
+    expect(screen.queryByText("ColA1")).not.toBeInTheDocument();
+    expect(suggest).toHaveBeenLastCalledWith("labo", "s1", "tok", "B");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Suivant" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Suivant" }));
+    await user.click(screen.getByRole("combobox", { name: "Polymère : colonne" }));
+    expect(await screen.findByRole("option", { name: "ColB1" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "ColA1" })).not.toBeInTheDocument();
+  });
+
+  it("après un échec au changement de feuille, « Réessayer » relance pour la feuille courante", async () => {
+    fetchMock.mockResolvedValue(ok({ token: "tok", table: TABLE_AB }));
+    readSheet.mockResolvedValueOnce({ error: "Le moteur d'analyse est indisponible." });
+    readSheet.mockResolvedValueOnce({ data: SHEET_B });
+    const user = userEvent.setup();
+    render(<ImportWizard labSlug="labo" studyId="s1" fields={FIELDS} />);
+    await upload(user);
+    await pickSheetB(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Le moteur d'analyse est indisponible.");
+    await user.click(screen.getByRole("button", { name: "Réessayer" }));
+    await waitFor(() => expect(readSheet).toHaveBeenCalledTimes(2));
+    expect(readSheet).toHaveBeenLastCalledWith("labo", "s1", "tok", "B");
+    expect(await screen.findByText("valB")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Réessayer" })).not.toBeInTheDocument();
+  });
+
+  it("deux clics avant la réponse n'appellent l'enregistrement qu'une fois", async () => {
+    let release!: (v: unknown) => void;
+    save.mockReturnValue(new Promise((r) => (release = r)));
+    const user = userEvent.setup();
+    render(<ImportWizard labSlug="labo" studyId="s1" fields={FIELDS} />);
+    await toCheck(user);
+    await runCheck(user);
+    await user.click(screen.getByRole("button", { name: "Suivant" }));
+    const button = screen.getByRole("button", { name: "Enregistrer l'import" });
+    button.click();
+    button.click();
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    release({ data: { importRunId: "r1" } });
+    await screen.findByText("Import enregistré.");
+    expect(save).toHaveBeenCalledTimes(1);
   });
 
   it("un contrôle qui refuse des données personnelles efface le dépôt", async () => {

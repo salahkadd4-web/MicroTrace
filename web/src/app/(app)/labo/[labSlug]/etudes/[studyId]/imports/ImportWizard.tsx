@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { Mapping, TableRead } from "@/server/engine/client";
-import { checkImportAction, saveImportAction, suggestMappingAction, type CheckSummary } from "./actions";
+import { checkImportAction, readSheetAction, saveImportAction, suggestMappingAction, type CheckSummary } from "./actions";
 import { countsSummary, IssuesTable } from "./IssuesTable";
 import { MappingForm } from "./MappingForm";
 import type { MappingField } from "./mapping-fields";
@@ -69,6 +69,7 @@ export function ImportWizard({
   const [suggesting, setSuggesting] = useState(false);
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [sheetFailed, setSheetFailed] = useState(false);
   const savingRef = useRef(false);
 
   function reset() {
@@ -80,6 +81,7 @@ export function ImportWizard({
     setMapping(null);
     setCheck(null);
     setAccepted(false);
+    setSheetFailed(false);
   }
 
   function onFileChange(selected: File | null) {
@@ -89,11 +91,17 @@ export function ImportWizard({
   }
 
   async function suggest(forToken: string, forSheet: string | null) {
+    setSheetFailed(false);
+    setError(undefined);
     setSuggesting(true);
     try {
       const res = await suggestMappingAction(labSlug, studyId, forToken, forSheet);
-      if (res.error !== undefined) setError(res.error);
-      else setMapping(res.data);
+      if (res.error !== undefined) {
+        setError(res.error);
+        setSheetFailed(true);
+      } else {
+        setMapping(res.data);
+      }
     } finally {
       setSuggesting(false);
     }
@@ -137,14 +145,37 @@ export function ImportWizard({
     }
   }
 
-  async function onSheetChange(next: string) {
-    if (!token) return;
+  /** Relit la feuille dans le dépôt (colonnes, aperçu) puis suggère sa correspondance. */
+  async function loadSheet(forToken: string, next: string) {
     setSheet(next);
     setMapping(null);
     setCheck(null);
     setAccepted(false);
     setError(undefined);
-    await suggest(token, next);
+    setSheetFailed(false);
+    setSuggesting(true);
+    try {
+      const res = await readSheetAction(labSlug, studyId, forToken, next);
+      if (res.error !== undefined) {
+        setError(res.error);
+        setSheetFailed(true);
+        return;
+      }
+      setTable((t) => (t ? { ...t, ...res.data } : t));
+      const sug = await suggestMappingAction(labSlug, studyId, forToken, next);
+      if (sug.error !== undefined) {
+        setError(sug.error);
+        setSheetFailed(true);
+      } else {
+        setMapping(sug.data);
+      }
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
+  async function onSheetChange(next: string) {
+    if (token) await loadSheet(token, next);
   }
 
   function onMappingChange(next: Mapping) {
@@ -306,6 +337,16 @@ export function ImportWizard({
                   ))}
                 </TableBody>
               </Table>
+              {sheetFailed && token ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => (sheet ? loadSheet(token, sheet) : suggest(token, null))}
+                  disabled={suggesting}
+                >
+                  Réessayer
+                </Button>
+              ) : null}
               {suggesting ? (
                 <p className="text-sm text-muted-foreground">Recherche de la correspondance…</p>
               ) : null}
