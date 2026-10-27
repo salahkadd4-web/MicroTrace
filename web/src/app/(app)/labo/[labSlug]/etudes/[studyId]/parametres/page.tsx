@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { NATURE_LABELS, QC_KIND_LABELS, TECHNIQUE_LABELS, labelOf } from "@/lib/labels";
+import { BLANK_CORRECTED_LABELS, NATURE_LABELS, QC_KIND_LABELS, TECHNIQUE_LABELS, labelOf } from "@/lib/labels";
 import { unitLabel } from "@/lib/units";
 import { requireLab } from "@/server/lab-context";
 import { canWrite } from "@/lib/roles";
@@ -199,6 +199,8 @@ export default async function ParametresPage({
               <dd>{study.referenceDoi || "—"}</dd>
               <dt className="text-muted-foreground">Licence de référence</dt>
               <dd>{study.referenceLicense || "—"}</dd>
+              <dt className="text-muted-foreground">Correction du blanc</dt>
+              <dd>{labelOf(BLANK_CORRECTED_LABELS, study.blankCorrected)}</dd>
             </dl>
           )}
         </Section>

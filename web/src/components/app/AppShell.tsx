@@ -29,7 +29,7 @@ export function AppShell({
       <header className="border-b bg-card">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
           <div className="flex items-center gap-6">
-            <Link href="/" className="font-semibold">
+            <Link href={lab ? `/labo/${lab.slug}/projets` : "/"} className="font-semibold">
               MicroTrace Studio
             </Link>
             {lab ? (

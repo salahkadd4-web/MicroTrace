@@ -229,6 +229,17 @@ describe("upsertDetectionLimit", () => {
     expect(ev[1]).toMatchObject({ entityType: "DetectionLimit", entityId: l1.id });
   });
 
+  it("valeurs identiques : aucune écriture, aucun audit, ligne existante renvoyée", async () => {
+    const { s, m } = await studyWithMethod();
+    const l1 = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
+    const audits1 = await auditCount();
+    const calls = validate.mock.calls.length;
+    const l2 = await upsertDetectionLimit(ctx, s.id, { methodId: m.id, ...LIMIT });
+    expect(l2).toEqual(l1);
+    expect(await auditCount()).toBe(audits1);
+    expect(validate.mock.calls.length).toBe(calls);
+  });
+
   it("méthode d'une autre étude ou inconnue : « Méthode introuvable. »", async () => {
     const { m } = await studyWithMethod();
     const other = await newStudy("E2");

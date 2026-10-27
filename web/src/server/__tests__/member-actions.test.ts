@@ -110,6 +110,46 @@ describe("actions de la page Membres", () => {
   });
 });
 
+describe("auto-rétrogradation et auto-retrait", () => {
+  async function twoAdmins() {
+    const lab = await makeLab("Labo A", "labo-a");
+    await makeMember(lab, "lab_admin", "admin@example.org");
+    await makeMember(lab, "lab_admin", "second@example.org");
+    await login("admin@example.org");
+    return prisma.membership.findFirstOrThrow({ where: { user: { email: "admin@example.org" } } });
+  }
+
+  it("se rétrograder redirige vers la liste des projets", async () => {
+    const own = await twoAdmins();
+    expect(await redirectTarget(changeRoleAction("labo-a", own.id, "researcher"))).toBe(
+      "/labo/labo-a/projets",
+    );
+    expect((await prisma.membership.findUniqueOrThrow({ where: { id: own.id } })).role).toBe("researcher");
+  });
+
+  it("se retirer redirige vers l'accueil", async () => {
+    const own = await twoAdmins();
+    expect(await redirectTarget(removeMemberAction("labo-a", own.id))).toBe("/");
+    expect(await prisma.membership.count({ where: { id: own.id } })).toBe(0);
+  });
+
+  it("modifier un autre membre ne redirige pas", async () => {
+    await twoAdmins();
+    const other = await prisma.membership.findFirstOrThrow({ where: { user: { email: "second@example.org" } } });
+    await expect(changeRoleAction("labo-a", other.id, "viewer")).resolves.toEqual({ ok: true });
+  });
+
+  it("un refus (dernier responsable) ne redirige pas", async () => {
+    const lab = await makeLab("Labo B", "labo-b");
+    await makeMember(lab, "lab_admin", "seul@example.org");
+    await login("seul@example.org");
+    const own = await prisma.membership.findFirstOrThrow({ where: { user: { email: "seul@example.org" } } });
+    await expect(changeRoleAction("labo-b", own.id, "viewer")).resolves.toEqual({
+      error: "Le laboratoire doit garder au moins un responsable.",
+    });
+  });
+});
+
 describe("action d'acceptation", () => {
   async function invitation(email: string, role: "researcher" | "viewer" = "researcher") {
     const lab = await prisma.laboratory.findUniqueOrThrow({ where: { slug: "labo-a" } });

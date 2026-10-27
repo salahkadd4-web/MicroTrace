@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import type { ActionState } from "@/lib/action-state";
 import { appOrigin } from "@/server/app-url";
+import { prisma } from "@/server/db";
 import { text } from "@/server/form-data";
 import { createInvitation } from "@/server/invitations";
 import { changeMemberRole, removeMember, revokeInvitation } from "@/server/members";
@@ -30,33 +32,52 @@ export async function inviteMemberAction(
   );
 }
 
+/** Le membre visé est-il l'utilisateur qui agit ? (recherche limitée au laboratoire du contexte) */
+async function isSelf(ctx: { userId: string; laboratoryId: string }, membershipId: string) {
+  const m = await prisma.membership.findFirst({
+    where: { id: membershipId, laboratoryId: ctx.laboratoryId },
+    select: { userId: true },
+  });
+  return m?.userId === ctx.userId;
+}
+
 export async function changeRoleAction(
   labSlug: string,
   membershipId: string,
   role: string,
 ): Promise<ActionState> {
-  return runAction(
+  let self = false;
+  const result = await runAction(
     labSlug,
     async (ctx) => {
+      self = await isSelf(ctx, membershipId);
       await changeMemberRole(ctx, membershipId, role);
       revalidatePath(page(labSlug));
     },
     "lab_admin",
   );
+  // Rétrogradé par lui-même : la page Membres ne lui est plus accessible.
+  if (self && !result.error) redirect(`/labo/${labSlug}/projets`);
+  return result;
 }
 
 export async function removeMemberAction(
   labSlug: string,
   membershipId: string,
 ): Promise<ActionState> {
-  return runAction(
+  let self = false;
+  const result = await runAction(
     labSlug,
     async (ctx) => {
+      self = await isSelf(ctx, membershipId);
       await removeMember(ctx, membershipId);
       revalidatePath(page(labSlug));
     },
     "lab_admin",
   );
+  // Retiré par lui-même : plus aucun accès à ce laboratoire.
+  if (self && !result.error) redirect("/");
+  return result;
 }
 
 export async function revokeInvitationAction(

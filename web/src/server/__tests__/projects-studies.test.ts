@@ -13,7 +13,7 @@ vi.mock("@/server/engine/client", async (orig) => {
 import * as auditModule from "@/server/audit";
 import { prisma } from "@/server/db";
 import {
-  ENGINE_TIMEOUT_MS,
+  ENGINE_VALIDATE_TIMEOUT_MS,
   EngineError,
   EngineUnavailableError,
   engineClient,
@@ -211,7 +211,8 @@ describe("updateStudy", () => {
   });
 
   it("transaction moteur : délai strictement supérieur au délai du moteur", () => {
-    expect(ENGINE_TX_OPTIONS.timeout).toBeGreaterThan(ENGINE_TIMEOUT_MS);
+    expect(ENGINE_TX_OPTIONS.timeout).toBeGreaterThan(ENGINE_VALIDATE_TIMEOUT_MS);
+    expect(ENGINE_TX_OPTIONS.timeout).toBe(25_000);
     expect(ENGINE_TX_OPTIONS.maxWait).toBeGreaterThan(0);
   });
 

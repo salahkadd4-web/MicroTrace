@@ -109,7 +109,16 @@ describe("dernier responsable : fenêtre de concurrence déterministe", () => {
     const racing = changeMemberRole(second, m2.id, "viewer");
     const settled = vi.fn();
     racing.then(settled, settled);
-    await new Promise((r) => setTimeout(r, 400));
+    // Attente bornée (5 s) d'un backend réellement bloqué sur un verrou, au lieu d'un délai fixe.
+    let blocked = 0;
+    for (let i = 0; i < 100 && blocked === 0; i++) {
+      const rows = await prisma.$queryRaw<{ n: bigint }[]>`
+        SELECT count(*) AS n FROM pg_stat_activity
+        WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+      blocked = Number(rows[0].n);
+      if (blocked === 0) await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(blocked).toBeGreaterThan(0);
     expect(settled).not.toHaveBeenCalled(); // bloquée sur le verrou du laboratoire
     release();
     await holder;

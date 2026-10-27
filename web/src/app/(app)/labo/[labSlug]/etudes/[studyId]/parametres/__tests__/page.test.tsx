@@ -83,6 +83,7 @@ describe("page Paramètres", () => {
     await renderPage();
     const row = screen.getByRole("row", { name: /Py-GC\/MS.*PE/ });
     expect(row).toHaveTextContent("µg/mL");
+    expect(screen.getByText("Correction du blanc").nextElementSibling).toHaveTextContent("Inconnu");
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(
       document.querySelectorAll("form, input:not([type=hidden]), select, textarea, button"),

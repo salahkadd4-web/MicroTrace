@@ -3,7 +3,7 @@ import type { BlankCorrected, DataNature } from "@/generated/prisma/enums";
 import { prisma } from "@/server/db";
 import { recordAudit, type Tx } from "@/server/audit";
 import {
-  ENGINE_TIMEOUT_MS,
+  ENGINE_VALIDATE_TIMEOUT_MS,
   EngineError,
   engineClient,
   type StudyContext,
@@ -13,10 +13,10 @@ import { normalizeTitle } from "@/server/projects";
 import { assertRole } from "@/server/lab-role";
 import type { LabContext } from "@/server/lab-context";
 
-/** Options des transactions interactives qui appellent le moteur (délai > ENGINE_TIMEOUT_MS). */
+/** Options des transactions interactives qui appellent le moteur (délai > ENGINE_VALIDATE_TIMEOUT_MS). */
 export const ENGINE_TX_OPTIONS = {
   maxWait: 10_000,
-  timeout: ENGINE_TIMEOUT_MS + 10_000,
+  timeout: ENGINE_VALIDATE_TIMEOUT_MS + 10_000, // 25 s
 } as const;
 
 const ARCHIVED = "Étude archivée : lecture seule.";

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { AppShell } from "../AppShell";
 
@@ -30,6 +30,21 @@ describe("AppShell", () => {
       "href",
       "/labo/alpha/projets",
     );
+  });
+
+  it("le logo mène aux projets du laboratoire courant, à l'accueil sans laboratoire", () => {
+    shell([labs[0]]);
+    expect(screen.getByRole("link", { name: "MicroTrace Studio" })).toHaveAttribute(
+      "href",
+      "/labo/alpha/projets",
+    );
+    cleanup();
+    render(
+      <AppShell userName="Alice" signOutAction={async () => {}}>
+        contenu
+      </AppShell>,
+    );
+    expect(screen.getByRole("link", { name: "MicroTrace Studio" })).toHaveAttribute("href", "/");
   });
 
   it("propose un sélecteur de liens dès deux laboratoires, le courant en aria-current", () => {

@@ -16,6 +16,8 @@ export type Dictionary = S["DictionaryResponse"];
 export type Example = S["ExampleResponse"];
 
 export const ENGINE_TIMEOUT_MS = 120_000;
+/** La validation d'un contexte est rapide : délai court, car elle tient une transaction ouverte. */
+export const ENGINE_VALIDATE_TIMEOUT_MS = 15_000;
 export const UNAVAILABLE_MESSAGE = "Le moteur d'analyse est indisponible.";
 
 /** Réponse d'erreur du moteur (ErrorModel) : `detail` est un message français. */
@@ -85,6 +87,7 @@ export function createEngineClient(options: ClientOptions = {}) {
     path: string,
     body?: { json?: unknown; form?: FormData },
     auth = true,
+    callTimeoutMs = timeoutMs,
   ): Promise<T> {
     const { url: rawUrl, secret } = getConfig();
     const url = rawUrl.replace(/\/+$/, "");
@@ -103,7 +106,7 @@ export function createEngineClient(options: ClientOptions = {}) {
         method,
         headers,
         body: payload,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(callTimeoutMs),
         cache: "no-store",
       });
     } catch {
@@ -127,7 +130,13 @@ export function createEngineClient(options: ClientOptions = {}) {
   return {
     health: () => call<Health>("GET", "/health", undefined, false),
     validateContext: (ctx: StudyContext) =>
-      call<S["ValidateResponse"]>("POST", "/context/validate", { json: ctx }),
+      call<S["ValidateResponse"]>(
+        "POST",
+        "/context/validate",
+        { json: ctx },
+        true,
+        options.timeoutMs ?? ENGINE_VALIDATE_TIMEOUT_MS,
+      ),
     example: () => call<Example>("GET", "/examples/leslie-like"),
     readTable: (file: UploadInput, sheet?: string | null) =>
       call<TableRead>("POST", "/tables/read", { form: fileForm(file, sheet) }),

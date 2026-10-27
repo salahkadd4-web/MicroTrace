@@ -114,6 +114,16 @@ export async function upsertDetectionLimit(
       unitCode: input.unitCode,
       source: input.source,
     };
+    // Rien n'a changé : ni écriture, ni validation, ni audit.
+    if (
+      previous &&
+      previous.lod === data.lod &&
+      previous.loq === data.loq &&
+      previous.unitCode === data.unitCode &&
+      previous.source === data.source
+    ) {
+      return previous;
+    }
     const limit = await tx.detectionLimit.upsert({
       where: { studyId_methodId_polymer: { studyId, methodId: method.id, polymer } },
       create: { studyId, methodId: method.id, polymer, ...data },

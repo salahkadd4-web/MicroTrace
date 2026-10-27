@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/session", () => ({ getOptionalUser: vi.fn(async () => null) }));
 vi.mock("@/server/invitations", () => ({ previewInvitation: vi.fn() }));
+vi.mock("../../../(app)/actions", () => ({ logout: vi.fn() }));
 vi.mock("../actions", () => ({ acceptInvitationAction: vi.fn(async () => ({})) }));
 
 import { previewInvitation } from "@/server/invitations";
@@ -68,7 +69,8 @@ describe("page /invitation/[token]", () => {
     expect(
       screen.getByText("Cette invitation est destinée à une autre adresse e-mail."),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Se déconnecter" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
   });
 
   it("déjà membre", async () => {

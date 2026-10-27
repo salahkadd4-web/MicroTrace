@@ -3,9 +3,11 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { ROLE_LABELS } from "@/lib/labels";
 import { previewInvitation } from "@/server/invitations";
 import { getOptionalUser } from "@/server/session";
+import { logout } from "../../(app)/actions";
 import { JoinInvitationForm, SignupInvitationForm } from "./forms";
 
 // Le jeton est dans l'adresse de la page : jamais transmis en en-tête Referer, jamais indexé.
@@ -69,11 +71,18 @@ export default async function InvitationPage({
       break;
     case "wrong-email":
       body = (
-        <Alert variant="destructive">
-          <AlertDescription>
-            Cette invitation est destinée à une autre adresse e-mail.
-          </AlertDescription>
-        </Alert>
+        <>
+          <Alert variant="destructive">
+            <AlertDescription>
+              Cette invitation est destinée à une autre adresse e-mail.
+            </AlertDescription>
+          </Alert>
+          <form action={logout}>
+            <Button type="submit" variant="outline">
+              Se déconnecter
+            </Button>
+          </form>
+        </>
       );
       break;
     case "already-member":

@@ -41,6 +41,18 @@ describe("engineClient", () => {
     expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 
+  it("validation du contexte : délai court de 15 s ; autres appels : 120 s", async () => {
+    const spy = vi.spyOn(AbortSignal, "timeout");
+    try {
+      const { client } = setup(() => json(200, {}));
+      await client.validateContext(validContext);
+      await client.dictionary();
+      expect(spy.mock.calls.map((c) => c[0])).toEqual([15_000, 120_000]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("n'envoie pas le secret à /health", async () => {
     const { fetch, client } = setup(() =>
       json(200, { engine_api: 1, engine_version: "x", rules_version: "y" }),
