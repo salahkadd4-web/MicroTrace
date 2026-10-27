@@ -461,7 +461,22 @@ beforeEach(async () => {
   await resetDb();
   vi.mocked(engineClient.validateContext).mockResolvedValue({} as never);
   vi.mocked(engineClient.example).mockResolvedValue({
-    context: { data_nature: "laboratory", methods: [], limits: [] },
+    filename: "exemple.csv",
+    csv_base64: Buffer.from("id\nS1\n").toString("base64"),
+    mapping: MAPPING,
+    context: { data_nature: "laboratory", methods: [], limits: [], blank_corrected: "unknown" },
+  } as never);
+  vi.mocked(engineClient.checkImport).mockResolvedValue({
+    records: [],
+    qc_records: [],
+    issues: [],
+    n_rows: 1,
+    rules_version: "r1",
+    has_errors: false,
+    counts: { error: 0, warning: 0, info: 0 },
+    engine_version: "e1",
+    sha256: "x",
+    sheet: null,
   } as never);
   const labA = await makeLab("Labo A", "labo-a");
   const labB = await makeLab("Labo B", "labo-b");
@@ -620,6 +635,20 @@ describe("un membre de A sur les objets de B", () => {
 });
 
 describe("création et lectures dans son propre laboratoire", () => {
+  it("createExampleStudy écrit dans le laboratoire de l'appelant uniquement", async () => {
+    const c = CASES.examples.createExampleStudy;
+    const out = await c.run(researcherA, idsA);
+    if ("returns" in c.outcome) c.outcome.returns(out, idsA);
+    const { studyId, projectId } = out as { studyId: string; projectId: string };
+    expect(
+      (await prisma.study.findUniqueOrThrow({ where: { id: studyId } })).laboratoryId,
+    ).toBe(researcherA.laboratoryId);
+    expect(
+      (await prisma.project.findUniqueOrThrow({ where: { id: projectId } })).laboratoryId,
+    ).toBe(researcherA.laboratoryId);
+    expect(await prisma.project.count({ where: { laboratoryId: ctxB.laboratoryId } })).toBe(1);
+  });
+
   it("createProject et createStudy écrivent laboratoryId ; B ne change pas ; chaque audit porte A", async () => {
     const before = await snapshotOfB();
     const p = await createProject(ctxA, { title: "Nouveau" });

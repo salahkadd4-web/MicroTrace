@@ -37,30 +37,38 @@ export async function createExampleStudy(ctx: LabContext, kind: ExampleKind) {
   const titles = TITLES[kind];
 
   const project = await createProject(ctx, { title: titles.project });
-  const study = await createStudy(ctx, project.id, {
-    title: titles.study,
-    nature: context.data_nature,
-    referenceDoi: context.reference_doi,
-    referenceLicense: context.reference_license,
-    blankCorrected: context.blank_corrected,
-  });
-
-  const methodIds = new Map<string, string>();
-  for (const m of context.methods) {
-    const created = await addMethod(ctx, study.id, { name: m.name, technique: m.technique });
-    methodIds.set(m.name, created.id);
-  }
-  for (const l of context.limits ?? []) {
-    const methodId = methodIds.get(l.method);
-    if (!methodId) throw new DomainError("Méthode introuvable.");
-    await upsertDetectionLimit(ctx, study.id, {
-      methodId,
-      polymer: l.polymer,
-      lod: l.lod ?? null,
-      loq: l.loq ?? null,
-      unitCode: l.unit_code,
-      source: l.source,
+  let study;
+  try {
+    study = await createStudy(ctx, project.id, {
+      title: titles.study,
+      nature: context.data_nature,
+      referenceDoi: context.reference_doi,
+      referenceLicense: context.reference_license,
+      blankCorrected: context.blank_corrected,
     });
+  } catch (e) {
+    throw partial(e, "Le projet d'exemple a été créé, mais la création de l'étude a échoué");
+  }
+
+  try {
+    const methodIds = new Map<string, string>();
+    for (const m of context.methods) {
+      const created = await addMethod(ctx, study.id, { name: m.name, technique: m.technique });
+      methodIds.set(m.name, created.id);
+    }
+    for (const l of context.limits ?? []) {
+      await upsertDetectionLimit(ctx, study.id, {
+        // Un identifiant vide est refusé par le service (« Méthode introuvable. »).
+        methodId: methodIds.get(l.method) ?? "",
+        polymer: l.polymer,
+        lod: l.lod ?? null,
+        loq: l.loq ?? null,
+        unitCode: l.unit_code,
+        source: l.source,
+      });
+    }
+  } catch (e) {
+    throw partial(e, "L'étude d'exemple a été créée, mais sa configuration a échoué");
   }
 
   try {
@@ -80,12 +88,14 @@ export async function createExampleStudy(ctx: LabContext, kind: ExampleKind) {
     });
     return { projectId: project.id, studyId: study.id, importRunId };
   } catch (e) {
-    if (e instanceof DomainError || e instanceof EngineUnavailableError) {
-      const reason = e.message.replace(/\.+$/, "");
-      throw new DomainError(
-        `L'étude d'exemple a été créée, mais son import a échoué : ${reason}.`,
-      );
-    }
-    throw e;
+    throw partial(e, "L'étude d'exemple a été créée, mais son import a échoué");
   }
+}
+
+/** Message clair pour un échec partiel ; une erreur inattendue est relancée telle quelle. */
+function partial(e: unknown, lead: string): unknown {
+  if (e instanceof DomainError || e instanceof EngineUnavailableError) {
+    return new DomainError(`${lead} : ${e.message.replace(/\.+$/, "")}.`);
+  }
+  return e;
 }

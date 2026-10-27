@@ -23,6 +23,7 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 import { prisma } from "@/server/db";
 import {
+  EngineError,
   EngineUnavailableError,
   engineClient,
   type Example,
@@ -175,6 +176,29 @@ describe("createExampleStudy", () => {
       EngineUnavailableError,
     );
     expect(await prisma.project.count()).toBe(0);
+  });
+
+  it("moteur qui refuse une limite : message de configuration, projet et étude restent", async () => {
+    vi.mocked(engineClient.validateContext)
+      .mockResolvedValueOnce({ ok: true }) // createStudy
+      .mockResolvedValueOnce({ ok: true }) // addMethod
+      .mockRejectedValueOnce(new EngineError(422, "Limite incohérente."));
+    await expect(createExampleStudy(ctx, "fictif")).rejects.toThrow(
+      "L'étude d'exemple a été créée, mais sa configuration a échoué : Limite incohérente.",
+    );
+    expect(await prisma.project.count()).toBe(1);
+    expect(await prisma.study.count()).toBe(1);
+    expect(await prisma.detectionLimit.count()).toBe(0);
+    expect(await prisma.importRun.count()).toBe(0);
+  });
+
+  it("moteur indisponible pendant createStudy : seul le projet reste, message dédié", async () => {
+    vi.mocked(engineClient.validateContext).mockRejectedValueOnce(new EngineUnavailableError());
+    await expect(createExampleStudy(ctx, "fictif")).rejects.toThrow(
+      "Le projet d'exemple a été créé, mais la création de l'étude a échoué : Le moteur d'analyse est indisponible.",
+    );
+    expect(await prisma.project.count()).toBe(1);
+    expect(await prisma.study.count()).toBe(0);
   });
 
   it("les exemples sont isolés par laboratoire", async () => {

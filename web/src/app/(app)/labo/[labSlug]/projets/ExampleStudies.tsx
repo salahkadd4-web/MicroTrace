@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { FormError } from "@/components/app/FormError";
 import { Button } from "@/components/ui/button";
 import type { ActionState } from "@/lib/action-state";
@@ -14,7 +14,11 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
     {},
   );
   const [, startTransition] = useTransition();
-  const start = (kind: Kind) => startTransition(() => run(kind));
+  const [current, setCurrent] = useState<Kind | null>(null);
+  const start = (kind: Kind) => {
+    setCurrent(kind);
+    startTransition(() => run(kind));
+  };
 
   return (
     <div className="space-y-4">
@@ -24,7 +28,7 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
           sans données réelles.
         </p>
         <Button type="button" variant="outline" disabled={actionPending} onClick={() => start("fictif")}>
-          {actionPending ? "Création…" : "Créer l'étude d'exemple (fictive)"}
+          {actionPending && current === "fictif" ? "Création…" : "Créer l'étude d'exemple (fictive)"}
         </Button>
       </div>
       <div className="space-y-2">
@@ -33,7 +37,7 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
           BY 4.0.
         </p>
         <Button type="button" variant="outline" disabled={actionPending} onClick={() => start("leslie2022")}>
-          {actionPending ? "Création…" : "Créer l'étude d'exemple réelle (Leslie et al. 2022)"}
+          {actionPending && current === "leslie2022" ? "Création…" : "Créer l'étude d'exemple réelle (Leslie et al. 2022)"}
         </Button>
       </div>
       <FormError message={state.error} />

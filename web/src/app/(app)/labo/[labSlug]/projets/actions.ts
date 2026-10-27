@@ -33,8 +33,13 @@ export async function createExampleStudyAction(
     if (kind !== "fictif" && kind !== "leslie2022") {
       throw new DomainError("Exemple inconnu.");
     }
-    const { studyId } = await createExampleStudy(ctx, kind);
-    revalidatePath(`/labo/${labSlug}/projets`);
+    let studyId: string;
+    try {
+      ({ studyId } = await createExampleStudy(ctx, kind));
+    } finally {
+      // Aussi en cas d'échec partiel : le projet créé doit apparaître dans la liste.
+      revalidatePath(`/labo/${labSlug}/projets`);
+    }
     redirect(`/labo/${labSlug}/etudes/${studyId}/imports`);
   });
 }
