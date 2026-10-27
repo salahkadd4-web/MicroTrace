@@ -63,6 +63,9 @@ services:
       AUTH_TRUST_HOST: "true"
       AUTH_URL: ${APP_URL:-http://localhost:3000}
       APP_URL: ${APP_URL:-http://localhost:3000}
+    # Fichiers de données téléversés (C3) : volume nommé, distinct de la base.
+    volumes:
+      - files-data:/app/var
     ports:
       - "127.0.0.1:3000:3000"
     depends_on:
@@ -94,6 +97,7 @@ services:
 
 volumes:
   db-data:
+  files-data:
 
 networks:
   # Réseau sans accès extérieur : base de données et moteur ne sont joignables que par web.

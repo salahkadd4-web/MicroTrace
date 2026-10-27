@@ -9,10 +9,12 @@ type Service = {
   ports?: string[];
   environment?: Record<string, string>;
   networks?: string[];
+  volumes?: string[];
 };
 const compose = parse(readFileSync(join(__dirname, "..", "..", "docker-compose.yml"), "utf8")) as {
   services: Record<string, Service>;
   networks: Record<string, { internal?: boolean }>;
+  volumes: Record<string, unknown>;
 };
 const services = Object.entries(compose.services);
 
@@ -46,5 +48,12 @@ describe("docker-compose.yml", () => {
         if (secretKeys.test(k)) expect(String(v)).toMatch(/^\$\{[A-Z_]+(:\?[^}]*)?\}$/);
     const dbUrl = compose.services.web.environment?.DATABASE_URL ?? "";
     expect(dbUrl).toContain("${POSTGRES_PASSWORD}");
+  });
+
+  it("volume nommé files-data monté sur /app/var dans web, dossier créé par le Dockerfile", () => {
+    expect(compose.services.web.volumes).toEqual(["files-data:/app/var"]);
+    expect(Object.keys(compose.volumes)).toContain("files-data");
+    const dockerfile = readFileSync(join(__dirname, "..", "Dockerfile"), "utf8");
+    expect(dockerfile).toMatch(/mkdir -p \/app\/var && chown web:web \/app\/var/);
   });
 });

@@ -30,6 +30,8 @@ RUN groupadd --system --gid 10001 web && useradd --system --uid 10001 --gid web 
 COPY --from=builder --chown=web:web /app/.next/standalone ./
 COPY --from=builder --chown=web:web /app/.next/static ./.next/static
 COPY --from=builder --chown=web:web /app/public ./public
+# Dossier des fichiers téléversés : créé ici pour que le volume nommé hérite du bon propriétaire.
+RUN mkdir -p /app/var && chown web:web /app/var
 USER web
 EXPOSE 3000
 CMD ["node", "server.js"]
