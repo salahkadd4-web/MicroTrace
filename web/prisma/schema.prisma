@@ -198,6 +198,7 @@ model Method {
   limits DetectionLimit[]
 
   @@unique([studyId, nameKey])
+  @@unique([id, studyId])
 }
 
 model DetectionLimit {
@@ -205,7 +206,7 @@ model DetectionLimit {
   studyId  String
   study    Study  @relation(fields: [studyId], references: [id])
   methodId String
-  method   Method @relation(fields: [methodId], references: [id])
+  method   Method @relation(fields: [methodId, studyId], references: [id, studyId], onDelete: Restrict)
   polymer  String
   lod      Float?
   loq      Float?
@@ -243,6 +244,7 @@ model DataFile {
   importRuns ImportRun[]
 
   @@unique([studyId, sha256])
+  @@unique([id, studyId])
 }
 
 // ATTENTION : l'index unique partiel `ImportRun_one_active_per_file`
@@ -254,7 +256,7 @@ model ImportRun {
   studyId              String
   study                Study        @relation(fields: [studyId], references: [id])
   dataFileId           String
-  dataFile             DataFile     @relation(fields: [dataFileId], references: [id])
+  dataFile             DataFile     @relation(fields: [dataFileId, studyId], references: [id, studyId], onDelete: Restrict)
   sheet                String?
   mapping              Json
   frozenContext        Json
@@ -278,6 +280,7 @@ model ImportRun {
 
   @@index([studyId, status])
   @@index([dataFileId])
+  @@unique([id, studyId])
 }
 
 // Un enregistrement de B1 (MeasurementRecordModel, 28 champs) + importRunId/studyId.
@@ -286,7 +289,7 @@ model ImportRun {
 model Measurement {
   id                   String               @id @default(cuid())
   importRunId          String
-  importRun            ImportRun            @relation(fields: [importRunId], references: [id])
+  importRun            ImportRun            @relation(fields: [importRunId, studyId], references: [id, studyId], onDelete: Restrict)
   studyId              String
   study                Study                @relation(fields: [studyId], references: [id])
   sampleId             String
@@ -325,7 +328,7 @@ model Measurement {
 model QcMeasurement {
   id                   String               @id @default(cuid())
   importRunId          String
-  importRun            ImportRun            @relation(fields: [importRunId], references: [id])
+  importRun            ImportRun            @relation(fields: [importRunId, studyId], references: [id, studyId], onDelete: Restrict)
   studyId              String
   study                Study                @relation(fields: [studyId], references: [id])
   sampleId             String

@@ -393,3 +393,86 @@ describe("multi-laboratoires (spec §11)", () => {
     expect(rows).toHaveLength(4);
   });
 });
+
+describe("invariants d'étude en base (clés étrangères composites)", () => {
+  async function twoStudies() {
+    const { user, lab, project, study } = await makeStudy();
+    const other = await prisma.study.create({
+      data: { projectId: project.id, laboratoryId: lab.id, title: "E2", nature: "simulated" },
+    });
+    return { user, study, other };
+  }
+  async function fileIn(studyId: string, userId: string, sha = "c".repeat(64)) {
+    return prisma.dataFile.create({
+      data: {
+        studyId,
+        originalName: "f.csv",
+        sha256: sha,
+        sizeBytes: 1,
+        mimeType: "text/csv",
+        storagePath: "x",
+        uploadedById: userId,
+      },
+    });
+  }
+  async function runIn(studyId: string, dataFileId: string, userId: string) {
+    return prisma.importRun.create({
+      data: {
+        studyId,
+        dataFileId,
+        mapping: {},
+        frozenContext: {},
+        rulesVersion: "1",
+        engineVersion: "1",
+        issues: [],
+        createdById: userId,
+      },
+    });
+  }
+  const FK = /foreign key|Foreign key/i;
+  const rowSql = (table: "Measurement" | "QcMeasurement") => `
+    INSERT INTO "${table}" (id, "importRunId", "studyId", "sampleId", aliquot, "recordType", matrix,
+      "matrixDetail", polymer, "polymerRaw", method, technique, "reportedValue", "unitCode",
+      "canonicalUnitCode", status, "identificationStatus", "analysisDate", batch, lab, comment,
+      "sourceRow", "sourceColumn")
+    VALUES ('x1', $1, $2, 's', '', 'sample', 'plasma', '', 'PE', 'PE', 'm', 'other', '1', 'u',
+      'u', 'quantified', 'confirmed', '', '', '', '', 1, 'A')`;
+
+  it.each(["Measurement", "QcMeasurement"] as const)(
+    "%s : importRun d'une autre étude refusé, même étude accepté",
+    async (table) => {
+      const { user, study, other } = await twoStudies();
+      const run = await runIn(study.id, (await fileIn(study.id, user.id)).id, user.id);
+      await expect(prisma.$executeRawUnsafe(rowSql(table), run.id, other.id)).rejects.toThrow(FK);
+      await expect(prisma.$executeRawUnsafe(rowSql(table), run.id, study.id)).resolves.toBe(1);
+    },
+  );
+
+  it("ImportRun : fichier d'une autre étude refusé", async () => {
+    const { user, study, other } = await twoStudies();
+    const file = await fileIn(other.id, user.id);
+    await expect(runIn(study.id, file.id, user.id)).rejects.toThrow(FK);
+    await expect(runIn(other.id, file.id, user.id)).resolves.toBeDefined();
+  });
+
+  it("DetectionLimit : méthode d'une autre étude refusée", async () => {
+    const { study, other } = await twoStudies();
+    const method = await prisma.method.create({
+      data: { studyId: other.id, name: "M", nameKey: "m", technique: "other" },
+    });
+    const data = { methodId: method.id, polymer: "PE", unitCode: "u", source: "s" };
+    await expect(
+      prisma.detectionLimit.create({ data: { ...data, studyId: study.id } }),
+    ).rejects.toThrow(FK);
+    await expect(
+      prisma.detectionLimit.create({ data: { ...data, studyId: other.id } }),
+    ).resolves.toBeDefined();
+  });
+
+  it("suppression d'un parent référencé refusée (RESTRICT)", async () => {
+    const { user, study } = await twoStudies();
+    const file = await fileIn(study.id, user.id);
+    await runIn(study.id, file.id, user.id);
+    await expect(prisma.dataFile.delete({ where: { id: file.id } })).rejects.toThrow(FK);
+  });
+});
