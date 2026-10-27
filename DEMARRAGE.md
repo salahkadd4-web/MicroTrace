@@ -74,7 +74,7 @@ docker compose cp db:/tmp/sauvegarde.dump .\sauvegarde.dump
 **Les fichiers téléversés** (à faire en plus, dès que vous importez des fichiers de données) :
 
 ```powershell
-docker compose cp web:/app/var .ichiers
+docker compose cp web:/app/var .\fichiers
 ```
 
 (Le dossier `fichiers` ne doit pas déjà exister ; sinon supprimez-le ou renommez-le d'abord.)
@@ -92,7 +92,7 @@ docker compose exec -T db pg_restore -U microtrace -d microtrace --clean --if-ex
 
 Pour restaurer sur une installation neuve, faites d'abord les étapes 2 et 3 avec le **même** `.env` que lors de la sauvegarde (le mot de passe de la base est dans ce fichier : conservez-le avec vos sauvegardes). Des messages d'avertissement sur des objets « inexistants » en début de restauration sont normaux.
 
-Les fichiers téléversés se remettent en place avec `docker compose cp .ichiers\. web:/app/var`, puis `docker compose exec -u root web chown -R web:web /app/var`.
+Les fichiers téléversés se remettent en place avec `docker compose cp .\fichiers\. web:/app/var`, puis `docker compose exec -u root web chown -R web:web /app/var`.
 
 ## 10. Repartir de zéro (efface TOUTES les données)
 
