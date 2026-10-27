@@ -9,3 +9,6 @@ export type ActionState = {
   /** Lien d'invitation à usage unique, affiché une seule fois après la création. */
   link?: string;
 };
+
+/** Résultat d'une Server Action qui renvoie des données (appelée hors formulaire) ou une erreur. */
+export type ActionResult<T> = { data: T; error?: undefined } | { error: string; data?: undefined };
