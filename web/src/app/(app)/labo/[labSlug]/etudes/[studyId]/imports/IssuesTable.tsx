@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { EmptyState } from "@/components/app/EmptyState";
 import { FormField } from "@/components/app/FormField";
-import { NumberFr } from "@/components/app/NumberFr";
+import { formatNumberFr, NumberFr } from "@/components/app/NumberFr";
 import { SelectField } from "@/components/app/SelectField";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -43,7 +43,7 @@ function SeverityBadge({ severity }: { severity: Severity }) {
   return <Badge variant="secondary">{SEVERITY_LABEL.info}</Badge>;
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
+const plural = (n: number, one: string, many: string) => `${formatNumberFr(n)} ${n > 1 ? many : one}`;
 
 /** « n erreurs, n avertissements, n informations » (singulier pour 0 et 1). */
 export function countsSummary(counts: Record<Severity, number>): string {

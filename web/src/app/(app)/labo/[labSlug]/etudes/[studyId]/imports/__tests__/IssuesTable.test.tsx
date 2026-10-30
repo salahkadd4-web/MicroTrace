@@ -24,6 +24,12 @@ describe("IssuesTable", () => {
     expect(screen.getByRole("columnheader", { name: "Gravité" })).toBeInTheDocument();
   });
 
+  it("les compteurs utilisent le format français (espace insécable des milliers)", () => {
+    const many = Array.from({ length: 1234 }, () => issue({ code: "W_NO_LIMITS", severity: "warning" }));
+    render(<IssuesTable issues={many} />);
+    expect(screen.getByText(/^0 erreur, 1.234 avertissements, 0 information$/)).toBeInTheDocument();
+  });
+
   it("le filtre par gravité masque les autres lignes", async () => {
     const user = userEvent.setup();
     render(<IssuesTable issues={issues} />);

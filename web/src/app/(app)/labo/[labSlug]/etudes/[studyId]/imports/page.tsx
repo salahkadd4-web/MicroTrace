@@ -80,6 +80,7 @@ export default async function ImportsPage({
                 <TableHead>Date</TableHead>
                 <TableHead>Auteur</TableHead>
                 <TableHead className="text-right">Lignes</TableHead>
+                <TableHead className="text-right">Mesures</TableHead>
                 <TableHead className="text-right">Erreurs</TableHead>
                 <TableHead className="text-right">Avertissements</TableHead>
                 <TableHead>Statut</TableHead>
@@ -96,6 +97,9 @@ export default async function ImportsPage({
                     <DateTimeFr value={r.createdAt} />
                   </TableCell>
                   <TableCell>{r.createdByName ?? "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {r.nRows === null ? "—" : <NumberFr value={r.nRows} />}
+                  </TableCell>
                   <TableCell className="text-right">
                     <NumberFr value={r.measurementCount + r.qcMeasurementCount} />
                   </TableCell>

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import type { Mapping, TableRead } from "@/server/engine/client";
-import { checkImportAction, readSheetAction, saveImportAction, suggestMappingAction, type CheckSummary } from "./actions";
+import { checkImportAction, discardStagingAction, readSheetAction, saveImportAction, suggestMappingAction, type CheckSummary } from "./actions";
 import { countsSummary, IssuesTable } from "./IssuesTable";
 import { MappingForm } from "./MappingForm";
 import type { MappingField } from "./mapping-fields";
@@ -31,6 +31,7 @@ const MAX_BYTES = 50 * 1024 * 1024;
 const TOO_BIG = "Fichier trop volumineux (50 Mo maximum).";
 const UPLOAD_FAILED = "Échec de l'envoi du fichier.";
 const PII_REFUSED = "Import refusé : le fichier contient des données personnelles.";
+const GONE = "Dépôt introuvable ou expiré.";
 const PREVIEW_ROWS = 20;
 
 const STEPS = ["1. Dépôt", "2. Correspondance", "3. Contrôle", "4. Enregistrement"] as const;
@@ -70,9 +71,13 @@ export function ImportWizard({
   const [checking, setChecking] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sheetFailed, setSheetFailed] = useState(false);
+  const [inputKey, setInputKey] = useState(0);
   const savingRef = useRef(false);
 
-  function reset() {
+  function reset(discard = false) {
+    // Le dépôt serveur est effacé au mieux ; l'oubli est sans conséquence (purge après 24 h).
+    if (discard && token) void discardStagingAction(labSlug, studyId, token).catch(() => {});
+    setInputKey((k) => k + 1); // remonte le champ fichier : sa valeur est vidée
     setStep(1);
     setFile(null);
     setToken(null);
@@ -82,6 +87,17 @@ export function ImportWizard({
     setCheck(null);
     setAccepted(false);
     setSheetFailed(false);
+  }
+
+  /** Dépôt disparu : retour à la zone de dépôt avec le message du serveur. */
+  function fail(message: string): boolean {
+    if (message === GONE) {
+      reset();
+      setError(GONE);
+      return true;
+    }
+    setError(message);
+    return false;
   }
 
   function onFileChange(selected: File | null) {
@@ -97,8 +113,7 @@ export function ImportWizard({
     try {
       const res = await suggestMappingAction(labSlug, studyId, forToken, forSheet);
       if (res.error !== undefined) {
-        setError(res.error);
-        setSheetFailed(true);
+        if (!fail(res.error)) setSheetFailed(true);
       } else {
         setMapping(res.data);
       }
@@ -157,15 +172,13 @@ export function ImportWizard({
     try {
       const res = await readSheetAction(labSlug, studyId, forToken, next);
       if (res.error !== undefined) {
-        setError(res.error);
-        setSheetFailed(true);
+        if (!fail(res.error)) setSheetFailed(true);
         return;
       }
       setTable((t) => (t ? { ...t, ...res.data } : t));
       const sug = await suggestMappingAction(labSlug, studyId, forToken, next);
       if (sug.error !== undefined) {
-        setError(sug.error);
-        setSheetFailed(true);
+        if (!fail(sug.error)) setSheetFailed(true);
       } else {
         setMapping(sug.data);
       }
@@ -191,11 +204,11 @@ export function ImportWizard({
     try {
       const res = await checkImportAction(labSlug, studyId, { token, sheet, mapping });
       if (res.error !== undefined) {
-        setError(res.error);
+        fail(res.error);
         return;
       }
       if (res.data.issues.some((i) => i.code.startsWith("E_PII_"))) {
-        // Le serveur a effacé le dépôt : retour à la zone de dépôt.
+        // Le serveur a effacé le dépôt : retour à la zone de dépôt (rien à discarder).
         reset();
         setError(PII_REFUSED);
         return;
@@ -220,7 +233,7 @@ export function ImportWizard({
         acceptWarnings: accepted,
       });
       if (res.error !== undefined) {
-        setError(res.error);
+        fail(res.error);
         return;
       }
       reset();
@@ -272,6 +285,7 @@ export function ImportWizard({
           <div className="max-w-xl space-y-2">
             <Label htmlFor="import-file">Fichier à importer</Label>
             <Input
+              key={inputKey}
               id="import-file"
               type="file"
               accept=".csv,.xlsx"
@@ -288,7 +302,7 @@ export function ImportWizard({
               {uploading ? "Envoi en cours…" : "Envoyer le fichier"}
             </Button>
           ) : (
-            <Button type="button" variant="outline" onClick={reset} disabled={busy}>
+            <Button type="button" variant="outline" onClick={() => reset(true)} disabled={busy}>
               Changer de fichier
             </Button>
           )}

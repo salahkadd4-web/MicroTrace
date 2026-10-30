@@ -46,6 +46,7 @@ const run = (over: object) => ({
   createdAt: new Date("2026-03-02T10:00:00Z"),
   fileName: "mesures.csv",
   sizeBytes: 100,
+  nRows: 1500,
   measurementCount: 1200,
   qcMeasurementCount: 3,
   createdByName: "Alice Martin",
@@ -97,6 +98,16 @@ describe("page Imports", () => {
     expect(screen.getByText("Actif")).toBeInTheDocument();
     expect(screen.getByText("Retiré")).toBeInTheDocument();
     expect(screen.getByText(/Mauvais fichier/)).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Lignes" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Mesures" })).toBeInTheDocument();
+    expect(screen.getAllByText("1 500").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1 203").length).toBeGreaterThan(0);
+  });
+
+  it("un import antérieur sans nombre de lignes affiche un tiret", async () => {
+    vi.mocked(listImports).mockResolvedValue([run({ nRows: null })] as never);
+    await renderPage();
+    expect(screen.queryByText("1 500")).not.toBeInTheDocument();
     expect(screen.getAllByText("1 203").length).toBeGreaterThan(0);
   });
 

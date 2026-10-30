@@ -10,7 +10,9 @@ const suggest = vi.fn();
 const check = vi.fn();
 const save = vi.fn();
 const readSheet = vi.fn();
+const discard = vi.fn();
 vi.mock("../actions", () => ({
+  discardStagingAction: (...a: unknown[]) => discard(...a),
   readSheetAction: (...a: unknown[]) => readSheet(...a),
   suggestMappingAction: (...a: unknown[]) => suggest(...a),
   checkImportAction: (...a: unknown[]) => check(...a),
@@ -71,6 +73,7 @@ beforeEach(() => {
   suggest.mockResolvedValue({ data: MAPPING });
   check.mockResolvedValue(result([]));
   save.mockResolvedValue({ data: { importRunId: "r1" } });
+  discard.mockResolvedValue({ ok: true });
 });
 
 describe("ImportWizard", () => {
@@ -264,4 +267,41 @@ describe("ImportWizard", () => {
     );
     expect(screen.getByLabelText("Fichier à importer")).toBeInTheDocument();
   });
+  it("« Changer de fichier » efface le dépôt serveur, vide le champ fichier et permet de renvoyer le même fichier", async () => {
+    const user = userEvent.setup();
+    render(<ImportWizard labSlug="labo" studyId="s1" fields={FIELDS} />);
+    const file = csv();
+    await upload(user, file);
+    await user.click(screen.getByRole("button", { name: "Changer de fichier" }));
+    expect(discard).toHaveBeenCalledWith("labo", "s1", "tok");
+    const input = screen.getByLabelText("Fichier à importer") as HTMLInputElement;
+    expect(input.value).toBe("");
+    expect(input.files).toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Envoyer le fichier" })).toBeDisabled();
+    await user.upload(input, file);
+    expect(screen.getByRole("button", { name: "Envoyer le fichier" })).toBeEnabled();
+  });
+
+  it.each(["contrôle", "enregistrement"])(
+    "« Dépôt introuvable ou expiré. » au %s : retour à l'étape 1 avec ce message",
+    async (where) => {
+      const gone = { error: "Dépôt introuvable ou expiré." };
+      const user = userEvent.setup();
+      render(<ImportWizard labSlug="labo" studyId="s1" fields={FIELDS} />);
+      await toCheck(user);
+      if (where === "contrôle") {
+        check.mockResolvedValue(gone);
+        await user.click(screen.getByRole("button", { name: "Lancer le contrôle" }));
+      } else {
+        await runCheck(user);
+        await user.click(screen.getByRole("button", { name: "Suivant" }));
+        save.mockResolvedValue(gone);
+        await user.click(screen.getByRole("button", { name: "Enregistrer l'import" }));
+      }
+      expect(await screen.findByRole("alert")).toHaveTextContent("Dépôt introuvable ou expiré.");
+      expect(screen.getByText("1. Dépôt").closest("li")).toHaveAttribute("aria-current", "step");
+      expect(screen.getByRole("button", { name: "Envoyer le fichier" })).toBeDisabled();
+      expect(discard).not.toHaveBeenCalled();
+    },
+  );
 });
