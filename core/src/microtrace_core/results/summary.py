@@ -83,12 +83,12 @@ def _samples(records: Iterable[MeasurementRecord]) -> list[MeasurementRecord]:
     return [r for r in records if r.record_type == RecordType.sample]
 
 
-def _detail(r: MeasurementRecord) -> str:
+def matrix_detail_key(r: MeasurementRecord) -> str:
     """The matrix detail that tells "other" matrices apart ("" for the named matrices)."""
     return r.matrix_detail.strip() if r.matrix is Matrix.other else ""
 
 
-def _is_quantified(r: MeasurementRecord) -> bool:
+def is_quantified(r: MeasurementRecord) -> bool:
     return r.status == DetectionStatus.quantified and r.canonical_value is not None
 
 
@@ -96,13 +96,13 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
     """One result per (sample, matrix, polymer, method, kind, basis); never pooled across."""
     groups: dict[tuple[str, ...], list[MeasurementRecord]] = defaultdict(list)
     for r in _samples(records):
-        groups[(r.sample_id, r.matrix.value, _detail(r), r.polymer, r.method, r.kind.value,
-                r.basis.value)].append(r)
+        groups[(r.sample_id, r.matrix.value, matrix_detail_key(r), r.polymer, r.method,
+                r.kind.value, r.basis.value)].append(r)
     out: list[SampleResult] = []
     for key in sorted(groups):
         rows = groups[key]
         quantified = [r.canonical_value for r in rows
-                      if _is_quantified(r) and r.canonical_value is not None]
+                      if is_quantified(r) and r.canonical_value is not None]
         if quantified:
             status = DetectionStatus.quantified
             value: float | None = statistics.mean(quantified)
@@ -111,7 +111,7 @@ def aggregate_aliquots(records: Iterable[MeasurementRecord]) -> list[SampleResul
             value = None
         first = rows[0]
         out.append(SampleResult(
-            sample_id=first.sample_id, matrix=first.matrix, matrix_detail=_detail(first),
+            sample_id=first.sample_id, matrix=first.matrix, matrix_detail=matrix_detail_key(first),
             polymer=first.polymer,
             method=first.method,
             kind=first.kind, basis=first.basis, canonical_unit=first.canonical_unit,
@@ -137,12 +137,12 @@ def quantification_frequency(records: Iterable[MeasurementRecord]) -> list[Frequ
     quantified: dict[_Key, set[str]] = defaultdict(set)
     keys: set[_Key] = set()
     for r in rows:
-        d = _detail(r)
+        d = matrix_detail_key(r)
         keys.add((r.polymer, r.matrix, d))
         if r.status != DetectionStatus.not_analysed:
             analysed[(r.polymer, r.matrix, d)].add(r.sample_id)
             analysed[(ANY, r.matrix, d)].add(r.sample_id)
-        if _is_quantified(r):
+        if is_quantified(r):
             quantified[(r.polymer, r.matrix, d)].add(r.sample_id)
             quantified[(ANY, r.matrix, d)].add(r.sample_id)
 
@@ -169,8 +169,8 @@ def describe(records: Iterable[MeasurementRecord]) -> list[PolymerStats]:
                 s.basis.value)].append(s)
     measurements: dict[tuple[str, ...], list[float]] = defaultdict(list)
     for r in rows:
-        if _is_quantified(r) and r.canonical_value is not None:
-            measurements[(r.polymer, r.method, r.matrix.value, _detail(r), r.kind.value,
+        if is_quantified(r) and r.canonical_value is not None:
+            measurements[(r.polymer, r.method, r.matrix.value, matrix_detail_key(r), r.kind.value,
                           r.basis.value)].append(r.canonical_value)
     out: list[PolymerStats] = []
     for key in sorted(groups):
