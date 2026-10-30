@@ -287,7 +287,10 @@ Chaque sous-projet a son propre plan, ses relectures par tâche et sa relecture 
 - **Phase d'essai (prototype proposé aux laboratoires).** Les modèles C5 et C6 et les règles C7 sont présentés comme des **versions d'essai** : un badge « Modèle d'essai » à côté de chaque sortie, avec la version, la fiche du modèle et la phrase « entraîné sur des données publiques, pas encore sur les vôtres ». Aucune donnée d'un laboratoire ne sert à entraîner quoi que ce soit pendant cette phase.
 - **Production : réentraînement avec les données des laboratoires**, à ces conditions :
   - **consentement explicite par laboratoire** (opt-in), donné par un `lab_admin`, daté, révocable, et journalisé ; sans lui, les données du laboratoire n'entrent dans aucun jeu d'entraînement ;
-  - **seules les données validées par une personne** servent d'étiquettes : les décisions humaines de `ModelPrediction` (acceptée, corrigée, rejetée) et les mesures confirmées ;
+  - **le laboratoire valide d'abord ses résultats** (précision du fondateur, 2026-10-30 : « que les labos d'abord valident les résultats pour entraîner le modèle avec des résultats justes ») :
+    - chaque prédiction ne sert d'étiquette qu'après une décision humaine explicite dans `ModelPrediction` (acceptée ou corrigée ; une prédiction rejetée sert d'exemple négatif seulement si la bonne réponse est saisie) ; une prédiction restée « proposée » n'est **jamais** utilisée ;
+    - une étude n'est éligible que si un `lab_admin` l'a **marquée « résultats validés »** (date, auteur, journal) ; un import ajouté ou retiré ensuite annule cette validation jusqu'à une nouvelle signature ;
+    - les signaux qualité de C7 encore « à vérifier » ou confirmés comme « erreur de saisie » excluent les mesures concernées ;
   - **pseudonymisation vérifiée** avant export, et jamais de donnée personnelle ;
   - **aucune donnée brute d'un laboratoire n'est visible par un autre** : seuls les poids du modèle commun sont partagés ; la fiche du modèle liste les laboratoires contributeurs seulement avec leur accord ;
   - **chaque réentraînement produit une nouvelle version** évaluée sur un jeu de test tenu à part (séparé par laboratoire, pour mesurer la généralisation), comparée à la version en service, et déployée seulement si elle est meilleure, avec une fiche mise à jour ; retour arrière possible ;
