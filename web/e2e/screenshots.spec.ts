@@ -33,6 +33,7 @@ test("captures des pages principales", async ({ page }) => {
     ["parametres", `/labo/${labA.labSlug}/etudes/${studyId}/parametres`],
     ["imports", `/labo/${labA.labSlug}/etudes/${studyId}/imports`],
     ["resultats", `/labo/${labA.labSlug}/etudes/${studyId}/resultats`],
+    ["qualite", `/labo/${labA.labSlug}/etudes/${studyId}/qualite`],
     ["rapport", `/labo/${labA.labSlug}/etudes/${studyId}/rapport`],
     ["journal", `/labo/${labA.labSlug}/etudes/${studyId}/journal`],
   ];

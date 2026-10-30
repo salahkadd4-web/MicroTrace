@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import type { Page } from "@playwright/test";
-import { expect, login, queryDb, readState, test } from "./fixtures";
+import { createExample, expect, queryDb, test } from "./fixtures";
 
 const FIGURES: [string, string][] = [
   ["PET", "11/22"],
@@ -35,15 +34,6 @@ function expectReportFigures(html: string) {
   }
   // Les codes bruts ne sont plus la première colonne d'aucun tableau (le texte libre des issues peut les citer).
   expect(rows.filter((r) => ["PS_SUM", "ANY", "au moins un polymère"].includes(r[0]))).toEqual([]);
-}
-
-async function createExample(page: Page, button: string) {
-  const { labA } = readState();
-  await login(page, labA.email);
-  await page.goto(`/labo/${labA.labSlug}/projets`);
-  await page.getByRole("button", { name: button }).click();
-  await page.waitForURL(/\/etudes\/[^/]+\/imports/);
-  return page.url().match(/\/etudes\/([^/]+)\//)![1];
 }
 
 for (const [name, ex] of Object.entries(EXAMPLES)) {

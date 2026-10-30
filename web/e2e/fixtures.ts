@@ -34,6 +34,16 @@ export async function login(page: Page, email: string): Promise<void> {
   await page.waitForURL((url) => !url.pathname.startsWith("/connexion"));
 }
 
+/** Connexion de labA puis création d'une étude d'exemple ; renvoie l'identifiant de l'étude. */
+export async function createExample(page: Page, button: string) {
+  const { labA } = readState();
+  await login(page, labA.email);
+  await page.goto(`/labo/${labA.labSlug}/projets`);
+  await page.getByRole("button", { name: button }).click();
+  await page.waitForURL(/\/etudes\/[^/]+\/imports/);
+  return page.url().match(/\/etudes\/([^/]+)\//)![1];
+}
+
 export const test = base.extend({
   baseURL: async ({ browserName: _b }, provide) => {
     void _b;
