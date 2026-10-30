@@ -52,12 +52,34 @@ function canonical(value: unknown): string {
   return JSON.stringify(walk(JSON.parse(JSON.stringify(value ?? null))));
 }
 
-const ORDER = [
-  { importRun: { createdAt: "asc" } },
-  { importRunId: "asc" },
-  { sourceRow: "asc" },
-  { sourceColumn: "asc" },
-] as const;
+type Positioned = {
+  importRunId: string;
+  sourceRow: number;
+  sourceColumn: string;
+};
+
+/**
+ * Ordre reproductible, indépendant de la collation de la base : date de création de l'import
+ * (puis identifiant), ligne source (numérique), colonne source (unités de code, sans locale).
+ */
+function sortByImportRowColumn<T extends Positioned>(
+  rows: T[],
+  runOrder: Map<string, number>,
+): T[] {
+  return rows.sort(
+    (a, b) =>
+      (runOrder.get(a.importRunId) ?? 0) - (runOrder.get(b.importRunId) ?? 0) ||
+      a.sourceRow - b.sourceRow ||
+      (a.sourceColumn < b.sourceColumn ? -1 : a.sourceColumn > b.sourceColumn ? 1 : 0),
+  );
+}
+
+/** Lecture cohérente : étude, imports, mesures et contrôles qualité d'un même instantané. */
+const SNAPSHOT_OPTIONS = {
+  isolationLevel: "RepeatableRead",
+  maxWait: 10_000,
+  timeout: 60_000,
+} as const;
 
 /**
  * Charge les mesures et contrôles qualité des imports `active` d'une étude du laboratoire,
@@ -69,28 +91,40 @@ export async function loadActiveResultsInput(
   studyId: string,
 ): Promise<ActiveResultsInput> {
   assertRole(ctx, "viewer");
-  const study = await prisma.study.findFirst({
-    where: { id: studyId, laboratoryId: ctx.laboratoryId },
-    select: { id: true, title: true, nature: true, archivedAt: true },
-  });
-  if (!study) throw new DomainError("Étude introuvable.");
+  const snapshot = await prisma.$transaction(async (tx) => {
+    const study = await tx.study.findFirst({
+      where: { id: studyId, laboratoryId: ctx.laboratoryId },
+      select: { id: true, title: true, nature: true, archivedAt: true },
+    });
+    if (!study) throw new DomainError("Étude introuvable.");
+    const runs = await tx.importRun.findMany({
+      where: { studyId, status: "active", study: { laboratoryId: ctx.laboratoryId } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        rulesVersion: true,
+        createdAt: true,
+        createdById: true,
+        frozenContext: true,
+        dataFile: { select: { originalName: true, sha256: true } },
+      },
+    });
+    const users = await tx.user.findMany({
+      where: { id: { in: [...new Set(runs.map((r) => r.createdById))] } },
+      select: { id: true, name: true },
+    });
+    const where = {
+      studyId,
+      study: { laboratoryId: ctx.laboratoryId },
+      importRun: { status: "active" as const },
+    };
+    const rows = await tx.measurement.findMany({ where });
+    const qcRows = await tx.qcMeasurement.findMany({ where });
+    const current = await buildStudyContext(ctx, studyId, tx);
+    return { study, runs, users, rows, qcRows, current };
+  }, SNAPSHOT_OPTIONS);
+  const { study, runs, users, current } = snapshot;
 
-  const runs = await prisma.importRun.findMany({
-    where: { studyId, status: "active", study: { laboratoryId: ctx.laboratoryId } },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      rulesVersion: true,
-      createdAt: true,
-      createdById: true,
-      frozenContext: true,
-      dataFile: { select: { originalName: true, sha256: true } },
-    },
-  });
-  const users = await prisma.user.findMany({
-    where: { id: { in: [...new Set(runs.map((r) => r.createdById))] } },
-    select: { id: true, name: true },
-  });
   const names = new Map(users.map((u) => [u.id, u.name]));
   const imports: ResultsImport[] = runs.map((r) => ({
     id: r.id,
@@ -101,17 +135,10 @@ export async function loadActiveResultsInput(
     author: names.get(r.createdById) ?? null,
     frozenContext: r.frozenContext as unknown as StudyContext,
   }));
-
-  const where = {
-    studyId,
-    study: { laboratoryId: ctx.laboratoryId },
-    importRun: { status: "active" as const },
-  };
-  const [rows, qcRows, current] = await Promise.all([
-    prisma.measurement.findMany({ where, orderBy: [...ORDER] }),
-    prisma.qcMeasurement.findMany({ where, orderBy: [...ORDER] }),
-    buildStudyContext(ctx, studyId),
-  ]);
+  // `runs` est déjà trié par date puis identifiant : son rang donne l'ordre des imports.
+  const runOrder = new Map(runs.map((r, i) => [r.id, i]));
+  const rows = sortByImportRowColumn(snapshot.rows, runOrder);
+  const qcRows = sortByImportRowColumn(snapshot.qcRows, runOrder);
 
   const forms = new Set(imports.map((i) => canonical(i.frozenContext)));
   const importsDiffer = forms.size > 1;
@@ -157,10 +184,14 @@ export async function getStudyResults(
   return {
     empty: false,
     summary,
-    imports: input.imports.map(({ frozenContext: _ctx, ...rest }) => {
-      void _ctx;
-      return rest;
-    }),
+    imports: input.imports.map((i) => ({
+      id: i.id,
+      fileName: i.fileName,
+      sha256: i.sha256,
+      rulesVersion: i.rulesVersion,
+      createdAt: i.createdAt,
+      author: i.author,
+    })),
     mixedRulesVersions: input.mixedRulesVersions,
     contextChanged: input.contextChanged,
     nature: input.study.nature,

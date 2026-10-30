@@ -138,25 +138,27 @@ describe("getStudyResults", () => {
   });
 
   it("deux imports actifs et un retiré : le retiré est exclu, tri import/ligne/colonne", async () => {
+    // L'import le plus récent est inséré en premier, avec une ligne source plus basse.
+    await addImport({
+      createdAt: new Date("2024-01-02"),
+      records: [{ sample_id: "C1", source_row: 1 }],
+    });
     await addImport({
       createdAt: new Date("2024-01-01"),
       records: [
         { sample_id: "B2", source_row: 5, source_column: "PE" },
         { sample_id: "B1", source_row: 2, source_column: "PS" },
         { sample_id: "B0", source_row: 2, source_column: "PET" },
+        { sample_id: "B9", source_row: 10, source_column: "PE" },
       ],
-    });
-    await addImport({
-      createdAt: new Date("2024-01-02"),
-      records: [{ sample_id: "C1", source_row: 1 }],
     });
     await addImport({ status: "retired", records: [{ sample_id: "X" }] });
     const r = await getStudyResults(ctx, studyId);
     if (r.empty) throw new Error("résultats attendus");
     const sent = summary.mock.calls[0][0].records.map((x) => x.sample_id);
-    expect(sent).toEqual(["B0", "B1", "B2", "C1"]);
-    expect(r.imports.map((i) => i.fileName)).toEqual(["f1.csv", "f2.csv"]);
-    expect(r.imports[0]).toMatchObject({ sha256: "sha1", rulesVersion: "r1", author: "Vera" });
+    expect(sent).toEqual(["B0", "B1", "B2", "B9", "C1"]);
+    expect(r.imports.map((i) => i.fileName)).toEqual(["f2.csv", "f1.csv"]);
+    expect(r.imports[0]).toMatchObject({ sha256: "sha2", rulesVersion: "r1", author: "Vera" });
     expect(r.nature).toBe("laboratory");
     expect(r.summary).toEqual(SUMMARY);
     expect(r.mixedRulesVersions).toBe(false);
@@ -225,6 +227,11 @@ describe("loadActiveResultsInput", () => {
   it("renvoie imports, mesures, contrôles qualité triés et le contexte à utiliser", async () => {
     const c = await buildStudyContext(ctx, studyId);
     await addImport({
+      context: { ...c, blank_corrected: "yes" },
+      createdAt: new Date("2024-01-02"),
+      qc: [{ sample_id: "Q3", source_row: 1 }],
+    });
+    await addImport({
       context: c,
       createdAt: new Date("2024-01-01"),
       qc: [
@@ -232,20 +239,38 @@ describe("loadActiveResultsInput", () => {
         { sample_id: "Q1", source_row: 3 },
       ],
     });
-    await addImport({
-      context: { ...c, blank_corrected: "yes" },
-      createdAt: new Date("2024-01-02"),
-      qc: [{ sample_id: "Q3", source_row: 1 }],
-    });
     await addImport({ status: "retired", qc: [{ sample_id: "QX" }] });
     const r = await loadActiveResultsInput(ctx, studyId);
     expect(r.qcRecords.map((x) => x.sample_id)).toEqual(["Q1", "Q2", "Q3"]);
     expect(r.records).toHaveLength(2);
     expect(r.imports).toHaveLength(2);
-    expect(r.imports[0].frozenContext).toEqual(c);
+    expect(r.imports[0].frozenContext).toEqual(c); // le plus ancien d'abord
     expect(r.contextChanged).toBe(true);
     expect(r.context).toEqual({ ...c, blank_corrected: "yes" });
     expect(r.study).toMatchObject({ id: studyId, nature: "laboratory" });
+  });
+
+  it("colonnes triées par unités de code, sans collation", async () => {
+    await addImport({
+      records: ["É", "b", "B", "a", "_"].map((col, i) => ({
+        sample_id: `K${i}`,
+        source_row: 1,
+        source_column: col,
+      })),
+    });
+    const r = await loadActiveResultsInput(ctx, studyId);
+    expect(r.records.map((x) => x.source_column)).toEqual(["B", "_", "a", "b", "É"]);
+  });
+
+  it("3 imports : l'ancien égale le contexte actuel, le plus récent diffère", async () => {
+    const c = await buildStudyContext(ctx, studyId);
+    const other = { ...c, blank_corrected: "yes" };
+    await addImport({ context: c, createdAt: new Date("2024-01-01") });
+    await addImport({ context: other, createdAt: new Date("2024-01-02") });
+    await addImport({ context: other, createdAt: new Date("2024-01-03") });
+    const r = await loadActiveResultsInput(ctx, studyId);
+    expect(r.context).toEqual(other);
+    expect(r.contextChanged).toBe(true);
   });
 
   it("contexte unique : c'est le contexte partagé", async () => {
