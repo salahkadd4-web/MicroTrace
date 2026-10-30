@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatNumberFr } from "@/components/app/NumberFr";
+import { formatNumberFr, formatPercentFr } from "@/components/app/NumberFr";
 
 const AXIS = { fill: "var(--muted-foreground)" } as const;
 const GRID = "var(--border)";
@@ -22,8 +22,6 @@ const SERIES_COLORS = [
   "var(--chart-4)",
   "var(--chart-5)",
 ] as const;
-
-const percent = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 });
 
 export type FrequencyBar = { label: string; fraction: number };
 
@@ -38,10 +36,10 @@ export function FrequencyChart({ bars, ariaLabel }: { bars: FrequencyBar[]; aria
           <YAxis
             domain={[0, 1]}
             tick={AXIS}
-            tickFormatter={(v: number) => percent.format(v)}
+            tickFormatter={(v: number) => formatPercentFr(v)}
             width={56}
           />
-          <Tooltip formatter={(v) => percent.format(Number(v))} />
+          <Tooltip formatter={(v) => formatPercentFr(Number(v))} />
           <Bar dataKey="fraction" name="Fréquence" fill="var(--chart-1)" />
         </BarChart>
       </ResponsiveContainer>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
-import { formatNumberFr, NumberFr } from "@/components/app/NumberFr";
+import { formatNumberFr, formatPercentFr, NumberFr } from "@/components/app/NumberFr";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -21,7 +21,7 @@ import {
 import { polymerLabel } from "@/lib/polymer-labels";
 import { canWrite } from "@/lib/roles";
 import { unitLabel } from "@/lib/units";
-import { EngineUnavailableError } from "@/server/engine/client";
+import { EngineError, EngineUnavailableError } from "@/server/engine/client";
 import { requireLab } from "@/server/lab-context";
 import { getStudyResults, type StudyResults } from "@/server/results";
 import { loadStudy } from "../load-study";
@@ -29,10 +29,10 @@ import { groupFrequencies, groupResults, type ResultGroup } from "./group-result
 import { FrequencyChart, SamplePointsChart } from "./ResultCharts";
 
 const ENGINE_DOWN = "Le moteur d'analyse est indisponible.";
+const ENGINE_REFUSED =
+  "Le moteur d'analyse n'a pas pu calculer les résultats de cette étude.";
 const CONTEXT_CHANGED =
   "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
-
-const percent = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 });
 
 const matrixName = (matrix: string, detail: string) =>
   `${labelOf(MATRIX_LABELS, matrix)}${detail ? ` (${detail})` : ""}`;
@@ -229,7 +229,7 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
                         {formatNumberFr(r.n_quantified)}/{formatNumberFr(r.n_samples)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {percent.format(r.fraction)}
+                        {formatPercentFr(r.fraction)}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -263,10 +263,13 @@ export default async function ResultatsPage({
   try {
     data = await getStudyResults(ctx, study.id);
   } catch (e) {
-    if (e instanceof EngineUnavailableError) {
+    // Messages fixes : jamais le détail renvoyé par le moteur. Tout le reste est relancé.
+    if (e instanceof EngineUnavailableError || e instanceof EngineError) {
       return (
         <Alert variant="destructive">
-          <AlertDescription>{ENGINE_DOWN}</AlertDescription>
+          <AlertDescription>
+            {e instanceof EngineError ? ENGINE_REFUSED : ENGINE_DOWN}
+          </AlertDescription>
         </Alert>
       );
     }

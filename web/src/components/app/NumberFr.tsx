@@ -8,6 +8,13 @@ export function formatNumberFr(value: number, digits?: number): string {
   ).format(value);
 }
 
+/** Proportion (0 à 1) au format français, par exemple « 50 % ». */
+export function formatPercentFr(fraction: number): string {
+  return new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 }).format(
+    fraction,
+  );
+}
+
 export function NumberFr({
   value,
   digits,

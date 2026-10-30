@@ -13,6 +13,14 @@ vi.mock("@/server/studies", () => ({ getStudyView: vi.fn() }));
 vi.mock("@/server/results", () => ({ getStudyResults: vi.fn() }));
 vi.mock("@/server/engine/client", () => ({
   EngineUnavailableError: class EngineUnavailableError extends Error {},
+  EngineError: class EngineError extends Error {
+    constructor(
+      readonly status: number,
+      readonly detail: string,
+    ) {
+      super(detail);
+    }
+  },
 }));
 // jsdom n'a pas de mise en page : le conteneur adaptatif ne dessine rien. On teste les tableaux.
 vi.mock("recharts", async (orig) => {
@@ -20,7 +28,7 @@ vi.mock("recharts", async (orig) => {
   return { ...actual, ResponsiveContainer: () => null };
 });
 
-import { EngineUnavailableError } from "@/server/engine/client";
+import { EngineError, EngineUnavailableError } from "@/server/engine/client";
 import { requireLab } from "@/server/lab-context";
 import { getStudyResults } from "@/server/results";
 import { getStudyView } from "@/server/studies";
@@ -185,6 +193,31 @@ describe("page Résultats", () => {
     await renderPage();
     expect(screen.getByRole("alert")).toHaveTextContent("Le moteur d'analyse est indisponible.");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("refus du moteur : message fixe, jamais le détail, la page reste affichée", async () => {
+    vi.mocked(getStudyResults).mockRejectedValue(new EngineError(500, "détail interne secret"));
+    await renderPage();
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Le moteur d'analyse n'a pas pu calculer les résultats de cette étude.",
+    );
+    expect(alert).not.toHaveTextContent("secret");
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("relance une erreur inattendue", async () => {
+    vi.mocked(getStudyResults).mockRejectedValue(new Error("boom"));
+    await expect(
+      ResultatsPage({ params: Promise.resolve({ labSlug: "labo", studyId: "s1" }) }),
+    ).rejects.toThrow("boom");
+  });
+
+  it("étude introuvable (autre laboratoire) : 404 comme les autres onglets", async () => {
+    vi.mocked(getStudyView).mockResolvedValue(null as never);
+    await expect(
+      ResultatsPage({ params: Promise.resolve({ labSlug: "labo", studyId: "s9" }) }),
+    ).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("une étude archivée reste consultable", async () => {
