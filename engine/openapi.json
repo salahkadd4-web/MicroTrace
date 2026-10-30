@@ -494,6 +494,92 @@
         }
       }
     },
+    "/quality": {
+      "post": {
+        "summary": "Quality",
+        "operationId": "quality",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QualityResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/report": {
       "post": {
         "summary": "Report",
@@ -1824,6 +1910,843 @@
           "max_measurement"
         ],
         "title": "PolymerStatsModel"
+      },
+      "QcSummaryModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "N"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "sd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sd"
+          },
+          "unit_code": {
+            "type": "string",
+            "title": "Unit Code"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "polymer",
+          "kind",
+          "n",
+          "unit_code",
+          "source"
+        ],
+        "title": "QcSummaryModel",
+        "description": "A summarised quality control; ``unit_code`` and ``kind`` are free text (an old row\nwith an unknown unit gives a note, not a 422 for the whole study)."
+      },
+      "QualityFigureModel": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ug/mL",
+                  "ng/mL",
+                  "mg/L",
+                  "ug/L",
+                  "ug/g",
+                  "ng/g",
+                  "mg/kg",
+                  "particles/mL",
+                  "particles/L",
+                  "particles/g"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label",
+          "value"
+        ],
+        "title": "QualityFigureModel"
+      },
+      "QualityGroupModel": {
+        "properties": {
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "mass_concentration",
+              "number_concentration"
+            ],
+            "title": "Kind"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "per_volume",
+              "per_mass"
+            ],
+            "title": "Basis"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "polymer",
+          "method",
+          "matrix",
+          "matrix_detail",
+          "kind",
+          "basis",
+          "canonical_unit"
+        ],
+        "title": "QualityGroupModel"
+      },
+      "QualityNoteModel": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "aliquot_discordance",
+              "near_blank",
+              "robust_outlier",
+              "unusual_lod_rate"
+            ],
+            "title": "Rule"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_blank_summary",
+              "polymers_without_blank",
+              "blank_unit_mismatch",
+              "blank_unit_unknown",
+              "blank_mean_missing",
+              "too_few_samples",
+              "zero_mad",
+              "dimension_empty",
+              "too_few_in_strata",
+              "tests_performed"
+            ],
+            "title": "Reason"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QualityGroupModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rule",
+          "reason",
+          "message"
+        ],
+        "title": "QualityNoteModel"
+      },
+      "QualityRecordModel": {
+        "properties": {
+          "sample_id": {
+            "type": "string",
+            "title": "Sample Id"
+          },
+          "aliquot": {
+            "type": "string",
+            "title": "Aliquot"
+          },
+          "record_type": {
+            "type": "string",
+            "enum": [
+              "sample",
+              "procedural_blank",
+              "field_blank",
+              "spiked"
+            ],
+            "title": "Record Type"
+          },
+          "matrix": {
+            "type": "string",
+            "enum": [
+              "whole_blood",
+              "plasma",
+              "serum",
+              "other"
+            ],
+            "title": "Matrix"
+          },
+          "matrix_detail": {
+            "type": "string",
+            "title": "Matrix Detail"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "polymer_raw": {
+            "type": "string",
+            "title": "Polymer Raw"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "technique": {
+            "type": "string",
+            "enum": [
+              "py_gc_ms",
+              "ted_gc_ms",
+              "micro_ftir",
+              "micro_raman",
+              "other"
+            ],
+            "title": "Technique"
+          },
+          "reported_value": {
+            "type": "string",
+            "title": "Reported Value"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Unit"
+          },
+          "canonical_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Value"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "quantified",
+              "between_lod_loq",
+              "not_quantified",
+              "below_lod",
+              "not_analysed"
+            ],
+            "title": "Status"
+          },
+          "lod": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lod"
+          },
+          "loq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loq"
+          },
+          "canonical_lod": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Lod"
+          },
+          "canonical_loq": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Loq"
+          },
+          "identification_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "candidate"
+            ],
+            "title": "Identification Status"
+          },
+          "size_min_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Min Um"
+          },
+          "size_max_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Max Um"
+          },
+          "analysis_date": {
+            "type": "string",
+            "title": "Analysis Date"
+          },
+          "batch": {
+            "type": "string",
+            "title": "Batch"
+          },
+          "lab": {
+            "type": "string",
+            "title": "Lab"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          },
+          "source_row": {
+            "type": "integer",
+            "title": "Source Row"
+          },
+          "source_column": {
+            "type": "string",
+            "title": "Source Column"
+          },
+          "import_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Import Id"
+          },
+          "file_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "File Sha256"
+          },
+          "sheet": {
+            "type": "string",
+            "title": "Sheet",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sample_id",
+          "aliquot",
+          "record_type",
+          "matrix",
+          "matrix_detail",
+          "polymer",
+          "polymer_raw",
+          "method",
+          "technique",
+          "reported_value",
+          "value",
+          "unit",
+          "canonical_value",
+          "canonical_unit",
+          "status",
+          "lod",
+          "loq",
+          "canonical_lod",
+          "canonical_loq",
+          "identification_status",
+          "size_min_um",
+          "size_max_um",
+          "analysis_date",
+          "batch",
+          "lab",
+          "comment",
+          "source_row",
+          "source_column",
+          "import_id",
+          "file_sha256"
+        ],
+        "title": "QualityRecordModel",
+        "description": "A measurement with the identity of its cell: import, file fingerprint, sheet."
+      },
+      "QualityRecordRefModel": {
+        "properties": {
+          "import_id": {
+            "type": "string",
+            "title": "Import Id"
+          },
+          "file_sha256": {
+            "type": "string",
+            "title": "File Sha256"
+          },
+          "sheet": {
+            "type": "string",
+            "title": "Sheet"
+          },
+          "source_row": {
+            "type": "integer",
+            "title": "Source Row"
+          },
+          "source_column": {
+            "type": "string",
+            "title": "Source Column"
+          },
+          "sample_id": {
+            "type": "string",
+            "title": "Sample Id"
+          },
+          "aliquot": {
+            "type": "string",
+            "title": "Aliquot"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "quantified",
+              "between_lod_loq",
+              "not_quantified",
+              "below_lod",
+              "not_analysed"
+            ],
+            "title": "Status"
+          },
+          "canonical_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Value",
+            "description": "Null unless the status is quantified"
+          },
+          "canonical_unit": {
+            "type": "string",
+            "enum": [
+              "ug/mL",
+              "ng/mL",
+              "mg/L",
+              "ug/L",
+              "ug/g",
+              "ng/g",
+              "mg/kg",
+              "particles/mL",
+              "particles/L",
+              "particles/g"
+            ],
+            "title": "Canonical Unit"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "import_id",
+          "file_sha256",
+          "sheet",
+          "source_row",
+          "source_column",
+          "sample_id",
+          "aliquot",
+          "status",
+          "canonical_value",
+          "canonical_unit"
+        ],
+        "title": "QualityRecordRefModel"
+      },
+      "QualityRequest": {
+        "properties": {
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/QualityRecordModel"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "qc_summaries": {
+            "items": {
+              "$ref": "#/components/schemas/QcSummaryModel"
+            },
+            "type": "array",
+            "title": "Qc Summaries"
+          },
+          "blank_corrected": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ],
+            "title": "Blank Corrected",
+            "default": "unknown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "records"
+        ],
+        "title": "QualityRequest"
+      },
+      "QualityResponse": {
+        "properties": {
+          "quality_rules_version": {
+            "type": "string",
+            "title": "Quality Rules Version"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/QualitySignalModel"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/QualityNoteModel"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/QualityRuleModel"
+            },
+            "type": "array",
+            "title": "Rules"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "quality_rules_version",
+          "signals",
+          "notes",
+          "rules"
+        ],
+        "title": "QualityResponse"
+      },
+      "QualityRuleModel": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "aliquot_discordance",
+              "near_blank",
+              "robust_outlier",
+              "unusual_lod_rate"
+            ],
+            "title": "Rule"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rule",
+          "title",
+          "description",
+          "limits"
+        ],
+        "title": "QualityRuleModel"
+      },
+      "QualitySignalModel": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Key"
+          },
+          "rule": {
+            "type": "string",
+            "enum": [
+              "aliquot_discordance",
+              "near_blank",
+              "robust_outlier",
+              "unusual_lod_rate"
+            ],
+            "title": "Rule"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "replicates",
+              "blanks",
+              "distribution",
+              "batches"
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subject_label": {
+            "type": "string",
+            "title": "Subject Label"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "group": {
+            "$ref": "#/components/schemas/QualityGroupModel"
+          },
+          "sample_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sample Id"
+          },
+          "aliquot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aliquot"
+          },
+          "blank_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blank Id"
+          },
+          "dimension": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "batch",
+                  "analysis_date"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dimension"
+          },
+          "stratum": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stratum"
+          },
+          "figures": {
+            "items": {
+              "$ref": "#/components/schemas/QualityFigureModel"
+            },
+            "type": "array",
+            "title": "Figures"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/QualityRecordRefModel"
+            },
+            "type": "array",
+            "title": "Records"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "rule",
+          "category",
+          "title",
+          "subject_label",
+          "explanation",
+          "group",
+          "figures",
+          "records"
+        ],
+        "title": "QualitySignalModel"
       },
       "ReportFileModel": {
         "properties": {

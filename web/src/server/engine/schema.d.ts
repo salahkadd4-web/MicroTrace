@@ -113,6 +113,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Quality */
+        post: operations["quality"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/report": {
         parameters: {
             query?: never;
@@ -525,6 +542,283 @@ export interface components {
             max: number | null;
             /** Max Measurement */
             max_measurement: number | null;
+        };
+        /**
+         * QcSummaryModel
+         * @description A summarised quality control; ``unit_code`` and ``kind`` are free text (an old row
+         *     with an unknown unit gives a note, not a 422 for the whole study).
+         */
+        QcSummaryModel: {
+            /** Id */
+            id: string;
+            /** Polymer */
+            polymer: string;
+            /** Kind */
+            kind: string;
+            /** N */
+            n: number;
+            /** Mean */
+            mean?: number | null;
+            /** Sd */
+            sd?: number | null;
+            /** Unit Code */
+            unit_code: string;
+            /** Source */
+            source: string;
+        };
+        /** QualityFigureModel */
+        QualityFigureModel: {
+            /** Name */
+            name: string;
+            /** Label */
+            label: string;
+            /** Value */
+            value: number;
+            /** Unit */
+            unit?: ("ug/mL" | "ng/mL" | "mg/L" | "ug/L" | "ug/g" | "ng/g" | "mg/kg" | "particles/mL" | "particles/L" | "particles/g") | null;
+        };
+        /** QualityGroupModel */
+        QualityGroupModel: {
+            /** Polymer */
+            polymer: string;
+            /** Method */
+            method: string;
+            /**
+             * Matrix
+             * @enum {string}
+             */
+            matrix: "whole_blood" | "plasma" | "serum" | "other";
+            /** Matrix Detail */
+            matrix_detail: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "mass_concentration" | "number_concentration";
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "per_volume" | "per_mass";
+            /**
+             * Canonical Unit
+             * @enum {string}
+             */
+            canonical_unit: "ug/mL" | "ng/mL" | "mg/L" | "ug/L" | "ug/g" | "ng/g" | "mg/kg" | "particles/mL" | "particles/L" | "particles/g";
+        };
+        /** QualityNoteModel */
+        QualityNoteModel: {
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "aliquot_discordance" | "near_blank" | "robust_outlier" | "unusual_lod_rate";
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "no_blank_summary" | "polymers_without_blank" | "blank_unit_mismatch" | "blank_unit_unknown" | "blank_mean_missing" | "too_few_samples" | "zero_mad" | "dimension_empty" | "too_few_in_strata" | "tests_performed";
+            group?: components["schemas"]["QualityGroupModel"] | null;
+            /** Message */
+            message: string;
+        };
+        /**
+         * QualityRecordModel
+         * @description A measurement with the identity of its cell: import, file fingerprint, sheet.
+         */
+        QualityRecordModel: {
+            /** Sample Id */
+            sample_id: string;
+            /** Aliquot */
+            aliquot: string;
+            /**
+             * Record Type
+             * @enum {string}
+             */
+            record_type: "sample" | "procedural_blank" | "field_blank" | "spiked";
+            /**
+             * Matrix
+             * @enum {string}
+             */
+            matrix: "whole_blood" | "plasma" | "serum" | "other";
+            /** Matrix Detail */
+            matrix_detail: string;
+            /** Polymer */
+            polymer: string;
+            /** Polymer Raw */
+            polymer_raw: string;
+            /** Method */
+            method: string;
+            /**
+             * Technique
+             * @enum {string}
+             */
+            technique: "py_gc_ms" | "ted_gc_ms" | "micro_ftir" | "micro_raman" | "other";
+            /** Reported Value */
+            reported_value: string;
+            /** Value */
+            value: number | null;
+            /**
+             * Unit
+             * @enum {string}
+             */
+            unit: "ug/mL" | "ng/mL" | "mg/L" | "ug/L" | "ug/g" | "ng/g" | "mg/kg" | "particles/mL" | "particles/L" | "particles/g";
+            /** Canonical Value */
+            canonical_value: number | null;
+            /**
+             * Canonical Unit
+             * @enum {string}
+             */
+            canonical_unit: "ug/mL" | "ng/mL" | "mg/L" | "ug/L" | "ug/g" | "ng/g" | "mg/kg" | "particles/mL" | "particles/L" | "particles/g";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "quantified" | "between_lod_loq" | "not_quantified" | "below_lod" | "not_analysed";
+            /** Lod */
+            lod: number | null;
+            /** Loq */
+            loq: number | null;
+            /** Canonical Lod */
+            canonical_lod: number | null;
+            /** Canonical Loq */
+            canonical_loq: number | null;
+            /**
+             * Identification Status
+             * @enum {string}
+             */
+            identification_status: "confirmed" | "candidate";
+            /** Size Min Um */
+            size_min_um: number | null;
+            /** Size Max Um */
+            size_max_um: number | null;
+            /** Analysis Date */
+            analysis_date: string;
+            /** Batch */
+            batch: string;
+            /** Lab */
+            lab: string;
+            /** Comment */
+            comment: string;
+            /** Source Row */
+            source_row: number;
+            /** Source Column */
+            source_column: string;
+            /** Import Id */
+            import_id: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /**
+             * Sheet
+             * @default
+             */
+            sheet: string;
+        };
+        /** QualityRecordRefModel */
+        QualityRecordRefModel: {
+            /** Import Id */
+            import_id: string;
+            /** File Sha256 */
+            file_sha256: string;
+            /** Sheet */
+            sheet: string;
+            /** Source Row */
+            source_row: number;
+            /** Source Column */
+            source_column: string;
+            /** Sample Id */
+            sample_id: string;
+            /** Aliquot */
+            aliquot: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "quantified" | "between_lod_loq" | "not_quantified" | "below_lod" | "not_analysed";
+            /**
+             * Canonical Value
+             * @description Null unless the status is quantified
+             */
+            canonical_value: number | null;
+            /**
+             * Canonical Unit
+             * @enum {string}
+             */
+            canonical_unit: "ug/mL" | "ng/mL" | "mg/L" | "ug/L" | "ug/g" | "ng/g" | "mg/kg" | "particles/mL" | "particles/L" | "particles/g";
+        };
+        /** QualityRequest */
+        QualityRequest: {
+            /** Records */
+            records: components["schemas"]["QualityRecordModel"][];
+            /** Qc Summaries */
+            qc_summaries?: components["schemas"]["QcSummaryModel"][];
+            /**
+             * Blank Corrected
+             * @default unknown
+             * @enum {string}
+             */
+            blank_corrected: "yes" | "no" | "unknown";
+        };
+        /** QualityResponse */
+        QualityResponse: {
+            /** Quality Rules Version */
+            quality_rules_version: string;
+            /** Signals */
+            signals: components["schemas"]["QualitySignalModel"][];
+            /** Notes */
+            notes: components["schemas"]["QualityNoteModel"][];
+            /** Rules */
+            rules: components["schemas"]["QualityRuleModel"][];
+        };
+        /** QualityRuleModel */
+        QualityRuleModel: {
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "aliquot_discordance" | "near_blank" | "robust_outlier" | "unusual_lod_rate";
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            /** Limits */
+            limits: string[];
+        };
+        /** QualitySignalModel */
+        QualitySignalModel: {
+            /** Key */
+            key: string;
+            /**
+             * Rule
+             * @enum {string}
+             */
+            rule: "aliquot_discordance" | "near_blank" | "robust_outlier" | "unusual_lod_rate";
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "replicates" | "blanks" | "distribution" | "batches";
+            /** Title */
+            title: string;
+            /** Subject Label */
+            subject_label: string;
+            /** Explanation */
+            explanation: string;
+            group: components["schemas"]["QualityGroupModel"];
+            /** Sample Id */
+            sample_id?: string | null;
+            /** Aliquot */
+            aliquot?: string | null;
+            /** Blank Id */
+            blank_id?: string | null;
+            /** Dimension */
+            dimension?: ("batch" | "analysis_date") | null;
+            /** Stratum */
+            stratum?: string | null;
+            /** Figures */
+            figures: components["schemas"]["QualityFigureModel"][];
+            /** Records */
+            records: components["schemas"]["QualityRecordRefModel"][];
         };
         /** ReportFileModel */
         ReportFileModel: {
@@ -1068,6 +1362,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SummaryResponse"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    quality: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QualityResponse"];
                 };
             };
             /** @description Secret du moteur manquant ou invalide */

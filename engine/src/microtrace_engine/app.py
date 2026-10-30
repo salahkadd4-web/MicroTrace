@@ -16,6 +16,7 @@ from microtrace_core.results import (
     LESLIE_LIKE_FILENAME,
     RULES_VERSION,
     aggregate_aliquots,
+    assess_quality,
     context_issues,
     data_dictionary_csv,
     data_dictionary_markdown,
@@ -44,7 +45,10 @@ from .convert import (
     context_to_model,
     import_result_to_model,
     mapping_from_model,
+    blank_from_model,
     mapping_to_model,
+    quality_record_from_model,
+    quality_result_to_model,
     record_from_model,
     summary_to_models,
 )
@@ -59,6 +63,8 @@ from .schemas import (
     HealthResponse,
     ImportResultModel,
     MappingModel,
+    QualityRequest,
+    QualityResponse,
     ReportRequest,
     ReportResponse,
     StudyContextModel,
@@ -71,6 +77,8 @@ from .settings import Settings
 from .uploads import TooLarge, read_upload, sha256_hex, sheet_names
 
 PREVIEW_ROWS = 20
+DUPLICATE_MEASUREMENTS = ("Mesures en double dans la requête "
+                          "(même fichier, feuille, ligne et colonne).")
 
 logger = logging.getLogger("microtrace_engine")
 
@@ -400,6 +408,22 @@ def create_app(settings: Settings) -> FastAPI:
             samples=samples,
             aggregation_rule=AGGREGATION_RULE_FR,
         )
+
+    @app.post(
+        "/quality",
+        response_model=QualityResponse,
+        dependencies=[Depends(require_secret)],
+    )
+    def quality(req: QualityRequest) -> QualityResponse:
+        # sync route: FastAPI runs it in the threadpool
+        records = [_domain(quality_record_from_model, r) for r in req.records]
+        identities = {(x.ref.file_sha256, x.ref.sheet, x.ref.source_row, x.ref.source_column)
+                      for x in records}
+        if len(identities) != len(records):
+            raise HTTPException(status_code=422, detail=DUPLICATE_MEASUREMENTS)
+        blanks = [blank_from_model(b) for b in req.qc_summaries]
+        result = assess_quality(records, blanks)
+        return quality_result_to_model(result, req.blank_corrected)
 
     @app.post(
         "/report",

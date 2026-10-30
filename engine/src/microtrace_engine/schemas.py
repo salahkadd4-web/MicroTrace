@@ -21,6 +21,7 @@ from microtrace_core.results import (
     Technique,
 )
 from microtrace_core.results.issues import Severity
+from microtrace_core.results.quality import NoteReason, QualityRule
 from microtrace_core.polymers import OTHER
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -33,6 +34,8 @@ RecordTypeName = Literal[tuple(m.value for m in RecordType)]  # type: ignore[val
 IdentificationStatusName = Literal[  # type: ignore[valid-type]
     tuple(m.value for m in IdentificationStatus)]
 DataNatureName = Literal[tuple(m.value for m in DataNature)]  # type: ignore[valid-type]
+QualityRuleName = Literal[tuple(m.value for m in QualityRule)]  # type: ignore[valid-type]
+NoteReasonName = Literal[tuple(m.value for m in NoteReason)]  # type: ignore[valid-type]
 UnitCode = Literal[tuple(UNITS)]  # type: ignore[valid-type]
 IssueCode = Literal[tuple(ISSUE_CODES)]  # type: ignore[valid-type]
 
@@ -290,3 +293,99 @@ class ExampleResponse(_Model):
     csv_base64: str
     context: StudyContextModel
     mapping: MappingModel
+
+
+class QualityRecordModel(MeasurementRecordModel):
+    """A measurement with the identity of its cell: import, file fingerprint, sheet."""
+
+    import_id: str = Field(min_length=1)
+    file_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    sheet: str = ""
+
+
+class QcSummaryModel(_Model):
+    """A summarised quality control; ``unit_code`` and ``kind`` are free text (an old row
+    with an unknown unit gives a note, not a 422 for the whole study)."""
+
+    id: str = Field(min_length=1)
+    polymer: str
+    kind: str
+    n: int = Field(ge=1)
+    mean: Number | None = None
+    sd: Number | None = None
+    unit_code: str
+    source: str
+
+
+class QualityRequest(_Model):
+    records: list[QualityRecordModel]
+    qc_summaries: list[QcSummaryModel] = Field(default_factory=list)
+    blank_corrected: Literal["yes", "no", "unknown"] = "unknown"
+
+
+class QualityGroupModel(_Model):
+    polymer: str
+    method: str
+    matrix: MatrixName
+    matrix_detail: str
+    kind: QuantityKindName
+    basis: BasisName
+    canonical_unit: UnitCode
+
+
+class QualityFigureModel(_Model):
+    name: str
+    label: str
+    value: Number
+    unit: UnitCode | None = None
+
+
+class QualityRecordRefModel(_Model):
+    import_id: str
+    file_sha256: str
+    sheet: str
+    source_row: int
+    source_column: str
+    sample_id: str
+    aliquot: str
+    status: DetectionStatusName
+    canonical_value: Number | None = Field(description="Null unless the status is quantified")
+    canonical_unit: UnitCode
+
+
+class QualitySignalModel(_Model):
+    key: str = Field(pattern=r"^[0-9a-f]{64}$")
+    rule: QualityRuleName
+    category: Literal["replicates", "blanks", "distribution", "batches"]
+    title: str
+    subject_label: str
+    explanation: str
+    group: QualityGroupModel
+    sample_id: str | None = None
+    aliquot: str | None = None
+    blank_id: str | None = None
+    dimension: Literal["batch", "analysis_date"] | None = None
+    stratum: str | None = None
+    figures: list[QualityFigureModel]
+    records: list[QualityRecordRefModel]
+
+
+class QualityNoteModel(_Model):
+    rule: QualityRuleName
+    reason: NoteReasonName
+    group: QualityGroupModel | None = None
+    message: str
+
+
+class QualityRuleModel(_Model):
+    rule: QualityRuleName
+    title: str
+    description: str
+    limits: list[str]
+
+
+class QualityResponse(_Model):
+    quality_rules_version: str
+    signals: list[QualitySignalModel]
+    notes: list[QualityNoteModel]
+    rules: list[QualityRuleModel]

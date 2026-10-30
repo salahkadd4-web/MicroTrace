@@ -73,6 +73,29 @@ const reportReq = {
 const r = size(reportReq);
 console.log(`summary : ${s} octets (${mb(s)} Mo) pour ${N} mesures`);
 console.log(`report  : ${r} octets (${mb(r)} Mo) pour ${N - nQc} mesures + ${nQc} contrôles + ${N} issues`);
+
+// /quality : mêmes mesures + identité de la cellule (import_id, file_sha256, sheet) + contrôles résumés.
+const qualityReq = {
+  records: summaryReq.records.map((x, i) => ({
+    ...x,
+    import_id: `clx${String(i % 20).padStart(22, "0")}`,
+    file_sha256: "a".repeat(64),
+    sheet: "Feuille de résultats",
+  })),
+  qc_summaries: Array.from({ length: 50 }, (_, k) => ({
+    id: `clq${String(k).padStart(22, "0")}`,
+    polymer: "PET",
+    kind: "procedural_blank",
+    n: 3,
+    mean: 250,
+    sd: 12.5,
+    unit_code: "ng/mL",
+    source: "Carnet de contrôle qualité du laboratoire",
+  })),
+  blank_corrected: "unknown",
+};
+const q = size(qualityReq);
+console.log(`quality : ${q} octets (${mb(q)} Mo) pour ${N} mesures`);
 console.log(`limite moteur ~ ${mb(LIMIT)} Mo ; seuil d'alerte 90 % = ${mb(LIMIT * 0.9)} Mo`);
-const worst = Math.max(s, r);
+const worst = Math.max(s, r, q);
 console.log(worst > LIMIT * 0.9 ? "ALERTE : au-dessus de 90 % de la limite" : "OK : sous 90 % de la limite");

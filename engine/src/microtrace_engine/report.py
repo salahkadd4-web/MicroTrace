@@ -23,6 +23,7 @@ from microtrace_core.results import (
 from microtrace_core.results.issues import fmt_fr
 from microtrace_core.results.vocab import label_fr
 
+from .labels import polymer_label
 from .schemas import ReportRequest
 
 DISCLAIMER = "Prototype de recherche, pas un dispositif médical."
@@ -45,12 +46,8 @@ def _lab(group: str, code: str) -> str:
     return label_fr(group, code)
 
 
-# Same display labels as the web screen (web/src/lib/polymer-labels.ts); other codes unchanged.
-_POLYMER_LABELS = {"PS_SUM": "PS (somme)", "ANY": "Au moins un polymère"}
-
-
 def _poly(code: str) -> str:
-    return _POLYMER_LABELS.get(str(code), str(code))
+    return polymer_label(code)
 
 
 def _c(value: object) -> str:

@@ -99,3 +99,29 @@ def test_constraints_pin_the_tested_runtime_tree():
     pins = dict(line.strip().split("==") for line in text.splitlines()
                 if line.strip() and not line.startswith("#"))
     assert pins == _runtime_tree()
+
+
+def test_quality_logs_hold_no_sample_id_nor_control_source(client, auth_headers, caplog):
+    from microtrace_core.results import run_import
+    from microtrace_core.results.examples import leslie_like_wide_table
+
+    table = leslie_like_wide_table()
+    result = run_import(table, leslie_like_mapping(table), leslie_like_context())
+    records = []
+    for x in result.records:
+        d = convert.record_to_model(x).model_dump()
+        d.update(import_id="imp-1", file_sha256="a" * 64, sheet="")
+        d["sample_id"] = "DONOR-SECRET-" + d["sample_id"]
+        records.append(d)
+    blank = {"id": "qc1", "polymer": "PET", "kind": "procedural_blank", "n": 3, "mean": 250,
+             "unit_code": "ng/mL", "source": "SOURCE-SECRET-77"}
+    caplog.set_level(logging.DEBUG)
+    ok = client.post("/quality", headers=auth_headers,
+                     json={"records": records, "qc_summaries": [blank]})
+    dup = client.post("/quality", headers=auth_headers,
+                      json={"records": records + records[:1], "qc_summaries": [blank]})
+    bad = client.post("/quality", headers=auth_headers,
+                      json={"records": [{"sample_id": "DONOR-SECRET-9"}]})
+    assert ok.status_code == 200 and dup.status_code == 422 and bad.status_code == 422
+    assert "DONOR-SECRET" not in caplog.text and "SOURCE-SECRET" not in caplog.text
+    assert "DONOR-SECRET-9" not in bad.text and "SOURCE-SECRET" not in dup.text

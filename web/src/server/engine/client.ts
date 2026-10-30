@@ -12,6 +12,9 @@ export type SummaryRequest = S["SummaryRequest"];
 export type SummaryResponse = S["SummaryResponse"];
 export type ReportRequest = S["ReportRequest"];
 export type ReportResponse = S["ReportResponse"];
+export type QualityRequest = S["QualityRequest"];
+export type QualityResponse = S["QualityResponse"];
+export type QualitySignal = S["QualitySignalModel"];
 export type Dictionary = S["DictionaryResponse"];
 export type Example = S["ExampleResponse"];
 
@@ -163,6 +166,7 @@ export function createEngineClient(options: ClientOptions = {}) {
       return call<ImportResult>("POST", "/imports/check", { form });
     },
     summary: (req: SummaryRequest) => call<SummaryResponse>("POST", "/summary", { json: req }),
+    quality: (req: QualityRequest) => call<QualityResponse>("POST", "/quality", { json: req }),
     report: (req: ReportRequest) => call<ReportResponse>("POST", "/report", { json: req }),
     dictionary: () => call<Dictionary>("GET", "/dictionary"),
   };
