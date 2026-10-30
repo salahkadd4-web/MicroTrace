@@ -60,6 +60,19 @@ for (const [name, ex] of Object.entries(EXAMPLES)) {
       await expect(row.getByRole("cell").nth(2), label).toHaveText(ratio, { useInnerText: true });
     }
     await expect(page.getByText("PS_SUM")).toHaveCount(0);
+    // Les graphiques sont bien dessinés : une barre par ligne de fréquence, au moins un point tracé.
+    await expect(
+      page
+        .getByRole("img", { name: /^Fréquence de quantification/ })
+        .locator(".recharts-bar-rectangle"),
+    ).toHaveCount(FIGURES.length);
+    await expect
+      .poll(() => page.locator(".recharts-scatter-symbol").count(), { message: "points tracés" })
+      .toBeGreaterThan(0);
+    // Une étude d'exemple neuve n'affiche aucun faux avertissement.
+    await expect(
+      page.getByText(/ont changé depuis certains imports|versions de règles différentes/),
+    ).toHaveCount(0);
     await expect(page.getByText("Prototype de recherche, pas un dispositif médical").first()).toBeVisible();
 
     // Données de référence pour le rapport : lues en base, pas écrites en dur.

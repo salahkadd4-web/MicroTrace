@@ -9,7 +9,7 @@ test("Parcours C — un membre ne voit pas les résultats d'un autre laboratoire
   expect(own?.status()).toBe(200);
   // La page Résultats n'a pas de titre « Résultats » : l'onglet courant et l'état vide la désignent.
   await expect(page.getByRole("link", { name: "Résultats" })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByText("Aucun import actif : importez un fichier pour voir les résultats.")).toBeVisible();
+  await expect(page.getByText("Aucune mesure d'échantillon dans les imports actifs : importez un fichier de mesures pour voir les résultats.")).toBeVisible();
 
   // Étude du laboratoire B, dans l'adresse de B puis dans l'adresse de A : introuvable.
   for (const url of [
