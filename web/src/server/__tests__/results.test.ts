@@ -130,6 +130,8 @@ async function addImport(
   return run;
 }
 
+const EXTRA_METHOD = { name: "Autre méthode", technique: "other" } as const;
+
 describe("getStudyResults", () => {
   it("aucune mesure active : { empty: true } sans appeler le moteur", async () => {
     await addImport({ status: "retired" });
@@ -179,21 +181,84 @@ describe("getStudyResults", () => {
     expect(await getStudyResults(ctx, studyId)).toMatchObject({ contextChanged: false });
   });
 
-  it("contextChanged : vrai si les contextes figés des imports diffèrent", async () => {
+  it("contextChanged : vrai si les méthodes ou limites figées des imports diffèrent", async () => {
     const c = await buildStudyContext(ctx, studyId);
     await addImport({ context: c, createdAt: new Date("2024-01-01") });
     await addImport({
-      context: { ...c, blank_corrected: "yes" },
+      context: { ...c, methods: [...c.methods, EXTRA_METHOD] },
       createdAt: new Date("2024-01-02"),
     });
     expect(await getStudyResults(ctx, studyId)).toMatchObject({ contextChanged: true });
   });
 
-  it("contextChanged : vrai si les paramètres actuels de l'étude diffèrent du contexte figé", async () => {
+  it("contextChanged : faux si seuls la nature, le DOI, la licence ou le blanc diffèrent", async () => {
+    const c = await buildStudyContext(ctx, studyId);
+    await addImport({ context: c, createdAt: new Date("2024-01-01") });
+    await addImport({
+      context: {
+        ...c,
+        blank_corrected: "yes",
+        reference_doi: "10.1234/ancien",
+        reference_license: "CC-BY-4.0",
+        data_nature: "simulated",
+      },
+      createdAt: new Date("2024-01-02"),
+    });
+    expect(await getStudyResults(ctx, studyId)).toMatchObject({ contextChanged: false });
+  });
+
+  it("contextChanged : vrai si les méthodes ou limites actuelles diffèrent du contexte figé", async () => {
+    const c = await buildStudyContext(ctx, studyId);
+    await addImport({ context: { ...c, methods: [...c.methods, EXTRA_METHOD] } });
+    expect(await getStudyResults(ctx, studyId)).toMatchObject({ contextChanged: true });
+  });
+
+  it("contextChanged : faux si seuls la correction du blanc ou la nature actuelles ont changé", async () => {
     const c = await buildStudyContext(ctx, studyId);
     await addImport({ context: c });
-    await prisma.study.update({ where: { id: studyId }, data: { blankCorrected: "yes" } });
-    expect(await getStudyResults(ctx, studyId)).toMatchObject({ contextChanged: true });
+    await prisma.study.update({
+      where: { id: studyId },
+      data: { blankCorrected: "yes", referenceDoi: "10.1234/corrige", nature: "simulated" },
+    });
+    expect(await getStudyResults(ctx, studyId)).toMatchObject({
+      contextChanged: false,
+      nature: "simulated",
+    });
+  });
+
+  it("contexte du rapport : méthodes et limites figées, nature/DOI/licence/blanc actuels", async () => {
+    const c = await buildStudyContext(ctx, studyId);
+    const frozen = { ...c, methods: [EXTRA_METHOD], data_nature: "laboratory" as const };
+    await addImport({ context: frozen });
+    await prisma.study.update({
+      where: { id: studyId },
+      data: {
+        nature: "simulated",
+        blankCorrected: "yes",
+        referenceDoi: "10.1234/actuel",
+        referenceLicense: "CC0-1.0",
+      },
+    });
+    const r = await loadActiveResultsInput(ctx, studyId);
+    expect(r.context).toEqual({
+      ...frozen,
+      data_nature: "simulated",
+      blank_corrected: "yes",
+      reference_doi: "10.1234/actuel",
+      reference_license: "CC0-1.0",
+    });
+    expect(r.study.nature).toBe("simulated");
+  });
+
+  it("issues des imports : lues seulement avec { withIssues: true }", async () => {
+    await addImport();
+    await prisma.importRun.updateMany({
+      data: { issues: [{ code: "W_X", severity: "warning", message: "m" }] },
+    });
+    expect((await loadActiveResultsInput(ctx, studyId)).imports[0].issues).toEqual([]);
+    expect(
+      (await loadActiveResultsInput(ctx, studyId, { withIssues: true })).imports[0].issues,
+    ).toHaveLength(1);
   });
 
   it("moteur indisponible : EngineUnavailableError", async () => {
@@ -227,7 +292,7 @@ describe("loadActiveResultsInput", () => {
   it("renvoie imports, mesures, contrôles qualité triés et le contexte à utiliser", async () => {
     const c = await buildStudyContext(ctx, studyId);
     await addImport({
-      context: { ...c, blank_corrected: "yes" },
+      context: { ...c, methods: [...c.methods, EXTRA_METHOD] },
       createdAt: new Date("2024-01-02"),
       qc: [{ sample_id: "Q3", source_row: 1 }],
     });
@@ -246,7 +311,7 @@ describe("loadActiveResultsInput", () => {
     expect(r.imports).toHaveLength(2);
     expect(r.imports[0].frozenContext).toEqual(c); // le plus ancien d'abord
     expect(r.contextChanged).toBe(true);
-    expect(r.context).toEqual({ ...c, blank_corrected: "yes" });
+    expect(r.context).toEqual({ ...c, methods: [...c.methods, EXTRA_METHOD] });
     expect(r.study).toMatchObject({ id: studyId, nature: "laboratory" });
     // Champs du rapport : taille, feuille, issues ; import de chaque record, dans l'ordre des records.
     expect(r.imports[0]).toMatchObject({ sizeBytes: 1, sheet: null, issues: [] });
@@ -267,7 +332,7 @@ describe("loadActiveResultsInput", () => {
 
   it("3 imports : l'ancien égale le contexte actuel, le plus récent diffère", async () => {
     const c = await buildStudyContext(ctx, studyId);
-    const other = { ...c, blank_corrected: "yes" };
+    const other = { ...c, methods: [...c.methods, EXTRA_METHOD] };
     await addImport({ context: c, createdAt: new Date("2024-01-01") });
     await addImport({ context: other, createdAt: new Date("2024-01-02") });
     await addImport({ context: other, createdAt: new Date("2024-01-03") });

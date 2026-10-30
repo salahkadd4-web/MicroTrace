@@ -23,10 +23,19 @@ const DAY = new Intl.DateTimeFormat("fr-CA", {
   day: "2-digit",
 });
 
-export function reportFileName(format: DownloadFormat, title: string, at: Date): string {
+/** Un fichier d'étude simulée porte « SIMULE- » en tête de nom : jamais pris pour des données réelles. */
+export function reportFileName(
+  format: DownloadFormat,
+  title: string,
+  at: Date,
+  simulated = false,
+): string {
   const day = DAY.format(at);
   const slug = slugTitle(title);
-  return format === "csv" ? `mesures-${slug}-${day}.csv` : `rapport-${slug}-${day}.${format}`;
+  const prefix = simulated ? "SIMULE-" : "";
+  return format === "csv"
+    ? `${prefix}mesures-${slug}-${day}.csv`
+    : `${prefix}rapport-${slug}-${day}.${format}`;
 }
 
 /** Pièce jointe : nom ASCII (`filename`) et sa forme étendue (`filename*`). */

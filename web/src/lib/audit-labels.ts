@@ -92,6 +92,7 @@ const FIELD_LABELS: Record<string, string> = {
   warningCount: "Avertissements",
   infoCount: "Informations",
   status: "Statut",
+  format: "Format",
 };
 
 /** Libellé français d'un code d'action ; un code inconnu est montré tel quel. */
@@ -120,6 +121,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   kind: QC_KIND_LABELS,
   role: ROLE_LABELS,
   status: { active: "Actif", retired: "Retiré" },
+  format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)" },
 };
 
 const ABSENT = "—";

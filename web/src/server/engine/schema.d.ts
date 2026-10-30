@@ -542,7 +542,11 @@ export interface components {
             file: components["schemas"]["ReportFileModel"];
             /** Rules Version */
             rules_version: string;
-            /** Date */
+            /**
+             * Date
+             * Format: date-time
+             * @description ISO 8601; naive values are taken as UTC
+             */
             date: string;
             /** Author */
             author: string;

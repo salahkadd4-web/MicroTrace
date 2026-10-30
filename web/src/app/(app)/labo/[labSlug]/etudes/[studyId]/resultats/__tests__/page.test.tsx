@@ -173,7 +173,7 @@ describe("page Résultats", () => {
     vi.mocked(getStudyResults).mockResolvedValue({ empty: true } as never);
     await renderPage();
     expect(
-      screen.getByText("Aucun import actif : importez un fichier pour voir les résultats."),
+      screen.getByText("Aucune mesure d'échantillon dans les imports actifs : importez un fichier de mesures pour voir les résultats."),
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Aller aux imports" })).toHaveAttribute(
       "href",
@@ -184,7 +184,7 @@ describe("page Résultats", () => {
   it("état vide sans lien pour un lecteur", async () => {
     vi.mocked(getStudyResults).mockResolvedValue({ empty: true } as never);
     await renderPage();
-    expect(screen.getByText(/Aucun import actif/)).toBeInTheDocument();
+    expect(screen.getByText(/Aucune mesure d'échantillon dans les imports actifs/)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Aller aux imports" })).not.toBeInTheDocument();
   });
 
@@ -204,6 +204,51 @@ describe("page Résultats", () => {
     );
     expect(alert).not.toHaveTextContent("secret");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+
+  it("étude trop volumineuse (413 du moteur) : message dédié", async () => {
+    vi.mocked(getStudyResults).mockRejectedValue(new EngineError(413, "detail"));
+    await renderPage();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Étude trop volumineuse pour le calcul : retirez un import ou scindez l'étude.",
+    );
+  });
+
+  it("mêmes nombres que le rapport : 1/16 -> 6,2 %, moyenne à 6 chiffres significatifs, sans séparateur de milliers", async () => {
+    const base = results() as unknown as { summary: { frequencies: object[]; stats: object[] } };
+    base.summary.frequencies = [
+      { polymer: "PET", matrix: "whole_blood", matrix_detail: "", n_samples: 16, n_quantified: 1, fraction: 0.0625 },
+      { polymer: "PE", matrix: "whole_blood", matrix_detail: "", n_samples: 16, n_quantified: 5, fraction: 0.3125 },
+    ];
+    base.summary.stats = [
+      {
+        polymer: "PET", ...G, n_quantified: 1234, min: 1.8433333, median: 1234.56789, mean: 1234567,
+        max: 0.00001234, max_measurement: 1, counts_by_status: { quantified: 1234 },
+      },
+    ];
+    vi.mocked(getStudyResults).mockResolvedValue(base as never);
+    await renderPage();
+    const freq = screen.getByRole("table", { name: /Fréquences de quantification/ });
+    expect(within(freq).getByText(/^6,2\s%$/)).toBeInTheDocument();
+    expect(within(freq).getByText(/^31,2\s%$/)).toBeInTheDocument();
+    const stats = screen.getByRole("table", { name: /Statistiques/ });
+    for (const text of ["1,84333", "1234,57", "1234567", "0,00001234", "1234"]) {
+      expect(within(stats).getAllByText(text).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("tableau « Voir les données » : 500 lignes au plus, avec la mention du total", async () => {
+    const many = results() as unknown as { summary: { samples: object[] } };
+    many.summary.samples = Array.from({ length: 501 }, (_, i) => ({
+      sample_id: `S${i}`, polymer: "PS_SUM", ...G, status: "quantified", value: 1, n_aliquots: 1, n_quantified: 1,
+    }));
+    vi.mocked(getStudyResults).mockResolvedValue(many as never);
+    await renderPage();
+    const table = screen.getByRole("table", { name: /Données des valeurs par échantillon/, hidden: true });
+    expect(within(table).getAllByRole("row", { hidden: true })).toHaveLength(501); // en-tête + 500
+    expect(
+      screen.getByText("500 premières lignes sur 501 — téléchargez le CSV pour tout voir."),
+    ).toBeInTheDocument();
   });
 
   it("relance une erreur inattendue", async () => {

@@ -46,7 +46,7 @@ Le mot de passe vous est demandé deux fois (il ne s'affiche pas). Prenez un mot
 
 Les fichiers arrivent dans le dossier **Téléchargements** de votre navigateur, nommés `rapport-<titre>-<date>.html` (ou `.md`), `mesures-<titre>-<date>.csv` et `dictionnaire-donnees.csv` (ou `.md`).
 
-Dans l'onglet **Rapport** d'une étude, vous pouvez télécharger le rapport (HTML ou Markdown), le CSV des mesures actives et le dictionnaire de données. Pour ouvrir le CSV dans Excel : **Données > À partir d'un fichier texte/CSV**, choisissez le séparateur « ; » et le séparateur décimal « . » (les valeurs sont écrites telles qu'enregistrées, avec un point).
+Dans l'onglet **Rapport** d'une étude, vous pouvez télécharger le rapport (HTML ou Markdown), le CSV des mesures actives et le dictionnaire de données. Pour ouvrir le CSV dans Excel : **Données > À partir d'un fichier texte/CSV**, choisissez le séparateur « ; » et le séparateur décimal « . » (les valeurs sont écrites telles qu'enregistrées, avec un point). Le CSV porte une colonne `data_nature` (`laboratory`, `published` ou `simulated`) avant la colonne `import` ; pour une étude simulée, le nom du fichier commence par `SIMULE-`.
 
 ## 6. Arrêter et redémarrer
 

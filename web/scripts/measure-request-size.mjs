@@ -1,5 +1,5 @@
-// Mesure la taille JSON des requêtes /summary et /report au plafond de C3
-// (100 000 mesures actives). Données synthétiques, aucune base. Usage :
+// Mesure la taille JSON des requêtes /summary et /report au plafond de C3 (R-C4-3)
+// (50 000 mesures actives par étude). Données synthétiques, aucune base. Usage :
 //   node scripts/measure-request-size.mjs
 const N = Number(process.env.N ?? 50_000);
 const LIMIT = 75 * 1024 * 1024;
@@ -45,7 +45,7 @@ const context = {
 const summaryReq = { records: Array.from({ length: N }, (_, i) => record(i)) };
 const s = size(summaryReq);
 
-// Pire cas pour /report : 90 000 mesures + 10 000 contrôles qualité (total 100 000, plafond de
+// Pire cas pour /report : 45 000 mesures + 5 000 contrôles qualité (total 50 000, plafond de
 // l'étude), une issue d'information par ligne (I_PS_AS_SUM), répartie sur 2 imports.
 const nQc = N / 10;
 const records = summaryReq.records.slice(0, N - nQc);

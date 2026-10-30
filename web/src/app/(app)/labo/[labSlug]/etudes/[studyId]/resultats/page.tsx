@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
-import { formatNumberFr, formatPercentFr, NumberFr } from "@/components/app/NumberFr";
+import { formatEngineNumberFr, formatPercentFr, NumberFr } from "@/components/app/NumberFr";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -18,6 +18,12 @@ import {
   MATRIX_LABELS,
   QUANTITY_KIND_LABELS,
 } from "@/lib/labels";
+import {
+  ENGINE_DOWN,
+  ENGINE_REFUSED,
+  NO_SAMPLE_MEASUREMENTS,
+  STUDY_TOO_LARGE,
+} from "@/lib/engine-messages";
 import { polymerLabel } from "@/lib/polymer-labels";
 import { canWrite } from "@/lib/roles";
 import { unitLabel } from "@/lib/units";
@@ -28,9 +34,9 @@ import { loadStudy } from "../load-study";
 import { groupFrequencies, groupResults, type ResultGroup } from "./group-results";
 import { FrequencyChart, SamplePointsChart } from "./ResultCharts";
 
-const ENGINE_DOWN = "Le moteur d'analyse est indisponible.";
-const ENGINE_REFUSED =
-  "Le moteur d'analyse n'a pas pu calculer les résultats de cette étude.";
+/** Au-delà, le tableau « Voir les données » est tronqué (poids de la page) ; le CSV reste complet. */
+const MAX_TABLE_ROWS = 500;
+
 const CONTEXT_CHANGED =
   "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
 
@@ -80,23 +86,23 @@ function StatsTable({ group }: { group: ResultGroup }) {
           <TableRow key={s.polymer}>
             <TableCell>{polymerLabel(s.polymer)}</TableCell>
             <TableCell className="text-right">
-              <NumberFr value={s.n_quantified} />
+              <NumberFr engine value={s.n_quantified} />
             </TableCell>
             <TableCell className="text-right">
-              <NumberFr value={s.min} />
+              <NumberFr engine value={s.min} />
             </TableCell>
             <TableCell className="text-right">
-              <NumberFr value={s.median} />
+              <NumberFr engine value={s.median} />
             </TableCell>
             <TableCell className="text-right">
-              <NumberFr value={s.mean} />
+              <NumberFr engine value={s.mean} />
             </TableCell>
             <TableCell className="text-right">
-              <NumberFr value={s.max} />
+              <NumberFr engine value={s.max} />
             </TableCell>
             {statuses.map((k) => (
               <TableCell key={k} className="text-right">
-                <NumberFr value={s.counts_by_status[k] ?? 0} />
+                <NumberFr engine value={s.counts_by_status[k] ?? 0} />
               </TableCell>
             ))}
           </TableRow>
@@ -150,17 +156,23 @@ function PointsSection({ group }: { group: ResultGroup }) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {quantified.map((s) => (
+                {quantified.slice(0, MAX_TABLE_ROWS).map((s) => (
                   <TableRow key={`${s.sample_id}|${s.polymer}`}>
                     <TableCell>{s.sample_id}</TableCell>
                     <TableCell>{polymerLabel(s.polymer)}</TableCell>
                     <TableCell className="text-right">
-                      <NumberFr value={s.value} />
+                      <NumberFr engine value={s.value} />
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
+            {quantified.length > MAX_TABLE_ROWS ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {MAX_TABLE_ROWS} premières lignes sur {formatEngineNumberFr(quantified.length)} —
+                téléchargez le CSV pour tout voir.
+              </p>
+            ) : null}
           </details>
         </>
       )}
@@ -178,8 +190,8 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
       {data.mixedRulesVersions ? (
         <Alert>
           <AlertDescription>
-            Les imports actifs ont été contrôlés avec des versions de règles différentes (
-            {versions.join(", ")}) : les statuts ne sont pas forcément comparables entre imports.
+            Les imports actifs ont été contrôlés avec des versions de règles différentes entre
+            imports : les statuts ne sont pas forcément comparables. ({versions.join(", ")})
           </AlertDescription>
         </Alert>
       ) : null}
@@ -226,7 +238,7 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
                       <TableCell>{polymerLabel(r.polymer)}</TableCell>
                       <TableCell>{name}</TableCell>
                       <TableCell className="text-right tabular-nums">
-                        {formatNumberFr(r.n_quantified)}/{formatNumberFr(r.n_samples)}
+                        {formatEngineNumberFr(r.n_quantified)}/{formatEngineNumberFr(r.n_samples)}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {formatPercentFr(r.fraction)}
@@ -268,7 +280,11 @@ export default async function ResultatsPage({
       return (
         <Alert variant="destructive">
           <AlertDescription>
-            {e instanceof EngineError ? ENGINE_REFUSED : ENGINE_DOWN}
+            {e instanceof EngineError
+              ? e.status === 413
+                ? STUDY_TOO_LARGE
+                : ENGINE_REFUSED
+              : ENGINE_DOWN}
           </AlertDescription>
         </Alert>
       );
@@ -280,7 +296,7 @@ export default async function ResultatsPage({
     const canImport = canWrite(ctx.role) && study.archivedAt === null;
     return (
       <EmptyState
-        title="Aucun import actif : importez un fichier pour voir les résultats."
+        title={NO_SAMPLE_MEASUREMENTS}
         action={
           canImport ? (
             <Link

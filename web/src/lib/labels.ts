@@ -22,7 +22,7 @@ export const TECHNIQUE_LABELS: Record<(typeof TECHNIQUES)[number], string> = {
 };
 
 export const QC_KIND_LABELS: Record<(typeof QC_KINDS)[number], string> = {
-  procedural_blank: "Blanc procédural",
+  procedural_blank: "Blanc de procédure",
   field_blank: "Blanc de terrain",
   spiked: "Échantillon dopé",
 };

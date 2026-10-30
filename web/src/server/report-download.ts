@@ -42,10 +42,15 @@ export async function buildReportDownload(
   studyId: string,
   format: DownloadFormat,
 ): Promise<ReportDownload> {
-  const input = await loadActiveResultsInput(ctx, studyId);
+  const input = await loadActiveResultsInput(ctx, studyId, { withIssues: format !== "csv" });
   if (input.records.length === 0) return { kind: "empty" };
   const generatedAt = new Date();
-  const fileName = reportFileName(format, input.study.title, generatedAt);
+  const fileName = reportFileName(
+    format,
+    input.study.title,
+    generatedAt,
+    input.study.nature === "simulated",
+  );
 
   let body: string;
   if (format === "csv") {
@@ -61,9 +66,10 @@ export async function buildReportDownload(
     const fileOf = new Map(input.imports.map((i) => [i.id, i.fileName]));
     const rows: CsvValue[][] = input.records.map((rec, i) => [
       ...keys.map((k) => (rec as unknown as Record<string, CsvValue>)[k]),
+      input.study.nature,
       fileOf.get(input.recordImportIds[i]) ?? "",
     ]);
-    body = toCsv([...names, ...extraKeys, "import"], rows);
+    body = toCsv([...names, ...extraKeys, "data_nature", "import"], rows);
   } else {
     const request: ReportRequest = {
       study: { title: input.study.title },

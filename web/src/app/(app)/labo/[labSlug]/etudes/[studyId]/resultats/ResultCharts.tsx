@@ -11,7 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { formatNumberFr, formatPercentFr } from "@/components/app/NumberFr";
+import { formatEngineNumberFr, formatPercentFr } from "@/components/app/NumberFr";
 
 const AXIS = { fill: "var(--muted-foreground)" } as const;
 const GRID = "var(--border)";
@@ -82,13 +82,13 @@ export function SamplePointsChart({
             type="number"
             dataKey="value"
             tick={AXIS}
-            tickFormatter={(v: number) => formatNumberFr(v)}
+            tickFormatter={(v: number) => formatEngineNumberFr(v)}
             unit={` ${unit}`}
             width={96}
           />
           <Tooltip
             formatter={(v, name) =>
-              name === "value" ? `${formatNumberFr(Number(v))} ${unit}` : String(v)
+              name === "value" ? `${formatEngineNumberFr(Number(v))} ${unit}` : String(v)
             }
           />
           {polymers.map((p, i) => (

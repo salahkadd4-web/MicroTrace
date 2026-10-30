@@ -37,8 +37,13 @@ export type ActiveResultsInput = {
   recordImportIds: string[];
   qcRecords: MeasurementRecord[];
   mixedRulesVersions: boolean;
+  /** Les méthodes ou les limites actuelles diffèrent de celles figées lors de certains imports. */
   contextChanged: boolean;
-  /** Contexte figé à utiliser : le commun s'il est unique, sinon celui de l'import le plus récent. */
+  /**
+   * Contexte du rapport : méthodes et limites du contexte figé retenu (le commun s'il est unique,
+   * sinon celui de l'import le plus récent), nature, DOI, licence et correction du blanc de l'étude
+   * telle qu'elle est maintenant (même instantané) : ils ne servent pas au calcul des statuts.
+   */
   context: StudyContext;
 };
 
@@ -56,6 +61,11 @@ function canonical(value: unknown): string {
     return v;
   };
   return JSON.stringify(walk(JSON.parse(JSON.stringify(value ?? null))));
+}
+
+/** Ce qui sert au calcul des statuts : méthodes et limites. Le reste du contexte n'y change rien. */
+function statusParameters(context: StudyContext): { methods: unknown; limits: unknown } {
+  return { methods: context.methods, limits: context.limits };
 }
 
 type Positioned = {
@@ -90,12 +100,15 @@ const SNAPSHOT_OPTIONS = {
 /**
  * Charge les mesures et contrôles qualité des imports `active` d'une étude du laboratoire,
  * triés par import (date), ligne puis colonne source : ordre reproductible pour l'écran,
- * le rapport et le CSV. Une étude archivée reste lisible. Rôle viewer minimum.
+ * le rapport et le CSV. Une étude archivée reste lisible. Rôle viewer minimum. Les avertissements
+ * des imports (`issues`, volumineux) ne sont lus que pour le rapport : `{ withIssues: true }`.
  */
 export async function loadActiveResultsInput(
   ctx: LabContext,
   studyId: string,
+  options: { withIssues?: boolean } = {},
 ): Promise<ActiveResultsInput> {
+  const withIssues = options.withIssues === true;
   assertRole(ctx, "viewer");
   const snapshot = await prisma.$transaction(async (tx) => {
     const study = await tx.study.findFirst({
@@ -113,7 +126,7 @@ export async function loadActiveResultsInput(
         createdById: true,
         frozenContext: true,
         sheet: true,
-        issues: true,
+        issues: withIssues,
         dataFile: { select: { originalName: true, sha256: true, sizeBytes: true } },
       },
     });
@@ -144,23 +157,30 @@ export async function loadActiveResultsInput(
     frozenContext: r.frozenContext as unknown as StudyContext,
     sizeBytes: r.dataFile.sizeBytes,
     sheet: r.sheet,
-    issues: r.issues as unknown as IssueModel[],
+    issues: withIssues ? (r.issues as unknown as IssueModel[]) : [],
   }));
   // `runs` est déjà trié par date puis identifiant : son rang donne l'ordre des imports.
   const runOrder = new Map(runs.map((r, i) => [r.id, i]));
   const rows = sortByImportRowColumn(snapshot.rows, runOrder);
   const qcRows = sortByImportRowColumn(snapshot.qcRows, runOrder);
 
-  const forms = new Set(imports.map((i) => canonical(i.frozenContext)));
+  const forms = new Set(imports.map((i) => canonical(statusParameters(i.frozenContext))));
   const importsDiffer = forms.size > 1;
-  const context =
+  const frozen =
     imports.length === 0
       ? current
       : importsDiffer
         ? imports[imports.length - 1].frozenContext
         : imports[0].frozenContext;
   const contextChanged =
-    imports.length > 0 && (importsDiffer || !forms.has(canonical(current)));
+    imports.length > 0 && (importsDiffer || !forms.has(canonical(statusParameters(current))));
+  const context: StudyContext = {
+    ...frozen,
+    data_nature: current.data_nature,
+    reference_doi: current.reference_doi,
+    reference_license: current.reference_license,
+    blank_corrected: current.blank_corrected,
+  };
 
   return {
     study,

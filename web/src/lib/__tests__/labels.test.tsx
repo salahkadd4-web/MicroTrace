@@ -83,7 +83,7 @@ describe("audit-labels", () => {
     expect(byField["Nature des données"]).toBe("Publiée");
     expect(byField["Correction du blanc"]).toBe("Inconnu");
     expect(byField["Technique"]).toBe("Py-GC/MS");
-    expect(byField["Type"]).toBe("Blanc procédural");
+    expect(byField["Type"]).toBe("Blanc de procédure");
     expect(byField["LOQ"]).toMatch(/^1\s234,5$/u);
     expect(byField["Archivée le"]).toBe("02/03/2026 11:00");
     expect(byField["Méthode"]).toBe("Py-GC/MS");
@@ -91,6 +91,14 @@ describe("audit-labels", () => {
     expect(Object.keys(byField)).not.toContain("Étude");
     expect(Object.keys(byField)).not.toContain("Identifiants");
     expect(changes.some((c) => c.after.includes("{") || c.after.includes("["))).toBe(false);
+  });
+
+  it("téléchargement : champ « Format » et libellés de valeurs", () => {
+    const after = (format: string) =>
+      diffChanges(null, { format }).map((c) => [c.field, c.after]);
+    expect(after("csv")).toEqual([["Format", "Mesures (CSV)"]]);
+    expect(after("html")).toEqual([["Format", "Rapport HTML"]]);
+    expect(after("md")).toEqual([["Format", "Rapport Markdown"]]);
   });
 
   it("omet une méthode introuvable au lieu d'afficher son identifiant", () => {
