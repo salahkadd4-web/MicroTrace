@@ -1,3 +1,5 @@
+import { Download as DownloadIcon } from "lucide-react";
+import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DOWNLOAD_ERRORS, NOTHING_TO_EXPORT } from "@/lib/engine-messages";
@@ -19,22 +21,31 @@ function Download({
   label,
   enabled,
   describedBy,
+  primary,
 }: {
   href: string;
   label: string;
   enabled: boolean;
   describedBy?: string;
+  primary?: boolean;
 }) {
+  const variant = primary ? "default" : "outline";
+  const content = (
+    <>
+      <DownloadIcon aria-hidden="true" />
+      {label}
+    </>
+  );
   if (!enabled) {
     return (
-      <Button variant="outline" disabled aria-describedby={describedBy}>
-        {label}
+      <Button variant={variant} disabled aria-describedby={describedBy}>
+        {content}
       </Button>
     );
   }
   return (
-    <Button asChild variant="outline">
-      <a href={href}>{label}</a>
+    <Button asChild variant={variant}>
+      <a href={href}>{content}</a>
     </Button>
   );
 }
@@ -57,22 +68,19 @@ export default async function RapportPage({
 
   return (
     <div className="space-y-8">
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Contenu du rapport</h2>
-        <p className="text-sm text-muted-foreground">
-          Le rapport porte sur les imports actifs de l&apos;étude. Il est produit par le moteur
-          d&apos;analyse au moment du téléchargement ; rien n&apos;est conservé.
-        </p>
-        <ul className="list-disc space-y-1 pl-5 text-sm">
+      <Section
+        title="Contenu du rapport"
+        description="Le rapport porte sur les imports actifs de l'étude. Il est produit par le moteur d'analyse au moment du téléchargement ; rien n'est conservé."
+      >
+        <ul className="list-disc space-y-1 pl-5 text-sm marker:text-primary">
           {CONTENTS.map((c) => (
             <li key={c}>{c}</li>
           ))}
         </ul>
         <p className="text-sm font-medium">Prototype de recherche, pas un dispositif médical.</p>
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Télécharger</h2>
+      <Section title="Télécharger">
         {failure ? (
           <Alert variant="destructive">
             <AlertDescription>{failure}</AlertDescription>
@@ -87,6 +95,7 @@ export default async function RapportPage({
           <Download
             href={`${base}/telecharger?format=html`}
             label="Rapport HTML"
+            primary
             enabled={hasMeasurements}
             describedBy="rapport-vide"
           />
@@ -107,18 +116,17 @@ export default async function RapportPage({
           Le CSV des mesures actives utilise le point-virgule comme séparateur et contient les
           valeurs telles qu&apos;enregistrées, avec la nature des données de l&apos;étude et le nom du fichier d&apos;import. Le nom d&apos;un fichier d&apos;étude simulée commence par SIMULE-.
         </p>
-      </section>
+      </Section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Dictionnaire de données</h2>
-        <p className="text-sm text-muted-foreground">
-          Les champs attendus dans un fichier de mesures, avec leur description.
-        </p>
+      <Section
+        title="Dictionnaire de données"
+        description="Les champs attendus dans un fichier de mesures, avec leur description."
+      >
         <div className="flex flex-wrap gap-2">
           <Download href={`${base}/dictionnaire?format=csv`} label="Dictionnaire (CSV)" enabled />
           <Download href={`${base}/dictionnaire?format=md`} label="Dictionnaire (Markdown)" enabled />
         </div>
-      </section>
+      </Section>
     </div>
   );
 }

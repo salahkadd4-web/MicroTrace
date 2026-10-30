@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
 import { formatEngineNumberFr, formatPercentFr, NumberFr } from "@/components/app/NumberFr";
+import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -143,7 +144,7 @@ function PointsSection({ group }: { group: ResultGroup }) {
             ariaLabel={`Valeurs par échantillon (${unit}) — ${title}`}
           />
           <details>
-            <summary className="cursor-pointer text-sm font-medium">Voir les données</summary>
+            <summary className="cursor-pointer text-sm font-medium text-primary">Voir les données</summary>
             <Table>
               <TableCaption className="sr-only">
                 Données des valeurs par échantillon — {title}
@@ -188,7 +189,7 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
   return (
     <div className="space-y-8">
       {data.mixedRulesVersions ? (
-        <Alert>
+        <Alert variant="warning">
           <AlertDescription>
             Les imports actifs ont été contrôlés avec des versions de règles différentes entre
             imports : les statuts ne sont pas forcément comparables. ({versions.join(", ")})
@@ -196,18 +197,17 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
         </Alert>
       ) : null}
       {data.contextChanged ? (
-        <Alert>
+        <Alert variant="warning">
           <AlertDescription>{CONTEXT_CHANGED}</AlertDescription>
         </Alert>
       ) : null}
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold">Règle d&apos;agrégation</h2>
+      <Section title="Règle d'agrégation">
         <p className="text-sm">{summary.aggregation_rule}</p>
-      </section>
+      </Section>
 
-      <section className="space-y-6">
-        <h2 className="text-lg font-semibold">Fréquences de quantification</h2>
+      <Section title="Fréquences de quantification">
+        <div className="space-y-8">
         {frequencyGroups.map((fg) => {
           const name = matrixName(fg.matrix, fg.matrixDetail);
           return (
@@ -250,14 +250,14 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
             </div>
           );
         })}
-      </section>
+        </div>
+      </Section>
 
       {groups.map((g) => (
-        <section key={g.key} className="space-y-4">
-          <h2 className="text-lg font-semibold">{groupTitle(g)}</h2>
+        <Section key={g.key} title={groupTitle(g)}>
           {g.stats.length > 0 ? <StatsTable group={g} /> : null}
           <PointsSection group={g} />
-        </section>
+        </Section>
       ))}
     </div>
   );
