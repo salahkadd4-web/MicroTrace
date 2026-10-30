@@ -24,6 +24,15 @@ describe("matcher du proxy", () => {
     expect(re.test("/labo/mon-labo/etudes/abc123/imports/upload")).toBe(false);
   });
   it.each([
+    "/labo/mon-labo/etudes/abc123/rapport/telecharger",
+    "/labo/mon-labo/etudes/abc123/rapport/dictionnaire",
+  ])("exclut la route de téléchargement %s (authentification propre)", (p) => {
+    expect(re.test(p)).toBe(false);
+  });
+  it.each([
+    "/labo/mon-labo/etudes/abc123/rapport",
+    "/labo/mon-labo/etudes/abc123/rapport/telecharger/x",
+    "/labo/mon-labo/etudes/abc123/rapport/autre",
     "/labo/mon-labo/etudes/abc123/imports",
     "/labo/mon-labo/etudes/abc123/imports/upload/autre",
     "/labo/mon-labo/etudes/abc123/imports/upload/",

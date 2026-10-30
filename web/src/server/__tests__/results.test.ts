@@ -248,6 +248,9 @@ describe("loadActiveResultsInput", () => {
     expect(r.contextChanged).toBe(true);
     expect(r.context).toEqual({ ...c, blank_corrected: "yes" });
     expect(r.study).toMatchObject({ id: studyId, nature: "laboratory" });
+    // Champs du rapport : taille, feuille, issues ; import de chaque record, dans l'ordre des records.
+    expect(r.imports[0]).toMatchObject({ sizeBytes: 1, sheet: null, issues: [] });
+    expect(r.recordImportIds).toEqual([r.imports[0].id, r.imports[1].id]);
   });
 
   it("colonnes triées par unités de code, sans collation", async () => {

@@ -13,6 +13,7 @@ import { assertRole } from "@/server/lab-role";
 import { buildStudyContext } from "@/server/studies";
 
 type MeasurementRecord = ImportResult["records"][number];
+type IssueModel = ImportResult["issues"][number];
 
 export type ResultsImport = {
   id: string;
@@ -22,6 +23,9 @@ export type ResultsImport = {
   createdAt: Date;
   author: string | null;
   frozenContext: StudyContext;
+  sizeBytes: number;
+  sheet: string | null;
+  issues: IssueModel[];
 };
 
 /** Tout ce que l'écran, le rapport et l'export CSV lisent pour une étude (imports actifs seulement). */
@@ -29,6 +33,8 @@ export type ActiveResultsInput = {
   study: { id: string; title: string; nature: string; archivedAt: Date | null };
   imports: ResultsImport[];
   records: MeasurementRecord[];
+  /** Identifiant de l'import de chaque record, dans le même ordre que `records`. */
+  recordImportIds: string[];
   qcRecords: MeasurementRecord[];
   mixedRulesVersions: boolean;
   contextChanged: boolean;
@@ -106,7 +112,9 @@ export async function loadActiveResultsInput(
         createdAt: true,
         createdById: true,
         frozenContext: true,
-        dataFile: { select: { originalName: true, sha256: true } },
+        sheet: true,
+        issues: true,
+        dataFile: { select: { originalName: true, sha256: true, sizeBytes: true } },
       },
     });
     const users = await tx.user.findMany({
@@ -134,6 +142,9 @@ export async function loadActiveResultsInput(
     createdAt: r.createdAt,
     author: names.get(r.createdById) ?? null,
     frozenContext: r.frozenContext as unknown as StudyContext,
+    sizeBytes: r.dataFile.sizeBytes,
+    sheet: r.sheet,
+    issues: r.issues as unknown as IssueModel[],
   }));
   // `runs` est déjà trié par date puis identifiant : son rang donne l'ordre des imports.
   const runOrder = new Map(runs.map((r, i) => [r.id, i]));
@@ -155,6 +166,7 @@ export async function loadActiveResultsInput(
     study,
     imports,
     records: rows.map((r) => measurementRecord(r)),
+    recordImportIds: rows.map((r) => r.importRunId),
     qcRecords: qcRows.map((r) => measurementRecord(r)),
     mixedRulesVersions: new Set(imports.map((i) => i.rulesVersion)).size > 1,
     contextChanged,
@@ -167,7 +179,7 @@ export type StudyResults =
   | {
       empty: false;
       summary: SummaryResponse;
-      imports: Omit<ResultsImport, "frozenContext">[];
+      imports: Omit<ResultsImport, "frozenContext" | "sizeBytes" | "sheet" | "issues">[];
       mixedRulesVersions: boolean;
       contextChanged: boolean;
       nature: string;

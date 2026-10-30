@@ -26,6 +26,7 @@ const ACTION_LABELS: Record<string, string> = {
   "import.create": "Import enregistré",
   "import.retire": "Import retiré",
   "import.refused_pii": "Import refusé (données personnelles)",
+  "report.download": "Rapport téléchargé",
   "lab.create": "Laboratoire créé",
   "lab.suspend": "Laboratoire suspendu",
   "lab.reactivate": "Laboratoire réactivé",

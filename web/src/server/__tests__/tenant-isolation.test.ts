@@ -11,6 +11,8 @@ vi.mock("@/server/engine/client", async (orig) => {
       suggestMapping: vi.fn(),
       checkImport: vi.fn(),
       summary: vi.fn(),
+      report: vi.fn(),
+      dictionary: vi.fn(),
     },
   };
 });
@@ -25,6 +27,7 @@ import { engineClient } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import type { LabContext } from "@/server/lab-context";
 import * as projectsModule from "@/server/projects";
+import * as reportDownloadModule from "@/server/report-download";
 import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
 import * as settingsModule from "@/server/study-settings";
@@ -54,6 +57,8 @@ const {
 } = membersModule;
 const { createProject, getProject, listProjects } = projectsModule;
 const { getStudyResults, loadActiveResultsInput } = resultsModule;
+const { buildDictionaryDownload, buildReportDownload, getReportAvailability } =
+  reportDownloadModule;
 const {
   archiveStudy,
   buildStudyContext,
@@ -268,6 +273,20 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Étude introuvable." },
     },
   },
+  "report-download": {
+    buildReportDownload: {
+      run: (ctx, ids) => buildReportDownload(ctx, ids.study, "md"),
+      outcome: { throws: "Étude introuvable." },
+    },
+    buildDictionaryDownload: {
+      run: (ctx, ids) => buildDictionaryDownload(ctx, ids.study, "csv"),
+      outcome: { throws: "Étude introuvable." },
+    },
+    getReportAvailability: {
+      run: (ctx, ids) => getReportAvailability(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+  },
   examples: {
     createExampleStudy: {
       run: (ctx) => createExampleStudy(ctx, "fictif"),
@@ -340,6 +359,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
   results: {},
+  "report-download": {},
   examples: {},
   members: {},
   invitations: {
@@ -357,6 +377,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   audit: auditModule,
   imports: importsModule,
   results: resultsModule,
+  "report-download": reportDownloadModule,
   examples: examplesModule,
   members: membersModule,
   invitations: invitationsModule,
@@ -820,6 +841,9 @@ describe("un viewer de A", () => {
       "getImport",
       "getStudyResults",
       "loadActiveResultsInput",
+      "buildReportDownload",
+      "buildDictionaryDownload",
+      "getReportAvailability",
     ]);
     const exported = Object.entries(CASES).flatMap(([, cases]) =>
       Object.keys(cases),

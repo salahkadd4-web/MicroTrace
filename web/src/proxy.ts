@@ -32,11 +32,14 @@ export async function proxy(req: NextRequest, ev: NextFetchEvent) {
   return handler(req, ev);
 }
 
+// Les routes de téléchargement du rapport sont aussi exclues : elles authentifient elles-mêmes
+// (requireLab, 401 texte sans session, 404 hors laboratoire) et renvoient une pièce jointe, pas
+// une redirection vers la page de connexion.
 // La route de dépôt de fichiers (jusqu'à 50 Mo) est exclue : un corps qui traverse le proxy est
 // mis en mémoire tampon et tronqué au-delà de 10 Mo par défaut. Cette route authentifie elle-même
 // (requireLab, avant toute lecture du corps) et répond 401 JSON sans session.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$|labo/[^/]+/etudes/[^/]+/rapport/(?:telecharger|dictionnaire)$).*)",
   ],
 };
