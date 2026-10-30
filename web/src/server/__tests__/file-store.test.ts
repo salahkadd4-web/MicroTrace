@@ -13,6 +13,7 @@ import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   deleteStaging,
+  discardStagingFor,
   purgeStaging,
   putStaging,
   readStaging,
@@ -101,6 +102,16 @@ describe("zone de dépôt", () => {
     const put = await putStaging(owner, file);
     rmSync(path.join(dir, "staging", `${put.token}.bin`));
     await expect(readStaging(owner, put.token)).rejects.toThrow(GONE);
+  });
+
+  it("discardStagingFor : efface son dépôt, refuse celui d'un autre, ignore un dépôt absent", async () => {
+    const put = await putStaging(owner, file);
+    await expect(discardStagingFor({ ...owner, userId: "u2" }, put.token)).rejects.toThrow(GONE);
+    expect(readdirSync(path.join(dir, "staging"))).toHaveLength(2);
+    await discardStagingFor(owner, put.token);
+    expect(readdirSync(path.join(dir, "staging"))).toEqual([]);
+    await expect(discardStagingFor(owner, put.token)).resolves.toBeUndefined();
+    await expect(discardStagingFor(owner, "court")).resolves.toBeUndefined();
   });
 
   it("deleteStaging supprime les deux fichiers", async () => {

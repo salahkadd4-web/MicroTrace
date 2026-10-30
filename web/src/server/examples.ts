@@ -1,5 +1,6 @@
 import "server-only";
 import { EngineUnavailableError, engineClient } from "@/server/engine/client";
+import { engineRefusal } from "@/server/engine-refusal";
 import { DomainError } from "@/server/errors";
 import { putStaging } from "@/server/file-store";
 import { saveImport } from "@/server/imports";
@@ -94,8 +95,9 @@ export async function createExampleStudy(ctx: LabContext, kind: ExampleKind) {
 
 /** Message clair pour un échec partiel ; une erreur inattendue est relancée telle quelle. */
 function partial(e: unknown, lead: string): unknown {
-  if (e instanceof DomainError || e instanceof EngineUnavailableError) {
-    return new DomainError(`${lead} : ${e.message.replace(/\.+$/, "")}.`);
+  const refused = engineRefusal(e);
+  if (refused instanceof DomainError || refused instanceof EngineUnavailableError) {
+    return new DomainError(`${lead} : ${refused.message.replace(/\.+$/, "")}.`);
   }
-  return e;
+  return refused;
 }

@@ -212,6 +212,19 @@ describe("createExampleStudy", () => {
     expect(await prisma.project.count({ where: { laboratoryId: ctx.laboratoryId } })).toBe(1);
   });
 
+  it("refus 422 du moteur pendant l'import : son message français est conservé", async () => {
+    check.mockRejectedValue(new EngineError(422, "Le fichier ne contient aucune ligne de données."));
+    const err = await createExampleStudy(ctx, "fictif").then(
+      () => null,
+      (x: unknown) => x,
+    );
+    expect(err).toBeInstanceOf(DomainError);
+    expect((err as Error).message).toBe(
+      "L'étude d'exemple a été créée, mais son import a échoué : Le fichier ne contient aucune ligne de données.",
+    );
+    expect(await prisma.study.count()).toBe(1);
+  });
+
   it("import en échec : projet et étude restent, message clair", async () => {
     check.mockResolvedValue({
       ...result(),

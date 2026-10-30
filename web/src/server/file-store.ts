@@ -82,6 +82,7 @@ async function readMeta(token: string): Promise<StagingMeta | null> {
 }
 
 export async function readStaging(owner: StagingOwner, token: string) {
+  await purgeStaging();
   if (!TOKEN_RE.test(token)) throw new DomainError(GONE);
   const meta = await readMeta(token);
   if (
@@ -113,6 +114,24 @@ export async function deleteStaging(token: string): Promise<void> {
   if (!TOKEN_RE.test(token)) return;
   await rm(path.join(stagingDir(), `${token}.bin`), { force: true });
   await rm(path.join(stagingDir(), `${token}.json`), { force: true });
+}
+
+/** Efface un dépôt de l'appelant ; sans effet s'il n'existe plus, refusé s'il appartient à un autre. */
+export async function discardStagingFor(
+  owner: StagingOwner,
+  token: string,
+): Promise<void> {
+  if (!TOKEN_RE.test(token)) return;
+  const meta = await readMeta(token);
+  if (!meta) return;
+  if (
+    meta.userId !== owner.userId ||
+    meta.laboratoryId !== owner.laboratoryId ||
+    meta.studyId !== owner.studyId
+  ) {
+    throw new DomainError(GONE);
+  }
+  await deleteStaging(token);
 }
 
 /** Supprime les dépôts de plus de 24 h (et les octets orphelins de même âge). */

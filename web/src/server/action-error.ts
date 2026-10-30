@@ -16,6 +16,12 @@ export function actionError(e: unknown): ActionState {
   if (e instanceof DomainError || e instanceof EngineUnavailableError) {
     return { error: e.message };
   }
-  console.error(e);
+  // Jamais le message ni l'objet : une erreur de lecture de tableau peut citer feuille ou fichier.
+  const code = (e as { code?: unknown } | null)?.code;
+  console.error(
+    "Erreur d'action inattendue :",
+    e instanceof Error ? e.name : typeof e,
+    typeof code === "string" || typeof code === "number" ? code : "",
+  );
   return { error: UNEXPECTED };
 }

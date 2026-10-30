@@ -27,6 +27,19 @@ describe("actionError", () => {
     expect(log).toHaveBeenCalled();
   });
 
+  it("ne journalise ni le message ni l'objet d'erreur (nom et code seulement)", () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const e = Object.assign(new Error("Feuille Patients_Dupont introuvable dans secret.xlsx"), {
+      code: "E_TABLE",
+    });
+    actionError(e);
+    const printed = JSON.stringify(log.mock.calls);
+    expect(printed).not.toMatch(/Dupont|secret|Feuille/);
+    expect(log.mock.calls[0]).not.toContain(e);
+    expect(printed).toContain("Error");
+    expect(printed).toContain("E_TABLE");
+  });
+
   it("relance les redirections de Next.js", () => {
     let caught: unknown;
     try {

@@ -5,6 +5,7 @@ import type { ActionResult, ActionState } from "@/lib/action-state";
 import type { ImportResult, Mapping, TableRead } from "@/server/engine/client";
 import {
   checkStagedImport,
+  discardStaging,
   getImport,
   readStagedSheet,
   retireImport,
@@ -60,6 +61,15 @@ export async function readSheetAction(
     const { sheet: read, sheets, columns, preview, n_rows } = await readStagedSheet(ctx, studyId, token, sheet);
     return { sheet: read, sheets, columns, preview, n_rows };
   });
+}
+
+/** Efface le dépôt de l'utilisateur (« Changer de fichier ») ; une erreur est sans conséquence. */
+export async function discardStagingAction(
+  labSlug: string,
+  studyId: string,
+  token: string,
+): Promise<ActionState> {
+  return runAction(labSlug, (ctx) => discardStaging(ctx, studyId, token));
 }
 
 export async function checkImportAction(
