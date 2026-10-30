@@ -94,9 +94,9 @@ const PII_CODES: ReadonlySet<string> = new Set(["E_PII_COLUMN", "E_PII_VALUE"]);
 const PII_REFUSED = "Import refusé : le fichier contient des données personnelles.";
 const DUPLICATE = "Ce fichier a déjà un import actif dans cette étude.";
 /** Plafond de mesures (échantillons + contrôles qualité) par import. */
-export const MAX_IMPORT_RECORDS = 100_000;
+export const MAX_IMPORT_RECORDS = 50_000;
 /** Plafond de mesures + contrôles qualité des imports actifs d'une étude. */
-export const MAX_STUDY_ACTIVE_RECORDS = 100_000;
+export const MAX_STUDY_ACTIVE_RECORDS = 50_000;
 /** Taille des tranches d'insertion (dans la même transaction). */
 export const INSERT_BATCH_SIZE = 1_000;
 const SAVE_FAILED = "Échec de l'enregistrement de l'import.";

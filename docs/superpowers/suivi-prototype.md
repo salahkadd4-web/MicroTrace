@@ -33,6 +33,10 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Les fichiers orphelins du magasin `files/` sont tolérés (un fichier est écrit avant la transaction ; un échec ou un doublon le laisse en place). Une commande de maintenance qui les liste puis les supprime reste à écrire.
 - Les mesures du moteur transitent deux fois par Node (contrôle puis enregistrement). Un mode du moteur qui ne renvoie que les comptes (« contrôle seul ») allégerait le contrôle.
 - Le tableau des problèmes (IssuesTable) n'est pas paginé côté serveur : sous charge, ou avec des dizaines de milliers de problèmes, la réponse du contrôle peut dépasser le délai.
-- Le plafond d'étude (100 000 mesures actives) et le plafond par import (100 000) sont des constantes de code, pas des réglages par laboratoire.
+- Le plafond d'étude (50 000 mesures actives) et le plafond par import (50 000) sont des constantes de code, pas des réglages par laboratoire.
 - Le dépôt est effacé au clic sur « Changer de fichier » ; fermer l'onglet laisse le dépôt jusqu'à la purge (24 h, déclenchée à chaque dépôt ou lecture).
 - Les imports créés avant cette version n'ont pas de nombre de lignes (colonne « Lignes » affichée avec un tiret).
+
+## C4 — points reportés (en cours)
+
+- Plafond abaissé à 50 000 mesures actives par étude et par import pour rester sous la limite de 75 Mo du moteur ; pistes pour le relever : compression gzip des requêtes, issues agrégées par code dans /report.

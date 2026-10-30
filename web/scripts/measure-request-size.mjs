@@ -1,7 +1,7 @@
 // Mesure la taille JSON des requêtes /summary et /report au plafond de C3
 // (100 000 mesures actives). Données synthétiques, aucune base. Usage :
 //   node scripts/measure-request-size.mjs
-const N = 100_000;
+const N = Number(process.env.N ?? 50_000);
 const LIMIT = 75 * 1024 * 1024;
 const record = (i) => ({
   sample_id: `DONOR-${String(i % 5000).padStart(5, "0")}`,
@@ -47,7 +47,7 @@ const s = size(summaryReq);
 
 // Pire cas pour /report : 90 000 mesures + 10 000 contrôles qualité (total 100 000, plafond de
 // l'étude), une issue d'information par ligne (I_PS_AS_SUM), répartie sur 2 imports.
-const nQc = 10_000;
+const nQc = N / 10;
 const records = summaryReq.records.slice(0, N - nQc);
 const qc_records = summaryReq.records.slice(N - nQc).map((r) => ({ ...r, record_type: "procedural_blank" }));
 const issues = (from, to) =>
