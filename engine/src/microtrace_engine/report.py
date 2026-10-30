@@ -29,7 +29,12 @@ DISCLAIMER = "Prototype de recherche, pas un dispositif médical."
 CONTEXT_CHANGED_WARNING = (
     "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : "
     "les statuts restent ceux calculés lors de chaque import.")
-RULES_WARNING = "Attention : règles de contrôle différentes entre imports"
+RULES_DIFFER_WARNING = (
+    "Les imports actifs ont été contrôlés avec des versions de règles différentes entre imports : "
+    "les statuts ne sont pas forcément comparables.")
+RULES_OLDER_WARNING = (
+    "Les imports ont été contrôlés avec une version antérieure des règles : "
+    "les statuts restent ceux calculés lors de chaque import.")
 SEVERITY_FR = {"error": "erreur", "warning": "avertissement", "info": "information"}
 
 
@@ -94,14 +99,16 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     L += [f"> {DISCLAIMER}", ""]
     if req.context_changed:
         L += [f"> **{CONTEXT_CHANGED_WARNING}**", ""]
+    seen = {i.rules_version for i in req.imports}
+    if len(seen) > 1:
+        L += [f"> **{RULES_DIFFER_WARNING}**", ""]
+    elif seen and seen != {RULES_VERSION}:
+        L += [f"> **{RULES_OLDER_WARNING}**", ""]
 
     L += ["## Versions", "", f"- Moteur : {_c(version('microtrace-engine'))}",
           f"- Règles du calcul : {_c(RULES_VERSION)}"]
-    seen = {i.rules_version for i in req.imports}
     for k, i in enumerate(req.imports, 1):
         L.append(f"- Règles de l'import {k} ({_c(i.file.name)}) : {_c(i.rules_version)}")
-    if len(seen) > 1 or (seen and seen != {RULES_VERSION}):
-        L += ["", f"**{RULES_WARNING}**"]
     L.append("")
 
     L += ["## Étude et référence", "", f"- Titre : {_c(s.title)}",
@@ -125,7 +132,7 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     if req.imports:
         L += _table(["Fichier", "SHA-256", "Feuille", "Date", "Auteur", "Erreurs",
                      "Avertissements", "Informations"],
-                    [[i.file.name, i.file.sha256, i.file.sheet or "—", i.date, i.author,
+                    [[i.file.name, i.file.sha256, i.file.sheet or "—", _when(i.date), i.author,
                       *_counts(i.issues)] for i in req.imports])
     else:
         L += ["Aucun import.", ""]

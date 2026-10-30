@@ -89,13 +89,41 @@ def test_to_html_escapes_everything():
     assert "<script>" not in h and "<img" not in h
 
 
-def test_rules_version_warning(client, auth_headers):
-    body = _req(imports=[_imp("1"), _imp("2", "b.csv")])
-    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
-    assert "Attention : règles de contrôle différentes entre imports" in md
-    body = _req(imports=[_imp("0-ancienne")])
-    md = client.post("/report", headers=auth_headers, json=body).json()["markdown"]
-    assert "Attention : règles de contrôle différentes entre imports" in md
+DIFFER = ("Les imports actifs ont été contrôlés avec des versions de règles différentes entre "
+          "imports : les statuts ne sont pas forcément comparables.")
+OLDER = ("Les imports ont été contrôlés avec une version antérieure des règles : les statuts "
+         "restent ceux calculés lors de chaque import.")
+
+
+def test_rules_version_warnings(client, auth_headers):
+    def md_of(**kw):
+        return client.post("/report", headers=auth_headers, json=_req(**kw)).json()["markdown"]
+    md = md_of(imports=[_imp("1"), _imp("2", "b.csv")])
+    lines = md.split(chr(10))
+    assert f"> **{DIFFER}**" in lines and OLDER not in md
+    assert lines.index(f"> **{DIFFER}**") < lines.index("## Versions")
+    md = md_of(imports=[_imp("0-ancienne")])  # one import, older rules: not "between imports"
+    assert f"> **{OLDER}**" in md.split(chr(10)) and DIFFER not in md
+    md = md_of()
+    assert DIFFER not in md and OLDER not in md
+
+
+def test_import_date_rendered_like_generated_at(client, auth_headers):
+    imp = _imp()
+    imp["date"] = "2026-10-30T09:15:42.123Z"
+    md = client.post("/report", headers=auth_headers, json=_req(imports=[imp])).json()["markdown"]
+    assert "30/10/2026 09:15 UTC" in md and "09:15:42" not in md
+    imp["date"] = "2026-10-30T11:15:00+02:00"
+    md = client.post("/report", headers=auth_headers, json=_req(imports=[imp])).json()["markdown"]
+    assert "30/10/2026 09:15 UTC" in md
+    imp["date"] = "pas une date"
+    assert client.post("/report", headers=auth_headers, json=_req(imports=[imp])).status_code == 422
+
+
+def test_labels_match_web(client, auth_headers):
+    from microtrace_core.results.vocab import label_fr
+    assert label_fr("kind", "number_concentration") == "concentration en nombre"
+    assert label_fr("matrix", "other") == "autre matrice"
 
 
 def test_invalid_input_french_422(client, auth_headers):
@@ -245,3 +273,12 @@ def test_context_changed_flag(client, auth_headers):
     esc = html.escape(CONTEXT_CHANGED, quote=True)
     assert f"<blockquote><strong>{esc}</strong></blockquote>" in on["html"]
     assert on["html"].index(esc) < on["html"].index("<h2>Versions</h2>")
+
+
+def test_number_display_rules_mirrored_by_the_screen():
+    """web/src/components/app/__tests__/NumberFr.test.tsx checks the same cases."""
+    from microtrace_core.results.issues import fmt_fr
+    pct = lambda x: fmt_fr(round(x * 100, 1))  # noqa: E731 (as in report.py)
+    assert [pct(1 / 16), pct(5 / 16), pct(0.5), pct(1)] == ["6,2", "31,2", "50", "100"]
+    assert [fmt_fr(v) for v in (1.8433333, 1234.56789, 1234567, 0.00001234)] == [
+        "1,84333", "1234,57", "1234567", "0,00001234"]

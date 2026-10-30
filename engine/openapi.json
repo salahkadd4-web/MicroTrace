@@ -1871,7 +1871,9 @@
           },
           "date": {
             "type": "string",
-            "title": "Date"
+            "format": "date-time",
+            "title": "Date",
+            "description": "ISO 8601; naive values are taken as UTC"
           },
           "author": {
             "type": "string",

@@ -256,7 +256,7 @@ class ReportFileModel(_Model):
 class ReportImportModel(_Model):
     file: ReportFileModel
     rules_version: str
-    date: str
+    date: datetime = Field(description="ISO 8601; naive values are taken as UTC")
     author: str
     issues: list[IssueModel] = Field(default_factory=list)  # the report counts them itself
 

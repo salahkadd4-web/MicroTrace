@@ -72,7 +72,7 @@ def test_labels_fr():
     from microtrace_core.results.vocab import ANY, LABELS_FR, Matrix, RecordType, label_fr
 
     assert label_fr("matrix", Matrix.whole_blood) == "sang total"
-    assert label_fr("matrix", "other") == "autre"
+    assert label_fr("matrix", "other") == "autre matrice"
     assert label_fr("record_type", RecordType.field_blank) == "blanc de terrain"
     assert label_fr("polymer", ANY) == "au moins un polymère"
     assert label_fr("polymer", "PET") == "PET"
