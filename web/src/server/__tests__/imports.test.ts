@@ -1,4 +1,4 @@
-import { mkdtempSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,6 +12,7 @@ vi.mock("@/server/engine/client", async (orig) => {
       example: vi.fn(),
       suggestMapping: vi.fn(),
       checkImport: vi.fn(),
+      readTable: vi.fn(),
     },
   };
 });
@@ -23,18 +24,24 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 import { listAuditEvents } from "@/server/audit";
 import { prisma } from "@/server/db";
 import {
+  EngineError,
   EngineUnavailableError,
   engineClient,
   type ImportResult,
   type Mapping,
 } from "@/server/engine/client";
+import { DomainError } from "@/server/errors";
 import type { LabContext } from "@/server/lab-context";
 import { putStaging } from "@/server/file-store";
 import { formatNumberFr } from "@/components/app/NumberFr";
 import {
   INSERT_BATCH_SIZE,
   MAX_IMPORT_RECORDS,
+  MAX_STUDY_ACTIVE_RECORDS,
   checkStagedImport,
+  discardStaging,
+  measurementRecord,
+  readStagedSheet,
   existingKeys,
   getImport,
   listImports,
@@ -50,6 +57,7 @@ import { makeLab, makeMember } from "../../../test/labs";
 
 const check = vi.mocked(engineClient.checkImport);
 const suggest = vi.mocked(engineClient.suggestMapping);
+const readTable = vi.mocked(engineClient.readTable);
 
 type Rec = ImportResult["records"][number];
 const RECORD: Rec = {
@@ -128,6 +136,7 @@ beforeEach(async () => {
   check.mockReset();
   check.mockResolvedValue(result());
   suggest.mockReset();
+  readTable.mockReset();
   lab = await makeLab("Labo");
   ctx = await makeMember(lab, "researcher", "a@example.org", "Alice");
   const p = await createProject(ctx, { title: "P" });
@@ -616,7 +625,9 @@ describe("gros imports", () => {
     const sizes: number[] = [];
     const spy = wrapTx((tx) => ({
       ...tx,
+      $queryRaw: tx.$queryRaw.bind(tx),
       measurement: {
+        count: tx.measurement.count.bind(tx.measurement),
         createMany: (args: { data: unknown[] }) => {
           sizes.push(args.data.length);
           return tx.measurement.createMany(args);
@@ -659,6 +670,7 @@ describe("doublon : index partiel et erreurs inattendues", () => {
     const spy = wrapTx(
       (tx) => ({
         ...tx,
+        $queryRaw: tx.$queryRaw.bind(tx),
         importRun: {
           ...tx.importRun,
           create: tx.importRun.create.bind(tx.importRun),
@@ -694,7 +706,9 @@ describe("doublon : index partiel et erreurs inattendues", () => {
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
     const spy = wrapTx((tx) => ({
       ...tx,
+      $queryRaw: tx.$queryRaw.bind(tx),
       measurement: {
+        count: tx.measurement.count.bind(tx.measurement),
         createMany: () => {
           throw new Error("Invalid value SECRET-CELL-VALUE for column");
         },
@@ -711,6 +725,180 @@ describe("doublon : index partiel et erreurs inattendues", () => {
     expect(JSON.stringify(logged.mock.calls)).not.toContain("SECRET");
     logged.mockRestore();
     expect(await prisma.importRun.count()).toBe(0);
+    expect(stagingFiles()).not.toEqual([]);
+  });
+});
+
+describe("measurementRecord", () => {
+  it("inverse exact de measurementRow sur les 28 champs", () => {
+    expect(Object.keys(RECORD)).toHaveLength(28);
+    expect(measurementRecord(measurementRow(RECORD))).toEqual(RECORD);
+    const nulls = { ...RECORD, value: null, lod: null, size_min_um: null, canonical_loq: null };
+    expect(measurementRecord(measurementRow(nulls))).toEqual(nulls);
+  });
+
+  it("ignore les colonnes étrangères au record (id, importRunId, studyId)", () => {
+    const row = { ...measurementRow(RECORD), id: "x", importRunId: "r", studyId: "s" };
+    expect(measurementRecord(row)).toEqual(RECORD);
+  });
+});
+
+describe("refus du moteur (422 / 413) traduits en français", () => {
+  const MSG = "Le fichier ne contient aucune ligne de données.";
+
+  it("readStagedSheet et suggestStagedMapping : le texte du moteur arrive tel quel", async () => {
+    const { token } = await stage();
+    readTable.mockRejectedValue(new EngineError(422, MSG));
+    await expect(readStagedSheet(ctx, studyId, token, null)).rejects.toThrow(MSG);
+    await expect(readStagedSheet(ctx, studyId, token, null)).rejects.toBeInstanceOf(DomainError);
+    suggest.mockRejectedValue(new EngineError(413, "Fichier trop volumineux."));
+    await expect(suggestStagedMapping(ctx, studyId, token)).rejects.toThrow("Fichier trop volumineux.");
+  });
+
+  it("checkStagedImport et saveImport", async () => {
+    const { token } = await stage();
+    check.mockRejectedValue(new EngineError(422, MSG));
+    await expect(
+      checkStagedImport(ctx, studyId, { token, sheet: null, mapping: MAPPING }),
+    ).rejects.toBeInstanceOf(DomainError);
+    await expect(saveImport(ctx, studyId, input(token))).rejects.toThrow(MSG);
+    expect(await prisma.importRun.count()).toBe(0);
+  });
+
+  it("un 500 du moteur reste une EngineError (non traduite)", async () => {
+    const { token } = await stage();
+    readTable.mockRejectedValue(new EngineError(500, "boom"));
+    await expect(readStagedSheet(ctx, studyId, token, null)).rejects.toBeInstanceOf(EngineError);
+  });
+});
+
+describe("rétention du dépôt", () => {
+  it("discardStaging efface le dépôt ; sans effet s'il a disparu ; lecteur et autre utilisateur refusés", async () => {
+    const { token } = await stage();
+    const viewer = await makeMember(lab, "viewer", "v@example.org");
+    await expect(discardStaging(viewer, studyId, token)).rejects.toThrow(
+      "Action réservée aux chercheurs du laboratoire.",
+    );
+    const other = await makeMember(lab, "researcher", "o@example.org", "Olivier");
+    await expect(discardStaging(other, studyId, token)).rejects.toThrow(
+      "Dépôt introuvable ou expiré.",
+    );
+    expect(stagingFiles()).not.toEqual([]);
+    await discardStaging(ctx, studyId, token);
+    expect(stagingFiles()).toEqual([]);
+    await expect(discardStaging(ctx, studyId, token)).resolves.toBeUndefined();
+    await expect(discardStaging(ctx, "inconnue", token)).rejects.toThrow("Étude introuvable.");
+  });
+
+  it("readStaging purge les dépôts de plus de 24 h", async () => {
+    const old = await stage("a\n1\n", "vieux.csv");
+    const fresh = await stage();
+    const metaPath = path.join(dir, "staging", `${old.token}.json`);
+    const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+    meta.createdAt = new Date(Date.now() - 25 * 3600_000).toISOString();
+    writeFileSync(metaPath, JSON.stringify(meta));
+    suggest.mockResolvedValue(MAPPING);
+    await suggestStagedMapping(ctx, studyId, fresh.token);
+    expect(stagingFiles().some((f) => f.startsWith(old.token))).toBe(false);
+    expect(stagingFiles().some((f) => f.startsWith(fresh.token))).toBe(true);
+  });
+});
+
+describe("plafonds de volume", () => {
+  const many = (n: number) => Array.from({ length: n }, () => RECORD);
+
+  it("par import : refusé dès le contrôle (le dépôt est conservé)", async () => {
+    check.mockResolvedValue(result({ records: many(MAX_IMPORT_RECORDS + 1), qc_records: [] }));
+    const { token } = await stage();
+    await expect(
+      checkStagedImport(ctx, studyId, { token, sheet: null, mapping: MAPPING }),
+    ).rejects.toThrow(
+      `Import trop volumineux : ${formatNumberFr(MAX_IMPORT_RECORDS + 1)} mesures (maximum ${formatNumberFr(MAX_IMPORT_RECORDS)}).`,
+    );
+    expect(stagingFiles()).not.toEqual([]);
+  });
+
+  it("par étude : contrôle et enregistrement refusent, rien d'écrit pour le second", async () => {
+    const a = await stage("a,b\n1,2\n", "un.csv");
+    await saveImport(ctx, studyId, input(a.token)); // 3 mesures actives
+    const incoming = MAX_STUDY_ACTIVE_RECORDS - 3 + 1;
+    check.mockResolvedValue(result({ records: many(incoming), qc_records: [] }));
+    const message = `Limite de l'étude atteinte : ${formatNumberFr(3)} + ${formatNumberFr(incoming)} mesures dépasseraient le maximum de ${formatNumberFr(MAX_STUDY_ACTIVE_RECORDS)} mesures actives par étude. Retirez un import ou créez une autre étude.`;
+    const b = await stage("c,d\n3,4\n", "deux.csv");
+    await expect(
+      checkStagedImport(ctx, studyId, { token: b.token, sheet: null, mapping: MAPPING }),
+    ).rejects.toThrow(message);
+    await expect(saveImport(ctx, studyId, input(b.token))).rejects.toThrow(message);
+    expect(await prisma.importRun.count()).toBe(1);
+    expect(await prisma.dataFile.count()).toBe(1);
+    expect(storedFiles()).toHaveLength(1);
+  });
+
+  it("par étude : la limite exacte passe", async () => {
+    const a = await stage("a,b\n1,2\n", "un.csv");
+    await saveImport(ctx, studyId, input(a.token));
+    check.mockResolvedValue(
+      result({ records: many(MAX_STUDY_ACTIVE_RECORDS - 3), qc_records: [] }),
+    );
+    const b = await stage("c,d\n3,4\n", "deux.csv");
+    await expect(
+      checkStagedImport(ctx, studyId, { token: b.token, sheet: null, mapping: MAPPING }),
+    ).resolves.toBeDefined();
+  });
+
+  it("un import retiré ne compte pas", async () => {
+    const a = await stage("a,b\n1,2\n", "un.csv");
+    const { importRunId } = await saveImport(ctx, studyId, input(a.token));
+    await retireImport(ctx, importRunId, "m");
+    check.mockResolvedValue(
+      result({ records: many(MAX_STUDY_ACTIVE_RECORDS), qc_records: [] }),
+    );
+    const b = await stage("c,d\n3,4\n", "deux.csv");
+    await expect(
+      checkStagedImport(ctx, studyId, { token: b.token, sheet: null, mapping: MAPPING }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe("nombre de lignes et étude archivée", () => {
+  it("nRows est enregistré et listé", async () => {
+    const { token } = await stage();
+    const { importRunId } = await saveImport(ctx, studyId, input(token));
+    const run = await prisma.importRun.findUniqueOrThrow({ where: { id: importRunId } });
+    expect(run.nRows).toBe(3);
+    const [listed] = await listImports(ctx, studyId);
+    expect(listed.nRows).toBe(3);
+    expect(listed.measurementCount + listed.qcMeasurementCount).toBe(3);
+  });
+
+  it("étude archivée : refus avant tout appel au moteur et tout stockage", async () => {
+    const { token } = await stage();
+    await archiveStudy(ctx, studyId, "fin");
+    await expect(saveImport(ctx, studyId, input(token))).rejects.toThrow(
+      "Étude archivée : lecture seule.",
+    );
+    expect(check).not.toHaveBeenCalled();
+    expect(storedFiles()).toEqual([]);
+  });
+});
+
+describe("plafond d'étude dans la transaction (faisant foi)", () => {
+  it("un dépassement constaté dans la transaction annule tout", async () => {
+    const { token } = await stage();
+    const spy = wrapTx((tx) => ({
+      ...tx,
+      $queryRaw: tx.$queryRaw.bind(tx),
+      measurement: {
+        count: async () => MAX_STUDY_ACTIVE_RECORDS, // un autre enregistrement a rempli l'étude entre-temps
+        createMany: tx.measurement.createMany.bind(tx.measurement),
+      },
+    }));
+    await expect(saveImport(ctx, studyId, input(token))).rejects.toThrow(
+      "Limite de l'étude atteinte",
+    );
+    spy.mockRestore();
+    expect(await prisma.importRun.count()).toBe(0);
+    expect(await prisma.measurement.count()).toBe(0);
     expect(stagingFiles()).not.toEqual([]);
   });
 });

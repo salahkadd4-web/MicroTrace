@@ -13,16 +13,18 @@ import {
   type StudyContext,
   type TableRead,
 } from "@/server/engine/client";
+import { engineRefusal, refusingEngine } from "@/server/engine-refusal";
 import { DomainError } from "@/server/errors";
 import {
   deleteStaging,
+  discardStagingFor,
   readStaging,
   storeFile,
   type StagingOwner,
 } from "@/server/file-store";
 import type { LabContext } from "@/server/lab-context";
 import { assertRole } from "@/server/lab-role";
-import { buildStudyContext, loadWritable } from "@/server/studies";
+import { assertWritable, buildStudyContext, loadWritable } from "@/server/studies";
 
 type MeasurementRecord = ImportResult["records"][number];
 type MeasurementColumns = Omit<
@@ -75,11 +77,26 @@ export function measurementRow(record: MeasurementRecord): MeasurementColumns {
   return row as MeasurementColumns;
 }
 
+/**
+ * Inverse exact de `measurementRow` (même table `COLUMN_OF`) : colonnes d'une ligne
+ * `Measurement` / `QcMeasurement` -> record du moteur (null reste null). Les colonnes
+ * étrangères au record (id, importRunId, studyId) sont ignorées.
+ */
+export function measurementRecord(row: MeasurementColumns): MeasurementRecord {
+  const record: Record<string, unknown> = {};
+  for (const key of Object.keys(COLUMN_OF) as (keyof MeasurementRecord)[]) {
+    record[key] = (row as Record<string, unknown>)[COLUMN_OF[key]];
+  }
+  return record as MeasurementRecord;
+}
+
 const PII_CODES: ReadonlySet<string> = new Set(["E_PII_COLUMN", "E_PII_VALUE"]);
 const PII_REFUSED = "Import refusé : le fichier contient des données personnelles.";
 const DUPLICATE = "Ce fichier a déjà un import actif dans cette étude.";
 /** Plafond de mesures (échantillons + contrôles qualité) par import. */
 export const MAX_IMPORT_RECORDS = 100_000;
+/** Plafond de mesures + contrôles qualité des imports actifs d'une étude. */
+export const MAX_STUDY_ACTIVE_RECORDS = 100_000;
 /** Taille des tranches d'insertion (dans la même transaction). */
 export const INSERT_BATCH_SIZE = 1_000;
 const SAVE_FAILED = "Échec de l'enregistrement de l'import.";
@@ -106,9 +123,48 @@ function owner(ctx: LabContext, studyId: string): StagingOwner {
 async function requireStudy(ctx: LabContext, studyId: string) {
   const study = await prisma.study.findFirst({
     where: { id: studyId, laboratoryId: ctx.laboratoryId },
-    select: { id: true },
+    select: { id: true, archivedAt: true },
   });
   if (!study) throw new DomainError("Étude introuvable.");
+  return study;
+}
+
+type CountDb = Pick<Prisma.TransactionClient, "measurement" | "qcMeasurement">;
+
+/** Mesures + contrôles qualité des imports actifs de l'étude. */
+async function activeRecordCount(db: CountDb, studyId: string): Promise<number> {
+  const where = { studyId, importRun: { status: "active" as const } };
+  const [m, q] = await Promise.all([
+    db.measurement.count({ where }),
+    db.qcMeasurement.count({ where }),
+  ]);
+  return m + q;
+}
+
+/** Plafonds de volume : par import, puis par étude (actifs + nouveau). */
+async function assertVolume(db: CountDb, studyId: string, incoming: number) {
+  if (incoming > MAX_IMPORT_RECORDS) {
+    throw new DomainError(
+      `Import trop volumineux : ${formatNumberFr(incoming)} mesures (maximum ${formatNumberFr(MAX_IMPORT_RECORDS)}).`,
+    );
+  }
+  const current = await activeRecordCount(db, studyId);
+  if (current + incoming > MAX_STUDY_ACTIVE_RECORDS) {
+    throw new DomainError(
+      `Limite de l'étude atteinte : ${formatNumberFr(current)} + ${formatNumberFr(incoming)} mesures dépasseraient le maximum de ${formatNumberFr(MAX_STUDY_ACTIVE_RECORDS)} mesures actives par étude. Retirez un import ou créez une autre étude.`,
+    );
+  }
+}
+
+/** Efface le dépôt de l'appelant (« Changer de fichier ») ; sans effet s'il a déjà disparu. */
+export async function discardStaging(
+  ctx: LabContext,
+  studyId: string,
+  token: string,
+): Promise<void> {
+  assertRole(ctx, "researcher");
+  await requireStudy(ctx, studyId);
+  await discardStagingFor(owner(ctx, studyId), token);
 }
 
 /** Clés des mesures (et contrôles qualité) des imports actifs de l'étude, au format du moteur. */
@@ -158,9 +214,11 @@ export async function suggestStagedMapping(
   assertRole(ctx, "researcher");
   await requireStudy(ctx, studyId);
   const staged = await readStaging(owner(ctx, studyId), token);
-  return engineClient.suggestMapping(
-    { data: new Uint8Array(staged.bytes), filename: staged.name },
-    sheet,
+  return refusingEngine(() =>
+    engineClient.suggestMapping(
+      { data: new Uint8Array(staged.bytes), filename: staged.name },
+      sheet,
+    ),
   );
 }
 
@@ -174,9 +232,11 @@ export async function readStagedSheet(
   assertRole(ctx, "researcher");
   await requireStudy(ctx, studyId);
   const staged = await readStaging(owner(ctx, studyId), token);
-  return engineClient.readTable(
-    { data: new Uint8Array(staged.bytes), filename: staged.name },
-    sheet,
+  return refusingEngine(() =>
+    engineClient.readTable(
+      { data: new Uint8Array(staged.bytes), filename: staged.name },
+      sheet,
+    ),
   );
 }
 
@@ -198,13 +258,15 @@ async function runCheck(
   const context = await buildStudyContext(ctx, studyId);
   const staged = await readStaging(owner(ctx, studyId), input.token);
   const existing = await existingKeys(ctx, studyId);
-  const result = await engineClient.checkImport({
-    file: { data: new Uint8Array(staged.bytes), filename: staged.name },
-    sheet: input.sheet,
-    mapping: input.mapping,
-    context,
-    existing,
-  });
+  const result = await refusingEngine(() =>
+    engineClient.checkImport({
+      file: { data: new Uint8Array(staged.bytes), filename: staged.name },
+      sheet: input.sheet,
+      mapping: input.mapping,
+      context,
+      existing,
+    }),
+  );
   if (!result.issues.some((i) => PII_CODES.has(i.code))) {
     return { result, context, staged, pii: false };
   }
@@ -239,7 +301,15 @@ export async function checkStagedImport(
   input: CheckInput,
 ): Promise<ImportResult> {
   assertRole(ctx, "researcher");
-  return (await runCheck(ctx, studyId, input)).result;
+  const checked = await runCheck(ctx, studyId, input);
+  if (!checked.pii) {
+    await assertVolume(
+      prisma,
+      studyId,
+      checked.result.records.length + checked.result.qc_records.length,
+    );
+  }
+  return checked.result;
 }
 
 export type SaveInput = CheckInput & { acceptWarnings: boolean };
@@ -266,6 +336,7 @@ export async function saveImport(
   input: SaveInput,
 ): Promise<{ importRunId: string }> {
   assertRole(ctx, "researcher");
+  assertWritable(await requireStudy(ctx, studyId));
   const { result, context, staged, pii } = await runCheck(ctx, studyId, input);
   if (pii) throw new DomainError(PII_REFUSED);
   if (result.has_errors || result.counts.error > 0) {
@@ -278,12 +349,9 @@ export async function saveImport(
     throw new DomainError("Acceptez les avertissements pour enregistrer.");
   }
   const total = result.records.length + result.qc_records.length;
-  if (total > MAX_IMPORT_RECORDS) {
-    await deleteStaging(input.token);
-    throw new DomainError(
-      `Import trop volumineux : ${formatNumberFr(total)} mesures (maximum ${formatNumberFr(MAX_IMPORT_RECORDS)}).`,
-    );
-  }
+  if (total > MAX_IMPORT_RECORDS) await deleteStaging(input.token);
+  // Contrôle précoce (avant tout stockage) ; le contrôle faisant foi est refait dans la transaction.
+  await assertVolume(prisma, studyId, total);
   const storagePath = await storeFile(staged.sha256, staged.bytes);
 
   let importRunId: string;
@@ -326,12 +394,16 @@ export async function saveImport(
           errorCount: result.counts.error,
           warningCount: result.counts.warning,
           infoCount: result.counts.info,
+          nRows: result.n_rows,
           warningsAccepted: accepted,
           warningsAcceptedAt: accepted ? now : null,
           warningsAcceptedById: accepted ? ctx.userId : null,
           createdById: ctx.userId,
         },
       });
+      // Verrou d'étude (posé après la création de l'import, qui arbitre déjà les doublons) : deux enregistrements simultanés ne peuvent pas dépasser ensemble le plafond.
+      await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${studyId} FOR UPDATE`;
+      await assertVolume(tx, studyId, total);
       for (const slice of slices(result.records, INSERT_BATCH_SIZE)) {
         await tx.measurement.createMany({
           data: slice.map((r) => ({
@@ -372,8 +444,13 @@ export async function saveImport(
     if (constraint && DUPLICATE_CONSTRAINTS.has(constraint)) {
       throw new DomainError(DUPLICATE);
     }
-    if (e instanceof DomainError || e instanceof EngineError || e instanceof EngineUnavailableError) {
-      throw e;
+    const refused = engineRefusal(e);
+    if (
+      refused instanceof DomainError ||
+      refused instanceof EngineError ||
+      refused instanceof EngineUnavailableError
+    ) {
+      throw refused;
     }
     // Les erreurs de Prisma peuvent citer des valeurs de mesure : jamais exposées ni journalisées.
     console.error(
@@ -449,6 +526,7 @@ export async function listImports(ctx: LabContext, studyId: string) {
       id: true,
       status: true,
       sheet: true,
+      nRows: true,
       errorCount: true,
       warningCount: true,
       infoCount: true,

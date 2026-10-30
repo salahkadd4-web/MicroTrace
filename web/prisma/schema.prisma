@@ -266,6 +266,7 @@ model ImportRun {
   errorCount           Int          @default(0)
   warningCount         Int          @default(0)
   infoCount            Int          @default(0)
+  nRows                Int?
   warningsAccepted     Boolean      @default(false)
   warningsAcceptedAt   DateTime?
   warningsAcceptedById String?

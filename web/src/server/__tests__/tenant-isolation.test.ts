@@ -34,6 +34,7 @@ const { createExampleStudy } = examplesModule;
 const { createInvitation } = invitationsModule;
 const {
   checkStagedImport,
+  discardStaging,
   existingKeys,
   getImport,
   listImports,
@@ -223,6 +224,10 @@ const CASES: Record<string, Record<string, Case>> = {
       run: (ctx, ids) => readStagedSheet(ctx, ids.study, TOKEN, "A"),
       outcome: { throws: "Étude introuvable." },
     },
+    discardStaging: {
+      run: (ctx, ids) => discardStaging(ctx, ids.study, TOKEN),
+      outcome: { throws: "Étude introuvable." },
+    },
     checkStagedImport: {
       run: (ctx, ids) =>
         checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
@@ -312,8 +317,10 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   imports: {
     INSERT_BATCH_SIZE: "constante",
     MAX_IMPORT_RECORDS: "constante",
+    MAX_STUDY_ACTIVE_RECORDS: "constante",
     saveTxOptions: "assistant pur (délai de transaction), sans accès à la base",
     measurementRow: "assistant pur (record du moteur -> colonnes), sans accès à la base",
+    measurementRecord: "assistant pur (colonnes -> record du moteur), sans accès à la base",
   },
   audit: {
     recordAudit:
@@ -363,6 +370,7 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     suggestStagedMapping: (ctx, ids) =>
       suggestStagedMapping(ctx, ids.study, TOKEN),
     readStagedSheet: (ctx, ids) => readStagedSheet(ctx, ids.study, TOKEN, "A"),
+    discardStaging: (ctx, ids) => discardStaging(ctx, ids.study, TOKEN),
     checkStagedImport: (ctx, ids) =>
       checkStagedImport(ctx, ids.study, { token: TOKEN, mapping: MAPPING }),
     saveImport: (ctx, ids) =>
