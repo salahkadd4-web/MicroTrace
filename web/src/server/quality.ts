@@ -22,6 +22,7 @@ import { assertWritable, loadWritable } from "@/server/studies";
 /** Au plus ce nombre de décisions est lu par étude (reporté au suivi : pagination). */
 const MAX_DECISIONS = 5000;
 const MODEL_NAME = "quality-rules";
+const SIGNAL_KEY_PATTERN = /^[0-9a-f]{64}$/;
 
 export type QualityDecisionView = {
   id: string;
@@ -158,10 +159,15 @@ export async function recordQualityDecision(
   assertRole(ctx, "researcher");
   const decision = QUALITY_DECISIONS.find((d) => d.code === input.decision);
   if (!decision) throw new DomainError("Décision inconnue.");
-  const note = (input.note ?? "").trim();
+  // Une note qui n'est pas du texte compte comme absente (jamais d'erreur technique).
+  const note = (typeof input.note === "string" ? input.note : "").trim();
   if (note.length > NOTE_MAX_LENGTH) throw new DomainError("La note dépasse 1 000 caractères.");
   if (decision.noteRequired && note === "") {
     throw new DomainError("Une note est obligatoire pour cette décision.");
+  }
+  // Une clé mal formée ne peut correspondre à aucun signal : refus avant tout accès au moteur.
+  if (typeof input.signalKey !== "string" || !SIGNAL_KEY_PATTERN.test(input.signalKey)) {
+    throw new DomainError("Ce signal n'existe plus : rechargez la page.");
   }
   // Étude du laboratoire et non archivée, avant tout appel au moteur.
   const study = await prisma.study.findFirst({
@@ -171,6 +177,10 @@ export async function recordQualityDecision(
   if (!study) throw new DomainError("Étude introuvable.");
   assertWritable(study);
 
+  // Écart volontaire entre le recalcul (hors transaction, appel au moteur) et l'écriture : le signal
+  // enregistré est celui que le serveur vient de calculer ; si les imports changent entre-temps, la
+  // décision porte sur ce signal-là (sa copie est conservée dans `output`) et l'écran la classera
+  // parmi les signaux disparus au prochain chargement.
   const { response } = await computeSignals(ctx, studyId);
   const signal = response?.signals.find((s) => s.key === input.signalKey);
   if (!response || !signal) {
@@ -180,6 +190,19 @@ export async function recordQualityDecision(
 
   return prisma.$transaction(async (tx) => {
     await loadWritable(tx, ctx, studyId);
+    // Verrou sur l'étude : l'ordre des décisions est strictement croissant par étude, même avec
+    // plusieurs serveurs web (createdAt = max(maintenant, dernière décision + 1 ms)).
+    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${studyId} FOR UPDATE`;
+    const latest = await tx.modelPrediction.findFirst({
+      where: { studyId, kind: "quality" },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    });
+    const now = new Date();
+    const createdAt =
+      latest && latest.createdAt.getTime() >= now.getTime()
+        ? new Date(latest.createdAt.getTime() + 1)
+        : now;
     const row = await tx.modelPrediction.create({
       data: {
         studyId,
@@ -196,7 +219,8 @@ export async function recordQualityDecision(
         status: decision.status,
         decisionNote: note === "" ? null : note,
         decidedById: ctx.userId,
-        decidedAt: new Date(),
+        decidedAt: now,
+        createdAt,
       },
     });
     await recordAudit(tx, {

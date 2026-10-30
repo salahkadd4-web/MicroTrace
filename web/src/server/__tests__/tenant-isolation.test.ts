@@ -80,7 +80,7 @@ const {
   upsertDetectionLimit,
 } = settingsModule;
 
-const SIGNAL_KEY = "k1".padEnd(64, "0");
+const SIGNAL_KEY = "a1".padEnd(64, "0");
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
 const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";

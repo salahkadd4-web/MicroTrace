@@ -58,9 +58,9 @@ const RECORD: Rec = {
   source_row: 2,
   source_column: "PE",
 };
-const K1 = "k1".padEnd(64, "0");
-const K2 = "k2".padEnd(64, "0");
-const K9 = "k9".padEnd(64, "0");
+const K1 = "a1".padEnd(64, "0");
+const K2 = "b2".padEnd(64, "0");
+const K9 = "c9".padEnd(64, "0");
 
 const SIGNAL_1 = {
   key: K1,
@@ -234,6 +234,26 @@ describe("getStudyQuality", () => {
     expect(r.archived).toBe(false);
   });
 
+  it("même clé dans une autre étude du même laboratoire : ni affichée ni utilisée", async () => {
+    await addImport();
+    const other = await newStudy(researcher, (await createProject(researcher, { title: "Q2" })).id, "Autre");
+    await prisma.modelPrediction.create({
+      data: {
+        studyId: other,
+        kind: "quality",
+        input: { signalKey: K1, decision: "entry_error" },
+        output: SIGNAL_1 as never,
+        modelName: "quality-rules",
+        modelVersion: "q1",
+        status: "accepted",
+      },
+    });
+    const r = await getStudyQuality(ctx, studyId);
+    if (r.kind !== "ok") throw new Error("ok attendu");
+    expect(r.signals.find((s) => s.signal.key === K1)!.decision).toBeNull();
+    expect(r.disappeared).toEqual([]);
+  });
+
   it("moteur indisponible : EngineUnavailableError relancée", async () => {
     await addImport();
     quality.mockRejectedValue(new EngineUnavailableError());
@@ -303,6 +323,35 @@ describe("recordQualityDecision", () => {
     expect(auditObjectName(e)).toBe("Valeur atypique — Échantillon 16");
   });
 
+  it("note rognée, 1 000 caractères acceptés, champs forgés ignorés", async () => {
+    await addImport();
+    const a = await recordQualityDecision(researcher, studyId, {
+      signalKey: K1,
+      decision: "justified",
+      note: "  motif  ",
+      rule: "near_blank",
+      status: "accepted",
+      output: { forged: true },
+    } as never);
+    const rowA = await prisma.modelPrediction.findUniqueOrThrow({ where: { id: a.id } });
+    expect(rowA.decisionNote).toBe("motif");
+    expect(rowA.status).toBe("rejected");
+    expect(rowA.input).toMatchObject({ rule: "robust_outlier" });
+    expect(rowA.output).toEqual(SIGNAL_1);
+    const b = await decide(K1, "to_check", "x".repeat(1000));
+    const rowB = await prisma.modelPrediction.findUniqueOrThrow({ where: { id: b.id } });
+    expect(rowB.decisionNote).toHaveLength(1000);
+  });
+
+  it("décisions de suite : createdAt strictement croissant", async () => {
+    await addImport();
+    const ids: string[] = [];
+    for (let i = 0; i < 4; i++) ids.push((await decide(K1)).id);
+    const rows = await prisma.modelPrediction.findMany({ where: { id: { in: ids } } });
+    const times = ids.map((id) => rows.find((r) => r.id === id)!.createdAt.getTime());
+    for (let i = 1; i < times.length; i++) expect(times[i]).toBeGreaterThan(times[i - 1]);
+  });
+
   describe("refus sans écriture", () => {
     async function refused(run: () => Promise<unknown>, message: string) {
       const before = await counts();
@@ -325,10 +374,12 @@ describe("recordQualityDecision", () => {
 
     it("viewer", async () => {
       await addImport();
+      quality.mockClear();
       await refused(
         () => recordQualityDecision(ctx, studyId, { signalKey: K1, decision: "to_check" }),
         "Action réservée aux chercheurs du laboratoire.",
       );
+      expect(quality).not.toHaveBeenCalled();
     });
 
     it("note manquante sur justified et entry_error", async () => {
@@ -351,9 +402,28 @@ describe("recordQualityDecision", () => {
       await addImport();
       const labB = await makeLab("B");
       const b = await makeMember(labB, "researcher", "b@example.org");
+      quality.mockClear();
       await refused(
         () => recordQualityDecision(b, studyId, { signalKey: K1, decision: "to_check" }),
         "Étude introuvable.",
+      );
+      expect(quality).not.toHaveBeenCalled();
+    });
+
+    it("clé mal formée : refus avant tout appel au moteur", async () => {
+      await addImport();
+      quality.mockClear();
+      for (const bad of ["k1", "A1".padEnd(64, "0"), "a1".padEnd(65, "0"), ""]) {
+        await refused(() => decide(bad), "Ce signal n'existe plus : rechargez la page.");
+      }
+      expect(quality).not.toHaveBeenCalled();
+    });
+
+    it("note qui n'est pas du texte : erreur de validation normale", async () => {
+      await addImport();
+      await refused(
+        () => decide(K1, "justified", 42 as unknown as string),
+        "Une note est obligatoire pour cette décision.",
       );
     });
   });
