@@ -8,7 +8,7 @@ Lis ce document en entier avant d'écrire du code. Il est autonome : ce qu'il ne
 
 ## 0. Condition de départ (obligatoire)
 
-C4 dépend de C3 (import des résultats). Ne commence **que si** `git log --oneline prototype` contient le commit `feat(web): one-click fictive and real (Leslie 2022) example studies`. Sinon, arrête-toi et écris « C3 n'est pas terminé » dans ton rapport.
+C4 dépend de C3 (import des résultats). Ne commence **que si** `git log --oneline prototype` contient le commit `docs: close C3 (import)`, posé à la clôture de C3 après sa relecture finale. Sinon, arrête-toi et écris « C3 n'est pas terminé » dans ton rapport.
 
 Travaille sur une **nouvelle branche** créée depuis `prototype` : `git switch -c c4-resultats prototype`.
 
@@ -89,15 +89,16 @@ Pour chaque tâche :
 - Crée `web/src/server/results.ts` (`server-only`) avec `getStudyResults(ctx, studyId)`, rôle `viewer`. Il :
   - lit l'étude en filtrant sur le laboratoire ;
   - charge les `Measurement` des imports `active` (filtre `importRun.status = "active"` + laboratoire) ;
-  - les convertit en `MeasurementRecordModel` par l'**inverse exact** du mapping de `web/src/server/imports.ts` (`measurementRow` / `COLUMN_OF`), avec un test d'aller-retour sur les 28 champs ;
+  - les convertit en `MeasurementRecordModel` avec `measurementRecord(row)`, exporté par `web/src/server/imports.ts`. C'est l'inverse exact de `measurementRow`, déjà couvert par un test d'aller-retour : ne le réécris pas ;
+  - les trie **toujours** par import (date de création), puis `sourceRow`, puis `sourceColumn` : les mesures n'ont pas de colonne d'ordre, et ce tri rend l'écran, le CSV et le rapport reproductibles ;
   - appelle `engineClient.summary` ;
   - renvoie `{ summary, imports: [{ id, fileName, sha256, rulesVersion, createdAt, author }], mixedRulesVersions: boolean, nature }`.
 - **Aucune mesure active :** renvoie `{ empty: true }` sans appeler le moteur.
 - **Volume :**
-  - mesure la taille du JSON envoyé à `/summary` pour 100 000 mesures ;
-  - la limite du moteur est d'environ 75 Mo par requête (`MAX_REQUEST_BYTES` dans `engine/src/microtrace_engine/app.py`) ;
-  - si elle est dépassée ou approchée, arrête-toi et propose une solution dans ton rapport ;
-  - ne relève pas la limite sans le documenter.
+  - C3 plafonne une étude à **100 000 mesures actives** (`MAX_STUDY_ACTIVE_RECORDS`, mesures et contrôles qualité confondus). C'est donc le maximum que `/summary` et `/report` recevront ;
+  - une mesure pèse environ 525 octets en JSON, soit environ 52 Mo pour 100 000 mesures. La limite du moteur est d'environ 75 Mo par requête (`MAX_REQUEST_BYTES` dans `engine/src/microtrace_engine/app.py`) ;
+  - pour `/report`, les issues de chaque import s'ajoutent : par exemple une information par ligne pour la somme des PS ;
+  - mesure la taille réelle des requêtes `/summary` et `/report` pour une étude au plafond. Si elle dépasse 75 Mo, ou en approche à moins de 10 %, arrête-toi et propose une solution dans ton rapport. Ne relève pas la limite sans le documenter.
 - **Tests :**
   - résultats d'une étude avec deux imports actifs et un retiré : les mesures du retiré sont exclues ;
   - avertissement si deux `rulesVersion` diffèrent ;
@@ -118,6 +119,13 @@ Remplace le texte d'attente de `…/etudes/[studyId]/resultats/page.tsx`.
   - graphique en points des valeurs par échantillon pour les échantillons quantifiés, un point par échantillon, axe en unité canonique ;
   - les statuts non quantifiés sont comptés dans une légende ou un tableau, **jamais tracés comme des nombres**.
 
+**Codes de polymères :** le moteur renvoie des codes, pas des libellés. Affiche-les avec une table de libellés français unique, dans `web/src/lib/` :
+- `PS_SUM` → « PS (somme) » ;
+- `ANY` → « Au moins un polymère » ;
+- tout autre code s'affiche tel quel (PET, PE, PP, PMMA…).
+
+Ce sont des libellés d'affichage, pas des règles : la ligne `ANY` est calculée par le moteur.
+
 **Composants :** les graphiques sont des composants client (`"use client"`, Recharts), qui reçoivent des données déjà calculées par le moteur.
 
 **Cas particuliers :**
@@ -137,7 +145,11 @@ Remplace le texte d'attente de `…/etudes/[studyId]/resultats/page.tsx`.
 **Route** `GET …/etudes/[studyId]/rapport/telecharger?format=html|md` (route handler, rôle `viewer`). Elle construit le `ReportRequest` du moteur :
 - métadonnées de l'étude : titre, nature, DOI, licence ;
 - imports actifs : fichier, sha256, `rulesVersion`, date, auteur, issues ;
-- `records`, `qc_records` et contexte d'étude (`buildStudyContext`) ;
+- `records`, `qc_records` (triés comme en tâche 1) ;
+- le **contexte figé** (`ImportRun.frozenContext`), c'est-à-dire celui avec lequel les statuts ont été calculés, et non le contexte actuel :
+  - si tous les imports actifs ont le même contexte figé, utilise-le ;
+  - s'ils diffèrent, ou si le contexte actuel (`buildStudyContext`) diffère du contexte figé, utilise celui de l'import le plus récent. Le rapport et l'écran Résultats affichent alors en tête : « Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import. » ;
+  - teste ce cas ;
 - `generated_at`.
 
 Elle renvoie le fichier en pièce jointe :
@@ -180,7 +192,7 @@ Elle renvoie le fichier en pièce jointe :
 **Parcours A — étude d'exemple fictive :**
 1. connexion ;
 2. page Projets → « Créer l'étude d'exemple (fictive) » ;
-3. onglet Résultats : le parcours vérifie **PET 11/22, PS (somme) 8/22, PE 5/22, PMMA 1/22, PP 0/22, au moins un polymère 17/22** ;
+3. onglet Résultats : le parcours vérifie **PET 11/22, PS (somme) 8/22, PE 5/22, PMMA 1/22, PP 0/22, Au moins un polymère 17/22**, soit les codes moteur `PS_SUM` et `ANY` affichés avec leurs libellés ;
 4. onglet Rapport : téléchargement du HTML.
 
 Le fichier téléchargé doit contenir :
