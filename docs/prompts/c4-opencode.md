@@ -1,5 +1,7 @@
 # Prompt opencode — C4 : résultats, graphiques, rapport et parcours de bout en bout
 
+> **Remplacé le 2026-10-30.** Le fondateur a décidé que C4 serait réalisé directement, sans opencode. Le plan de référence est `docs/superpowers/plans/2026-10-30-c4-resultats.md`. Ce prompt est conservé pour l'historique ; ne l'exécutez pas.
+
 Tu es l'ingénieur chargé de réaliser le sous-projet **C4** de MicroTrace Studio.
 
 MicroTrace Studio est un **prototype SaaS multi-laboratoires** pour des laboratoires de recherche qui mesurent des microplastiques dans le sang humain. C'est un **prototype de recherche, pas un dispositif médical**.
