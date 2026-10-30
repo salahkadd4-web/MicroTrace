@@ -50,6 +50,8 @@ Une mesure est **quantifiée** si son statut est `quantified` et si sa valeur ca
 
 Toutes les comparaisons sont strictes : une valeur exactement au seuil ne déclenche pas de signal.
 
+**Arrondi (règle R-C7-1).** Chaque grandeur comparée (valeurs par échantillon avant médiane et MAD, MAD, écart relatif, rapport au blanc, score z) est calculée une seule fois, arrondie à **12 chiffres significatifs** pour effacer le bruit de calcul binaire, comparée strictement au seuil, puis exposée telle quelle. Ainsi, une paire 0,1 et 0,06 (écart exactement 50 %) ou une valeur de 0,3 face à un blanc de 100 ng/mL (rapport exactement 3) ne déclenche rien, et un MAD réellement nul est nul (note `zero_mad`).
+
 ### a) Discordance entre aliquotes (`aliquot_discordance`)
 
 - **Population :** les mesures d'un même échantillon dans un même groupe, avec au moins 2 aliquotes quantifiées.
@@ -74,6 +76,7 @@ Toutes les comparaisons sont strictes : une valeur exactement au seuil ne décle
   2. Il correspond au rapport signal/bruit de 3 de la définition classique de la détection (IUPAC : LOD = moyenne du blanc + 3 σ ; Long et Winefordner 1983, *Anal. Chem.* 55:712A ; MacDougall et al. 1980, *Anal. Chem.* 52:2242).
   3. Il est plus permissif que la règle de qualification des guides de l'US EPA pour la chimie organique (résultat < 5 × le blanc, ou < 10 × pour les contaminants courants de laboratoire). q1 produit donc moins de signaux. *Références à vérifier sur l'édition en vigueur.*
 - **Étude déclarée corrigée du blanc :** la règle s'applique à l'identique. L'explication précise que la valeur est déjà corrigée et que le rapport compare donc une valeur nette à un blanc brut.
+- **Contrôle inutilisable :** un blanc de moyenne absente ou non positive, ou d'unité inconnue, donne sa propre note (`blank_mean_missing`, `blank_unit_unknown`) ; il compte quand même comme un blanc pour `polymers_without_blank`, qui ne liste donc pas son polymère.
 - **Notes :** `no_blank_summary` (aucun blanc de procédure résumé), `polymers_without_blank` (polymères mesurés sans blanc), `blank_unit_mismatch`, `blank_unit_unknown`, `blank_mean_missing` (moyenne vide, nulle ou négative).
 - **Mesures concernées :** la mesure.
 - **Chiffres exposés :** `value`, `blank_mean` (canonique), `blank_mean_reported` (unité du contrôle), `blank_n`, `ratio`, `factor`.

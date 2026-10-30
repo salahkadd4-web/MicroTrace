@@ -88,7 +88,7 @@ Toutes les règles ne portent que sur les mesures d'échantillon (`record_type =
 | `LOD_RATE_ALPHA` | `0.01` | signal si p **<** 0,01 |
 | `LOD_RATE_MIN_STRATUM` | `5` | lot comparé si n ≥ 5, et s'il reste au moins 5 autres mesures |
 
-Toutes les comparaisons sont **strictes**. Une valeur exactement au seuil ne déclenche pas de signal, et des tests le vérifient avec des nombres exacts en binaire.
+Toutes les comparaisons sont **strictes**. Une valeur exactement au seuil ne déclenche pas de signal, et des tests le vérifient avec des décimaux ordinaires. Chaque grandeur comparée (valeurs par échantillon, MAD, écart relatif, rapport au blanc, score z) est calculée une fois, arrondie à 12 chiffres significatifs, comparée, puis exposée telle quelle (décision R-C7-1).
 
 **Groupe d'analyse** (`QualityGroup`) : `(polymer, method, matrix, matrix_detail, kind, basis, canonical_unit)`.
 - `matrix_detail` est normalisé comme dans `summary` : rogné pour `other`, vide pour les matrices nommées.

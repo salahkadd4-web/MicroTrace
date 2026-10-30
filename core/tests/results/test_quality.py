@@ -230,6 +230,59 @@ def test_outlier_zero_mad():
     assert signals(res, QualityRule.robust_outlier) == []
 
 
+def test_outlier_float_noise_gives_zero_mad():
+    # mean(0.1, 0.2) is 0.15000000000000002: the true MAD is 0, not 2.8e-17
+    recs = [rec(sample="A", value=0.15), rec(sample="B", value=0.15),
+            rec(sample="C", aliquot="a", value=0.1), rec(sample="C", aliquot="b", value=0.2),
+            rec(sample="D", value=0.9), rec(sample="E", value=1.0)]
+    res = run(recs)
+    assert len(notes(res, NoteReason.zero_mad)) == 1
+    assert signals(res, QualityRule.robust_outlier) == []
+
+
+def test_exact_thresholds_with_ordinary_decimals():
+    # RPD exactly 50 %
+    assert signals(run([rec(aliquot="a", value=0.1), rec(aliquot="b", value=0.06)]),
+                   QualityRule.aliquot_discordance) == []
+    # ratio exactly 3, same unit and converted from ng/mL
+    assert signals(run([rec(value=0.3)], [blank(mean=0.1, unit="ug/mL")]),
+                   QualityRule.near_blank) == []
+    assert signals(run([rec(value=0.3)], [blank(mean=100)]), QualityRule.near_blank) == []
+    # just below: flagged, and the displayed ratio is the compared one
+    (s,) = signals(run([rec(value=0.29)], [blank(mean=100)]), QualityRule.near_blank)
+    assert fig(s)["ratio"] == 2.9
+
+
+def test_outlier_ignores_between_lod_loq_with_a_value():
+    recs = [rec(sample=f"s{i}", value=v) for i, v in enumerate((1, 1.1, 1.2, 1.3))]
+    recs.append(rec(sample="c", status=S.between_lod_loq, value=0.2))
+    res = run(recs)
+    (n,) = notes(res, NoteReason.too_few_samples)
+    assert n.count == 4 and signals(res, QualityRule.robust_outlier) == []
+    recs = [rec(sample=f"s{i}", value=v) for i, v in enumerate((1, 1.1, 1.2, 1.3, 1.4))]
+    recs.append(rec(sample="c", status=S.between_lod_loq, value=100.0))
+    assert signals(run(recs), QualityRule.robust_outlier) == []
+
+
+def test_outlier_and_lod_never_pooled_across_methods():
+    recs = [rec(sample=f"s{i}", value=v, method=m)
+            for m in ("M1", "M2") for i, v in enumerate((1, 1.1, 40))]
+    res = run(recs)
+    assert signals(res, QualityRule.robust_outlier) == []
+    assert sorted(n.group.method for n in notes(res, NoteReason.too_few_samples)) == ["M1", "M2"]
+    lod = _lod({"A": (3, 3)}, method="M1") + _lod({"B": (0, 3)}, method="M2")
+    res = run(lod)
+    assert lod_signals(res) == []
+    assert len(notes(res, NoteReason.too_few_in_strata)) == 2
+
+
+def test_relative_range_edges():
+    assert relative_range([0.0, 0.0]) == 0.0
+    assert relative_range([0.1, 0.06]) == 0.5
+    with pytest.raises(ValueError):
+        relative_range([])
+
+
 def _lod(batches: dict[str, tuple[int, int]], dimension="batch", **kw):
     """batches: label -> (n below LOD, n total)."""
     out = []
@@ -355,6 +408,11 @@ def test_leslie_like_reference():
     o = signals(res, O)
     assert [fig(s)["z"] for s in o] == [pytest.approx(20.572, abs=1e-3),
                                         pytest.approx(7.4195, abs=1e-3)]
+    assert [(fig(s)["value"], fig(s)["median"], fig(s)["mad"], fig(s)["n"]) for s in o] == [
+        (5.55, 2.5, pytest.approx(0.1), 5), (3.6, 2.5, pytest.approx(0.1), 5)]
+    assert [[(x.ref.source_row, x.ref.source_column) for x in s.records] for s in o] == [
+        [(29, "PE"), (30, "PE")], [(8, "PE")]]
+    assert [[x.ref.source_row for x in s.records] for s in d] == [[29, 30], [22, 23]]
     assert [n.reason for n in res.notes if n.rule == QualityRule.near_blank] == [
         NoteReason.no_blank_summary]
     few = notes(res, NoteReason.too_few_samples)
@@ -386,4 +444,10 @@ def test_leslie_2022_reference():
     assert fig(d12)["rpd_percent"] == 120.0
     assert fig(d13)["rpd_percent"] == pytest.approx(112.727, abs=1e-3)
     assert fig(o7)["z"] == pytest.approx(3.5074, abs=1e-4)
+    assert (fig(o7)["median"], fig(o7)["mad"], fig(o7)["n"]) == (1.1, 0.25, 11)
+    assert sorted((str(n.reason), n.group.polymer if n.group else None, n.count)
+                  for n in res.notes) == [
+        ("dimension_empty", None, None), ("dimension_empty", None, None),
+        ("no_blank_summary", None, None), ("too_few_samples", "PMMA", 1),
+        ("too_few_samples", "PP", 0)]
     assert signals(res, QualityRule.unusual_lod_rate) == []

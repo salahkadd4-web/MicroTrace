@@ -144,19 +144,31 @@ class QualityResult:
 
 # --------------------------------------------------------------------------- statistics
 
+def clean(x: float) -> float:
+    """Round to 12 significant digits: every compared quantity is computed once, cleaned of
+    binary floating-point noise, compared strictly and exposed as that same number."""
+    return float(f"{x:.12g}")
+
+
 def relative_range(values: Sequence[float]) -> float:
-    """(max - min) / mean; for two values, the relative percent difference as a fraction."""
-    mean = statistics.fmean(values)
-    return (max(values) - min(values)) / mean if mean else 0.0
+    """(max - min) / mean, cleaned (12 significant digits); for two values, the relative
+    percent difference as a fraction. Needs at least one value (ValueError otherwise); a
+    zero mean gives 0.0, since no relative spread can be defined."""
+    if not values:
+        raise ValueError("relative_range needs at least one value")
+    vals = [clean(v) for v in values]
+    mean = clean(statistics.fmean(vals))
+    return clean((max(vals) - min(vals)) / mean) if mean else 0.0
 
 
 def modified_z_scores(values: Sequence[float]) -> list[float] | None:
     """Iglewicz-Hoaglin modified z-scores 0.6745 (x - median) / MAD; None when MAD is 0."""
-    median = statistics.median(values)
-    mad = statistics.median([abs(v - median) for v in values])
+    vals = [clean(v) for v in values]
+    median = clean(statistics.median(vals))
+    mad = clean(statistics.median([clean(abs(v - median)) for v in vals]))
     if mad == 0:
         return None
-    return [MAD_CONSTANT * (v - median) / mad for v in values]
+    return [clean(MAD_CONSTANT * clean(v - median) / mad) for v in vals]
 
 
 # ------------------------------------------------------------------------------ helpers
@@ -221,15 +233,15 @@ def _aliquot_discordance(samples: list[QualityRecord]) -> list[Signal]:
         quantified = [x for x in rows if is_quantified(x.record)]
         if len(quantified) < 2:
             continue
-        values = [_quantified_value(x) for x in quantified]
+        values = [clean(_quantified_value(x)) for x in quantified]
         rpd = relative_range(values)
         if not rpd > ALIQUOT_RPD_THRESHOLD:
             continue
         out.append(_signal(
             QualityRule.aliquot_discordance, group, {"sample": sample_id}, quantified,
             [("n_aliquots", len(rows)), ("n_quantified", len(quantified)),
-             ("min", min(values)), ("max", max(values)), ("mean", statistics.fmean(values)),
-             ("rpd_percent", rpd * 100), ("threshold_percent", ALIQUOT_RPD_THRESHOLD * 100)],
+             ("min", min(values)), ("max", max(values)), ("mean", clean(statistics.fmean(values))),
+             ("rpd_percent", clean(rpd * 100)), ("threshold_percent", ALIQUOT_RPD_THRESHOLD * 100)],
             sample_id=sample_id))
     return out
 
@@ -279,27 +291,28 @@ def _near_blank(samples: list[QualityRecord], blanks: Sequence[BlankSummary]
         if not is_quantified(r):
             continue
         group = _group_of(r)
-        value = _quantified_value(x)
+        value = clean(_quantified_value(x))
         for b in usable:
             if blank_polymer(b, x) != r.polymer:
                 continue
             unit = units[b.id]
             assert b.mean is not None
             try:
-                mean = convert(b.mean, unit, r.canonical_unit)
+                mean = clean(convert(b.mean, unit, r.canonical_unit))
             except UnitMismatchError:
                 if (group, b.id) not in mismatched:
                     mismatched.add((group, b.id))
                     notes.append(QualityNote(QualityRule.near_blank,
                                              NoteReason.blank_unit_mismatch, group, blank=b))
                 continue
-            if not value < NEAR_BLANK_FACTOR * mean:
+            ratio = clean(value / mean)
+            if not ratio < NEAR_BLANK_FACTOR:
                 continue
             out.append(_signal(
                 QualityRule.near_blank, group,
                 {"sample": r.sample_id, "aliquot": r.aliquot, "blank": b.id}, [x],
                 [("value", value), ("blank_mean", mean), ("blank_mean_reported", b.mean),
-                 ("blank_n", b.n), ("ratio", value / mean), ("factor", NEAR_BLANK_FACTOR)],
+                 ("blank_n", b.n), ("ratio", ratio), ("factor", NEAR_BLANK_FACTOR)],
                 sample_id=r.sample_id, aliquot=r.aliquot, blank=b))
     return out, notes
 
@@ -325,7 +338,7 @@ def _outliers(samples: list[QualityRecord]) -> tuple[list[Signal], list[QualityN
         if res.status == DetectionStatus.quantified and res.value is not None:
             rows = by_sample[(res.sample_id, res.matrix.value, res.matrix_detail, res.polymer,
                               res.method, res.kind.value, res.basis.value)]
-            entries.append((res.sample_id, res.value, rows))
+            entries.append((res.sample_id, clean(res.value), rows))
 
     for group in sorted(groups, key=_group_sort):
         entries = groups[group]
@@ -339,8 +352,8 @@ def _outliers(samples: list[QualityRecord]) -> tuple[list[Signal], list[QualityN
             notes.append(QualityNote(QualityRule.robust_outlier, NoteReason.zero_mad, group,
                                      count=len(entries)))
             continue
-        median = statistics.median(values)
-        mad = statistics.median([abs(v - median) for v in values])
+        median = clean(statistics.median(values))
+        mad = clean(statistics.median([clean(abs(v - median)) for v in values]))
         for (sample_id, value, rows), z in zip(entries, scores, strict=True):
             if not abs(z) > OUTLIER_Z_THRESHOLD:
                 continue
