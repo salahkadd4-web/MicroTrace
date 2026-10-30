@@ -7,6 +7,7 @@ const TABS = [
   { segment: "parametres", label: "Paramètres" },
   { segment: "imports", label: "Imports" },
   { segment: "resultats", label: "Résultats" },
+  { segment: "qualite", label: "Qualité" },
   { segment: "rapport", label: "Rapport" },
   { segment: "journal", label: "Journal" },
 ] as const;
