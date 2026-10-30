@@ -9,6 +9,16 @@ const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 
 export const ENGINE_DOWN = "Le moteur d'analyse est indisponible.";
 export const REPORT_REFUSED = "Le moteur d'analyse n'a pas pu produire le rapport.";
+export const DICTIONARY_REFUSED =
+  "Le moteur d'analyse n'a pas pu produire le dictionnaire de données.";
+export const METHOD_NOT_ALLOWED = "Méthode non autorisée.";
+
+/** HEAD ne doit ni appeler le moteur ni écrire d'audit : seul GET télécharge. */
+export function headNotAllowed(): Response {
+  const res = plain(METHOD_NOT_ALLOWED, 405);
+  res.headers.set("Allow", "GET");
+  return res;
+}
 export const NOTHING_TO_EXPORT = "Aucun import actif : rien à exporter.";
 
 /** Réponse d'erreur courte en texte brut : jamais de détail, jamais de pièce jointe. */

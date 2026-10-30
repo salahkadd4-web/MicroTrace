@@ -40,3 +40,6 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 ## C4 — points reportés (en cours)
 
 - Plafond abaissé à 50 000 mesures actives par étude et par import pour rester sous la limite de 75 Mo du moteur ; pistes pour le relever : compression gzip des requêtes, issues agrégées par code dans /report.
+
+- Un GET de premier niveau venu d'un autre site peut déclencher un téléchargement audité (pas de fuite de données, car la réponse n'est pas lisible par l'autre origine ; seulement du bruit dans le journal). Piste : vérifier `Sec-Fetch-Site` (`same-origin` ou `none`) avant d'auditer.
+- Le CSV des mesures utilise le point comme séparateur décimal (valeurs telles qu'enregistrées). Dans Excel en français : importer comme données (Données > À partir d'un fichier texte/CSV) avec le séparateur « ; » et la décimale « . ».

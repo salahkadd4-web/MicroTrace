@@ -1,9 +1,10 @@
 import {
   attachment,
   authenticate,
+  DICTIONARY_REFUSED,
   failure,
+  headNotAllowed,
   plain,
-  REPORT_REFUSED,
 } from "@/server/download-response";
 import { buildDictionaryDownload } from "@/server/report-download";
 
@@ -23,6 +24,8 @@ export async function GET(
   try {
     return attachment(await buildDictionaryDownload(auth.ctx, studyId, format));
   } catch (e) {
-    return failure(e, "rapport/dictionnaire", REPORT_REFUSED);
+    return failure(e, "rapport/dictionnaire", DICTIONARY_REFUSED);
   }
 }
+
+export const HEAD = headNotAllowed;

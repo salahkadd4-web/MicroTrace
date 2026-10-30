@@ -15,8 +15,16 @@ export function slugTitle(title: string): string {
   return slug || "etude";
 }
 
+// Même fuseau que l'affichage des dates (DateTimeFr) : AAAA-MM-JJ en heure de Paris.
+const DAY = new Intl.DateTimeFormat("fr-CA", {
+  timeZone: "Europe/Paris",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 export function reportFileName(format: DownloadFormat, title: string, at: Date): string {
-  const day = at.toISOString().slice(0, 10);
+  const day = DAY.format(at);
   const slug = slugTitle(title);
   return format === "csv" ? `mesures-${slug}-${day}.csv` : `rapport-${slug}-${day}.${format}`;
 }

@@ -1,7 +1,9 @@
 import {
   attachment,
   authenticate,
+  DICTIONARY_REFUSED,
   failure,
+  headNotAllowed,
   NOTHING_TO_EXPORT,
   plain,
   REPORT_REFUSED,
@@ -31,6 +33,12 @@ export async function GET(
     if (result.kind === "empty") return plain(NOTHING_TO_EXPORT, 409);
     return attachment(result, format === "html");
   } catch (e) {
-    return failure(e, "rapport/telecharger", REPORT_REFUSED);
+    return failure(
+      e,
+      "rapport/telecharger",
+      format === "csv" ? DICTIONARY_REFUSED : REPORT_REFUSED,
+    );
   }
 }
+
+export const HEAD = headNotAllowed;

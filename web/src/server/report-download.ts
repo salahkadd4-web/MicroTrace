@@ -50,16 +50,20 @@ export async function buildReportDownload(
   let body: string;
   if (format === "csv") {
     const names = parseDictionaryNames((await engineClient.dictionary()).csv);
-    const keys = names.map((n) => RECORD_KEY_OF[n] ?? n);
-    if (keys.some((k) => !(k in input.records[0]))) {
+    const dictionaryKeys = names.map((n) => RECORD_KEY_OF[n] ?? n);
+    if (dictionaryKeys.some((k) => !(k in input.records[0]))) {
       throw new Error("Champ du dictionnaire absent des mesures.");
     }
+    // Puis tous les autres champs enregistrés (valeurs dérivées, ligne et colonne source…), dans
+    // l'ordre du record ; l'en-tête est la clé du record.
+    const extraKeys = Object.keys(input.records[0]).filter((k) => !dictionaryKeys.includes(k));
+    const keys = [...dictionaryKeys, ...extraKeys];
     const fileOf = new Map(input.imports.map((i) => [i.id, i.fileName]));
     const rows: CsvValue[][] = input.records.map((rec, i) => [
       ...keys.map((k) => (rec as unknown as Record<string, CsvValue>)[k]),
       fileOf.get(input.recordImportIds[i]) ?? "",
     ]);
-    body = toCsv([...names, "import"], rows);
+    body = toCsv([...names, ...extraKeys, "import"], rows);
   } else {
     const request: ReportRequest = {
       study: { title: input.study.title },

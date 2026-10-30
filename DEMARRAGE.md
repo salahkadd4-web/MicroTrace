@@ -42,6 +42,10 @@ Le mot de passe vous est demandé deux fois (il ne s'affiche pas). Prenez un mot
 2. Vous arrivez sur la **Console de la plateforme** : créez un laboratoire (nom, puis adresse e-mail de son responsable).
 3. L'application affiche alors un **lien d'invitation** : copiez-le et transmettez-le au responsable du laboratoire (il le lui faut pour créer son mot de passe ; aucun e-mail n'est envoyé).
 
+### Télécharger un rapport ou les mesures
+
+Dans l'onglet **Rapport** d'une étude, vous pouvez télécharger le rapport (HTML ou Markdown), le CSV des mesures actives et le dictionnaire de données. Pour ouvrir le CSV dans Excel : **Données > À partir d'un fichier texte/CSV**, choisissez le séparateur « ; » et le séparateur décimal « . » (les valeurs sont écrites telles qu'enregistrées, avec un point).
+
 ## 6. Arrêter et redémarrer
 
 ```powershell

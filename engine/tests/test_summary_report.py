@@ -224,12 +224,13 @@ CONTEXT_CHANGED = ("Les paramètres de l'étude (méthodes ou limites) ont chang
 
 
 def test_context_changed_flag(client, auth_headers):
-    base = client.post("/report", headers=auth_headers, json=_req()).json()
+    at = "2026-10-25T12:00:00Z"
+    base = client.post("/report", headers=auth_headers, json=_req(generated_at=at)).json()
     false = client.post("/report", headers=auth_headers,
-                        json=_req(context_changed=False)).json()
+                        json=_req(generated_at=at, context_changed=False)).json()
     assert false == base
     assert CONTEXT_CHANGED not in base["markdown"]
-    on = client.post("/report", headers=auth_headers, json=_req(context_changed=True)).json()
+    on = client.post("/report", headers=auth_headers, json=_req(generated_at=at, context_changed=True)).json()
     lines = on["markdown"].split("\n")
     assert f"> **{CONTEXT_CHANGED}**" in lines
     assert lines.index(f"> **{CONTEXT_CHANGED}**") < lines.index("## Versions")

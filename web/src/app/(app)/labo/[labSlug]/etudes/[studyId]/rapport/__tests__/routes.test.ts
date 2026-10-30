@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/session", () => ({ requireUser: vi.fn() }));
 vi.mock("@/server/engine/client", async (orig) => {
@@ -9,8 +9,8 @@ vi.mock("@/server/engine/client", async (orig) => {
 });
 
 import { redirect } from "next/navigation";
-import { GET as dictionaryGET } from "../dictionnaire/route";
-import { GET as reportGET } from "../telecharger/route";
+import { GET as dictionaryGET, HEAD as dictionaryHEAD } from "../dictionnaire/route";
+import { GET as reportGET, HEAD as reportHEAD } from "../telecharger/route";
 import { prisma } from "@/server/db";
 import {
   EngineError,
@@ -62,6 +62,10 @@ const NAMES = [
   "sample_id", "matrix", "polymer", "reported_value", "unit", "method", "aliquot", "record_type",
   "matrix_detail", "lod", "loq", "detection_status", "identification_status", "size_min_um",
   "size_max_um", "analysis_date", "batch", "lab", "comment",
+];
+const EXTRA = [
+  "polymer_raw", "technique", "value", "canonical_value", "canonical_unit", "canonical_lod",
+  "canonical_loq", "source_row", "source_column",
 ];
 const DICT_CSV = `name,label_fr,type\r\n${NAMES.map((n) => `${n},"L, ${n}",text`).join("\r\n")}\r\n`;
 const REPORT = { html: "<!doctype html><p>é '</p>", markdown: "# Rapport é\n" };
@@ -140,7 +144,10 @@ const callDict = (q: string, slug = "labo-a", id = studyId) =>
   });
 const downloads = () => prisma.auditEvent.findMany({ where: { action: "report.download" } });
 
+afterEach(() => vi.useRealTimers());
+
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-30T23:30:00Z") });
   await resetDb();
   report.mockReset();
   dictionary.mockReset();
@@ -161,7 +168,7 @@ describe("GET rapport/telecharger", () => {
     expect(res.headers.get("content-security-policy")).toBe(
       "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
     );
-    const day = new Date().toISOString().slice(0, 10);
+    const day = "2026-10-31"; // 23:30 UTC = 00:30 à Paris
     const name = `rapport-etude-sang-n-1-${day}.html`;
     expect(res.headers.get("content-disposition")).toBe(
       `attachment; filename="${name}"; filename*=UTF-8''${name}`,
@@ -174,6 +181,30 @@ describe("GET rapport/telecharger", () => {
       entityId: studyId,
       after: { format: "html" },
     });
+  });
+
+  it("HEAD : 405 Allow GET, sans appel au moteur ni audit", async () => {
+    await setup();
+    for (const head of [reportHEAD, dictionaryHEAD]) {
+      const res = head();
+      expect(res.status).toBe(405);
+      expect(res.headers.get("allow")).toBe("GET");
+    }
+    expect(report).not.toHaveBeenCalled();
+    expect(dictionary).not.toHaveBeenCalled();
+    expect(await downloads()).toHaveLength(0);
+  });
+
+  it("laboratoire suspendu : 403 « Accès refusé. », sans moteur ni audit", async () => {
+    await setup();
+    await prisma.laboratory.update({ where: { id: labId }, data: { suspendedAt: new Date() } });
+    for (const res of [await callReport("?format=html"), await callDict("?format=csv")]) {
+      expect(res.status).toBe(403);
+      expect(await res.text()).toBe("Accès refusé.");
+      expect(res.headers.get("content-disposition")).toBeNull();
+    }
+    expect(report).not.toHaveBeenCalled();
+    expect(await downloads()).toHaveLength(0);
   });
 
   it("Markdown : octets du moteur, sans CSP", async () => {
@@ -214,12 +245,13 @@ describe("GET rapport/telecharger", () => {
     const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes).slice(1);
     const [head, line, tail] = text.split("\r\n");
     expect(tail).toBe("");
-    expect(head).toBe([...NAMES, "import"].join(";"));
+    expect(head).toBe([...NAMES, ...EXTRA, "import"].join(";"));
     expect(line.split(";").length).toBeGreaterThan(NAMES.length); // comment est cité
     expect(line).toBe(
       [
         "S1", "whole_blood", "PET", "-0.5", "ug/mL", "Py-GC/MS", "A", "sample", "EDTA", "0.1", "",
         "quantified", "confirmed", "", "", "2024-01-02", "B1", "'=HYPERLINK(x)", '"a;""b"""',
+        "pet", "py_gc_ms", "-0.5", "-0.5", "ug/mL", "0.1", "", "2", "PET",
         "données été.csv",
       ].join(";"),
     );
@@ -288,6 +320,10 @@ describe("GET rapport/telecharger", () => {
     expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
     dictionary.mockRejectedValue(new EngineUnavailableError());
     expect((await callReport("?format=csv")).status).toBe(503);
+    dictionary.mockRejectedValue(new EngineError(500, "x"));
+    const csv = await callReport("?format=csv");
+    expect(csv.status).toBe(502);
+    expect(await csv.text()).toBe("Le moteur d'analyse n'a pas pu produire le dictionnaire de données.");
     expect(await downloads()).toHaveLength(0);
   });
 
@@ -331,7 +367,11 @@ describe("GET rapport/dictionnaire", () => {
     dictionary.mockRejectedValue(new EngineUnavailableError());
     expect((await callDict("?format=md")).status).toBe(503);
     dictionary.mockRejectedValue(new EngineError(500, "x"));
-    expect((await callDict("?format=md")).status).toBe(502);
+    const refused = await callDict("?format=md");
+    expect(refused.status).toBe(502);
+    expect(await refused.text()).toBe(
+      "Le moteur d'analyse n'a pas pu produire le dictionnaire de données.",
+    );
   });
 });
 

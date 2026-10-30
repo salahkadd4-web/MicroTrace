@@ -26,9 +26,14 @@ describe("slugTitle", () => {
 describe("noms de fichiers", () => {
   const d = new Date("2026-10-30T23:59:00Z");
   it("rapport et mesures", () => {
-    expect(reportFileName("html", "Étude A", d)).toBe("rapport-etude-a-2026-10-30.html");
-    expect(reportFileName("md", "Étude A", d)).toBe("rapport-etude-a-2026-10-30.md");
-    expect(reportFileName("csv", "Étude A", d)).toBe("mesures-etude-a-2026-10-30.csv");
+    expect(reportFileName("html", "Étude A", d)).toBe("rapport-etude-a-2026-10-31.html");
+    expect(reportFileName("md", "Étude A", d)).toBe("rapport-etude-a-2026-10-31.md");
+    expect(reportFileName("csv", "Étude A", d)).toBe("mesures-etude-a-2026-10-31.csv");
+  });
+  it("date en heure de Paris, pas en UTC", () => {
+    expect(reportFileName("md", "A", new Date("2026-10-30T22:30:00Z"))).toBe("rapport-a-2026-10-30.md");
+    expect(reportFileName("md", "A", new Date("2026-10-30T23:30:00Z"))).toBe("rapport-a-2026-10-31.md");
+    expect(reportFileName("md", "A", new Date("2026-01-01T23:30:00Z"))).toBe("rapport-a-2026-01-02.md");
   });
   it("Content-Disposition avec filename et filename*", () => {
     expect(contentDisposition("a-b.csv")).toBe(
