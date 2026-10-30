@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/app/EmptyState";
 import { FormField } from "@/components/app/FormField";
 import { formatNumberFr, NumberFr } from "@/components/app/NumberFr";
 import { SelectField } from "@/components/app/SelectField";
+import { OctagonAlert, TriangleAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -36,11 +37,23 @@ const SEVERITY_LABEL: Record<Severity, string> = {
 };
 
 function SeverityBadge({ severity }: { severity: Severity }) {
-  if (severity === "error") return <Badge variant="destructive">{SEVERITY_LABEL.error}</Badge>;
-  if (severity === "warning") {
-    return <Badge className="bg-warning text-warning-foreground">{SEVERITY_LABEL.warning}</Badge>;
+  if (severity === "error") {
+    return (
+      <Badge variant="destructive">
+        <OctagonAlert aria-hidden="true" />
+        {SEVERITY_LABEL.error}
+      </Badge>
+    );
   }
-  return <Badge variant="secondary">{SEVERITY_LABEL.info}</Badge>;
+  if (severity === "warning") {
+    return (
+      <Badge variant="warning">
+        <TriangleAlert aria-hidden="true" />
+        {SEVERITY_LABEL.warning}
+      </Badge>
+    );
+  }
+  return <Badge variant="neutral">{SEVERITY_LABEL.info}</Badge>;
 }
 
 const plural = (n: number, one: string, many: string) => `${formatNumberFr(n)} ${n > 1 ? many : one}`;
@@ -137,7 +150,7 @@ export function IssuesTable({ issues }: { issues: readonly Issue[] }) {
               <TableCell>
                 <SeverityBadge severity={i.severity} />
               </TableCell>
-              <TableCell>{i.code}</TableCell>
+              <TableCell className="font-mono text-xs">{i.code}</TableCell>
               <TableCell className="text-right">
                 <NumberFr value={i.row} />
               </TableCell>

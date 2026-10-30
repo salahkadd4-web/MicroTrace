@@ -1,3 +1,4 @@
+import { FlaskConical } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -14,15 +15,18 @@ export function DataNatureBanner({ nature }: { nature: DataNature }) {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-        simulated ? "border-warning bg-warning text-warning-foreground" : "bg-muted",
+        "flex flex-wrap items-center gap-2.5 rounded-lg border px-4 py-2.5 text-sm",
+        simulated ? "border-warning bg-warning text-warning-foreground" : "bg-card",
       )}
       data-nature={nature}
     >
       {simulated ? (
-        <strong className="font-bold uppercase tracking-wide">{LABELS[nature]}</strong>
+        <>
+          <FlaskConical className="size-4 shrink-0" aria-hidden="true" />
+          <strong className="font-bold uppercase tracking-wide">{LABELS[nature]}</strong>
+        </>
       ) : (
-        <Badge variant="secondary">{LABELS[nature]}</Badge>
+        <Badge variant={nature === "published" ? "positive" : "neutral"}>{LABELS[nature]}</Badge>
       )}
       <span className={simulated ? undefined : "text-muted-foreground"}>
         Prototype de recherche, pas un dispositif médical

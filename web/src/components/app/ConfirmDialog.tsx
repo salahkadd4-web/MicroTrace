@@ -22,6 +22,7 @@ export function ConfirmDialog({
   onConfirm,
   trigger,
   confirmLabel = "Confirmer",
+  confirmVariant = "default",
   open: openProp,
   onOpenChange,
 }: {
@@ -33,6 +34,7 @@ export function ConfirmDialog({
   /** Sans déclencheur, le dialogue est piloté par `open` / `onOpenChange`. */
   trigger?: ReactNode;
   confirmLabel?: string;
+  confirmVariant?: "default" | "destructive";
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -86,7 +88,7 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => setOpen(false)}>
             Annuler
           </Button>
-          <Button onClick={confirm} disabled={blocked}>
+          <Button variant={confirmVariant} onClick={confirm} disabled={blocked}>
             {confirmLabel}
           </Button>
         </DialogFooter>

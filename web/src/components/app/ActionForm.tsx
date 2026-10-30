@@ -22,6 +22,7 @@ export function ActionForm({
   submitVariant,
   className,
   resetOnSuccess = true,
+  columns = 1,
 }: {
   action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
   children: (state: ActionState) => ReactNode;
@@ -30,6 +31,8 @@ export function ActionForm({
   submitVariant?: "default" | "outline" | "secondary";
   className?: string;
   resetOnSuccess?: boolean;
+  /** À 2, les champs sont rangés sur deux colonnes (une seule en dessous de `sm`). */
+  columns?: 1 | 2;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
   const [, startTransition] = useTransition();
@@ -48,8 +51,14 @@ export function ActionForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className={cn("space-y-4", className)}>
-      <Fragment key={resetKey}>{children(state)}</Fragment>
+    <form onSubmit={onSubmit} className={cn("space-y-4", columns === 2 && "max-w-3xl", className)}>
+      {columns === 2 ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Fragment key={resetKey}>{children(state)}</Fragment>
+        </div>
+      ) : (
+        <Fragment key={resetKey}>{children(state)}</Fragment>
+      )}
       <FormError message={state.error} />
       <SubmitButton pending={pending} pendingLabel={pendingLabel} variant={submitVariant}>
         {submitLabel}

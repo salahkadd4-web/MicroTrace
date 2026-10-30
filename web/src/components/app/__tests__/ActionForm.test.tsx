@@ -62,4 +62,39 @@ describe("ActionForm", () => {
     await user.click(screen.getByRole("button", { name: "Envoyer" }));
     expect(await screen.findByRole("button", { name: "Envoi…" })).toBeDisabled();
   });
+
+  it("range les champs sur deux colonnes à la demande, sans y mettre les champs cachés", () => {
+    const action = vi.fn(async () => ({ ok: true as const }));
+    const { container } = render(
+      <ActionForm action={action} submitLabel="Envoyer" pendingLabel="Envoi…" columns={2}>
+        {() => (
+          <>
+            <input type="hidden" name="id" value="1" />
+            <FormField id="a" label="A">
+              <Input id="a" name="a" />
+            </FormField>
+            <FormField id="b" label="B" className="sm:col-span-2">
+              <Input id="b" name="b" />
+            </FormField>
+          </>
+        )}
+      </ActionForm>,
+    );
+    const form = container.querySelector("form")!;
+    const grid = form.querySelector(":scope > div.grid")!;
+    expect(grid).toHaveClass("sm:grid-cols-2");
+    expect(grid.querySelector("#a")).not.toBeNull();
+    expect(form).toHaveClass("max-w-3xl");
+    expect(screen.getByLabelText("B").parentElement).toHaveClass("sm:col-span-2");
+  });
+
+  it("reste en une colonne par défaut", () => {
+    const action = vi.fn(async () => ({ ok: true as const }));
+    const { container } = render(
+      <ActionForm action={action} submitLabel="Envoyer" pendingLabel="Envoi…">
+        {() => <Input aria-label="X" />}
+      </ActionForm>,
+    );
+    expect(container.querySelector("form > div.grid")).toBeNull();
+  });
 });

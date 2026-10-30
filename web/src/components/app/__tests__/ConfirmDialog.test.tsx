@@ -58,4 +58,25 @@ describe("ConfirmDialog", () => {
     await user.click(screen.getByRole("button", { name: "Ouvrir" }));
     expect(screen.getByRole("button", { name: "Confirmer" })).toBeEnabled();
   });
+
+  it("confirme en variante par défaut, ou destructive à la demande", async () => {
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <ConfirmDialog title="T" description="D" onConfirm={vi.fn()} trigger={<button>Ouvrir</button>} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Ouvrir" }));
+    expect(screen.getByRole("button", { name: "Confirmer" })).toHaveAttribute("data-variant", "default");
+    unmount();
+    render(
+      <ConfirmDialog
+        title="T"
+        description="D"
+        confirmVariant="destructive"
+        onConfirm={vi.fn()}
+        trigger={<button>Ouvrir</button>}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Ouvrir" }));
+    expect(screen.getByRole("button", { name: "Confirmer" })).toHaveAttribute("data-variant", "destructive");
+  });
 });
