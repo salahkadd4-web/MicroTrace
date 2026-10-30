@@ -1,6 +1,6 @@
 import { type ChildProcess, execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { createWriteStream, existsSync, mkdtempSync, rmSync } from "node:fs";
+import { createWriteStream, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -78,12 +78,16 @@ export function killTree(child: ChildProcess | undefined): void {
   }
 }
 
-/** Interroge l'adresse jusqu'à obtenir une réponse HTTP (statut < 500) ou jusqu'au délai. */
+/**
+ * Interroge l'adresse jusqu'à obtenir une réponse HTTP (statut < 500) que `accept` valide, ou
+ * jusqu'au délai. Le contrôle du contenu fait échouer vite un autre processus sur un port réutilisé.
+ */
 export async function waitForHttp(
   url: string,
   label: string,
   timeoutMs: number,
   isAlive: () => boolean,
+  accept: (body: string) => boolean,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   let last = "aucune réponse";
@@ -91,12 +95,29 @@ export async function waitForHttp(
     if (!isAlive()) throw new Error(`${label} s'est arrêté avant d'être prêt.`);
     try {
       const res = await fetch(url, { redirect: "manual" });
-      if (res.status < 500) return;
-      last = `statut ${res.status}`;
+      if (res.status < 500) {
+        if (accept(await res.text())) return;
+        last = "réponse inattendue (autre processus sur ce port ?)";
+      } else {
+        last = `statut ${res.status}`;
+      }
     } catch (e) {
       last = e instanceof Error ? e.message : String(e);
     }
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error(`${label} n'est pas prêt après ${Math.round(timeoutMs / 1000)} s (${last}).`);
+}
+
+/** Dernières lignes d'un journal, secrets remplacés par « *** » (écrit sur stderr en cas d'échec). */
+export function printLogTail(file: string, secrets: string[], lines = 40): void {
+  let text: string;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return;
+  }
+  let tail = text.split(/\r?\n/).slice(-lines).join("\n");
+  for (const secret of secrets) if (secret) tail = tail.split(secret).join("***");
+  console.error(`--- ${path.basename(file)} (fin) ---\n${tail}`);
 }

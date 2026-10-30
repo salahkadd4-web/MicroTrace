@@ -23,18 +23,18 @@ const EXAMPLES: Record<string, Example> = {
   },
 };
 
-/** Le rapport nomme les polymères par leur code moteur (PS_SUM) et met « au moins un polymère » en minuscules pour ANY. */
-const REPORT_CODES: Record<string, string> = { "PS (somme)": "PS_SUM", "Au moins un polymère": "au moins un polymère" };
-
+/** Le rapport affiche les mêmes libellés que l'écran : une ligne par polymère, colonne « Quantifiés/échantillons ». */
 function expectReportFigures(html: string) {
   const rows = [...html.matchAll(/<tr>(.*?)<[/]tr>/g)].map((m) =>
     [...m[1].matchAll(/<td>(.*?)<[/]td>/g)].map((c) => c[1]),
   );
   for (const [label, ratio] of FIGURES) {
-    const code = REPORT_CODES[label] ?? label;
-    const row = rows.find((r) => r.includes(code) && r.some((c) => c.startsWith(ratio + " ")));
-    expect(row, `rapport : ${code} ${ratio}`).toBeTruthy();
+    const row = rows.find((r) => r.length === 3 && r[0] === label);
+    expect(row, `rapport : ligne « ${label} »`).toBeTruthy();
+    expect(row![2].split(" ")[0], `rapport : ${label}`).toBe(ratio);
   }
+  // Les codes bruts ne sont plus la première colonne d'aucun tableau (le texte libre des issues peut les citer).
+  expect(rows.filter((r) => ["PS_SUM", "ANY", "au moins un polymère"].includes(r[0]))).toEqual([]);
 }
 
 async function createExample(page: Page, button: string) {
@@ -43,24 +43,21 @@ async function createExample(page: Page, button: string) {
   await page.goto(`/labo/${labA.labSlug}/projets`);
   await page.getByRole("button", { name: button }).click();
   await page.waitForURL(/\/etudes\/[^/]+\/imports/);
-  await expect(page.getByText("Import enregistré.")).toBeVisible().catch(() => undefined);
   return page.url().match(/\/etudes\/([^/]+)\//)![1];
 }
 
 for (const [name, ex] of Object.entries(EXAMPLES)) {
   test(`Parcours ${name}`, async ({ page }) => {
-    const { labA } = readState();
     const studyId = await createExample(page, ex.button);
 
     // Onglet Résultats : les six chiffres, avec les libellés français des codes moteur.
     await page.getByRole("link", { name: "Résultats" }).click();
     await page.waitForURL(/\/resultats/);
-    const rows = page.getByRole("row");
+    const freq = page.getByRole("table", { name: /^Fréquences de quantification/ });
     for (const [label, ratio] of FIGURES) {
-      await expect(
-        rows.filter({ hasText: label }).filter({ hasText: ratio }).first(),
-        `${label} ${ratio}`,
-      ).toBeVisible();
+      const row = freq.getByRole("row").filter({ has: page.getByRole("cell", { name: label, exact: true }) });
+      await expect(row, label).toHaveCount(1);
+      await expect(row.getByRole("cell").nth(2), label).toHaveText(ratio, { useInnerText: true });
     }
     await expect(page.getByText("PS_SUM")).toHaveCount(0);
     await expect(page.getByText("Prototype de recherche, pas un dispositif médical").first()).toBeVisible();
@@ -95,6 +92,5 @@ for (const [name, ex] of Object.entries(EXAMPLES)) {
       expect(html).toContain("10.1016/j.envint.2022.107199");
       expect(html).toContain("CC BY 4.0");
     }
-    expect(labA.labSlug).toBeTruthy();
   });
 }

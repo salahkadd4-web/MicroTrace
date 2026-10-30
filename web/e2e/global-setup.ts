@@ -5,6 +5,7 @@ import {
   E2E_DIST_DIR,
   freePort,
   killTree,
+  printLogTail,
   pythonPath,
   randomToken,
   REPO_DIR,
@@ -19,12 +20,15 @@ import {
  * Pile autonome : PostgreSQL embarqué (port libre, base migrée), moteur Python, application
  * compilée (`next build` dans un dossier à part) puis servie par `next start`. Tout est arrêté
  * et supprimé par la fonction renvoyée, même quand un test échoue.
+ * Limite connue : un arrêt brutal du processus pendant `next build` peut laisser des processus
+ * orphelins (postgres, moteur) que ce nettoyage ne voit pas.
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
   let db: TestDb | undefined;
   let engine: ChildProcess | undefined;
   let web: ChildProcess | undefined;
   const work = tempDir("microtrace-e2e-");
+  const secrets: string[] = [];
 
   const teardown = async () => {
     killTree(web);
@@ -42,6 +46,9 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     const engineSecret = randomToken(48);
     const authSecret = randomToken(48);
     const password = `Mdp-${randomToken(24)}`;
+    secrets.push(engineSecret, authSecret, password);
+    const dbPassword = new URL(db.url).password;
+    secrets.push(dbPassword, db.url);
     const engineUrl = `http://127.0.0.1:${enginePort}`;
     const webUrl = `http://127.0.0.1:${webPort}`;
     const varDir = path.join(work, "var");
@@ -58,7 +65,14 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       REPO_DIR,
       path.join(work, "engine.log"),
     );
-    await waitForHttp(`${engineUrl}/health`, "Le moteur", 60_000, () => engine?.exitCode === null);
+    await waitForHttp(`${engineUrl}/health`, "Le moteur", 60_000, () => engine?.exitCode === null, (body) => {
+      try {
+        const h = JSON.parse(body) as { engine_api?: unknown; rules_version?: unknown };
+        return typeof h.engine_api === "number" && typeof h.rules_version === "string";
+      } catch {
+        return false;
+      }
+    });
 
     const appEnv: NodeJS.ProcessEnv = {
       ...process.env,
@@ -105,7 +119,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       WEB_DIR,
       path.join(work, "web.log"),
     );
-    await waitForHttp(`${webUrl}/connexion`, "L'application", 90_000, () => web?.exitCode === null);
+    await waitForHttp(`${webUrl}/connexion`, "L'application", 90_000, () => web?.exitCode === null, (body) => body.includes("Prototype de recherche, pas un dispositif médical"));
 
     process.env.E2E_BASE_URL = webUrl;
     process.env.E2E_DATABASE_URL = db.url;
@@ -113,6 +127,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     process.env.E2E_STATE_FILE = stateFile;
     return teardown;
   } catch (e) {
+    for (const f of ["engine.log", "web.log"]) printLogTail(path.join(work, f), secrets);
     await teardown();
     throw e;
   }

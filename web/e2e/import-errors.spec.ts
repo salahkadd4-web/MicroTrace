@@ -27,7 +27,11 @@ test("Parcours B — un fichier en erreur n'est pas importable", async ({ page }
   await page.getByRole("button", { name: "Lancer le contrôle" }).click();
 
   // Le contrôle affiche l'erreur ; on ne peut ni passer à l'étape suivante ni enregistrer.
-  await expect(page.getByRole("cell", { name: "Erreur" }).first()).toBeVisible();
+  const unitRow = page
+    .getByRole("row")
+    .filter({ has: page.getByRole("cell", { name: "Erreur", exact: true }) })
+    .filter({ hasText: "furlong" });
+  await expect(unitRow).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Suivant" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Enregistrer l'import" })).toHaveCount(0);
 
