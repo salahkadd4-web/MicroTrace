@@ -40,6 +40,14 @@ def _lab(group: str, code: str) -> str:
     return label_fr(group, code)
 
 
+# Same display labels as the web screen (web/src/lib/polymer-labels.ts); other codes unchanged.
+_POLYMER_LABELS = {"PS_SUM": "PS (somme)", "ANY": "Au moins un polymère"}
+
+
+def _poly(code: str) -> str:
+    return _POLYMER_LABELS.get(str(code), str(code))
+
+
 def _c(value: object) -> str:
     """Untrusted text for Markdown: single line, markup and link syntax neutralised."""
     text = " ".join(str(value).split())
@@ -108,7 +116,7 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
                     [[m.name, _lab('technique', m.technique)] for m in ctx.methods])
     if ctx.limits:
         L += _table(["Méthode", "Polymère", "LOD", "LOQ", "Unité", "Source"],
-                    [[x.method, x.polymer, _num(x.lod), _num(x.loq), UNITS[x.unit_code].label,
+                    [[x.method, _poly(x.polymer), _num(x.lod), _num(x.loq), UNITS[x.unit_code].label,
                       x.source] for x in ctx.limits])
     else:
         L += ["Aucune limite de détection déclarée.", ""]
@@ -128,7 +136,7 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     freqs = quantification_frequency(records)
     if freqs:
         L += _table(["Polymère", "Matrice", "Quantifiés/échantillons"],
-                    [[_lab('polymer', f.polymer), _where(f.matrix, f.matrix_detail),
+                    [[_poly(f.polymer), _where(f.matrix, f.matrix_detail),
                       f"{f.n_quantified}/{f.n_samples} ({fmt_fr(round(f.fraction * 100, 1))} %)"]
                      for f in freqs])
     else:
@@ -139,7 +147,7 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     if stats:
         L += _table(["Polymère", "Méthode", "Matrice", "Grandeur", "Unité", "n quantifiés",
                      "Min", "Médiane", "Moyenne", "Max"],
-                    [[p.polymer, p.method, _where(p.matrix, p.matrix_detail),
+                    [[_poly(p.polymer), p.method, _where(p.matrix, p.matrix_detail),
                       f"{_lab('kind', p.kind.value)}, {_lab('basis', p.basis.value)}",
                       p.canonical_unit.label,
                       p.n_quantified, _num(p.min), _num(p.median), _num(p.mean), _num(p.max)]

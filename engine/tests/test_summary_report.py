@@ -67,6 +67,14 @@ def test_report_content(client, auth_headers):
     assert pos == sorted(pos)
 
 
+def test_report_polymer_labels_like_screen(client, auth_headers):
+    md = client.post("/report", headers=auth_headers, json=_req()).json()["markdown"]
+    assert "| PS (somme) |" in md
+    assert "| Au moins un polymère |" in md
+    assert "PS_SUM" not in md and "| ANY |" not in md and "au moins un polymère" not in md
+    assert "| PET |" in md
+
+
 def test_report_html_safe(client, auth_headers):
     body = _req()
     body["study"]["title"] = "Étude <b>x</b>"
@@ -200,7 +208,7 @@ def test_study_reference_comes_from_context_only(client, auth_headers):
 
 def test_any_and_unit_labels(client, auth_headers):
     md = client.post("/report", headers=auth_headers, json=_req()).json()["markdown"]
-    assert "| au moins un polymère | sang total |" in md and "ANY" not in md
+    assert "| Au moins un polymère | sang total |" in md and "ANY" not in md
     limits = md[md.index("| Méthode | Polymère | LOD"):md.index("## Imports")]
     assert "µg/mL" in limits and "ug/mL" not in limits
 
