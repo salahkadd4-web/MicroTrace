@@ -10,6 +10,7 @@ vi.mock("@/server/engine/client", async (orig) => {
       exampleLeslie2022: vi.fn(),
       suggestMapping: vi.fn(),
       checkImport: vi.fn(),
+      summary: vi.fn(),
     },
   };
 });
@@ -24,6 +25,7 @@ import { engineClient } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import type { LabContext } from "@/server/lab-context";
 import * as projectsModule from "@/server/projects";
+import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
 import * as settingsModule from "@/server/study-settings";
 import { resetDb } from "../../../test/db-reset";
@@ -51,6 +53,7 @@ const {
   revokeInvitation,
 } = membersModule;
 const { createProject, getProject, listProjects } = projectsModule;
+const { getStudyResults, loadActiveResultsInput } = resultsModule;
 const {
   archiveStudy,
   buildStudyContext,
@@ -255,6 +258,16 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { returns: (r) => expect(r).toBeNull() },
     },
   },
+  results: {
+    getStudyResults: {
+      run: (ctx, ids) => getStudyResults(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    loadActiveResultsInput: {
+      run: (ctx, ids) => loadActiveResultsInput(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+  },
   examples: {
     createExampleStudy: {
       run: (ctx) => createExampleStudy(ctx, "fictif"),
@@ -326,6 +339,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
     recordAudit:
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
+  results: {},
   examples: {},
   members: {},
   invitations: {
@@ -342,6 +356,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   "study-settings": settingsModule,
   audit: auditModule,
   imports: importsModule,
+  results: resultsModule,
   examples: examplesModule,
   members: membersModule,
   invitations: invitationsModule,
@@ -803,6 +818,8 @@ describe("un viewer de A", () => {
       "existingKeys",
       "listImports",
       "getImport",
+      "getStudyResults",
+      "loadActiveResultsInput",
     ]);
     const exported = Object.entries(CASES).flatMap(([, cases]) =>
       Object.keys(cases),
@@ -817,6 +834,8 @@ describe("un viewer de A", () => {
     expect(await listProjects(viewerA)).toHaveLength(1);
     expect((await getProject(viewerA, idsA.project))?.id).toBe(idsA.project);
     expect((await getStudyView(viewerA, idsA.study))?.id).toBe(idsA.study);
+    expect((await loadActiveResultsInput(viewerA, idsA.study)).study.id).toBe(idsA.study);
+    expect(await getStudyResults(viewerA, idsA.study)).toEqual({ empty: true });
     expect(await buildStudyContext(viewerA, idsA.study)).toMatchObject({
       data_nature: "laboratory",
     });
