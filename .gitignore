@@ -6,6 +6,7 @@ datasets/*
 data/interim/
 data/processed/
 models/
+!docs/models/
 *.parquet
 *.rds
 *.ckpt
