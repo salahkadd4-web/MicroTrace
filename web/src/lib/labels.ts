@@ -41,3 +41,29 @@ export function labelOf(labels: Record<string, string>, code: string): string {
 export function toOptions(labels: Record<string, string>) {
   return Object.entries(labels).map(([value, label]) => ({ value, label }));
 }
+
+export const MATRIX_LABELS: Record<string, string> = {
+  whole_blood: "Sang total",
+  plasma: "Plasma",
+  serum: "Sérum",
+  other: "Autre matrice",
+};
+
+export const QUANTITY_KIND_LABELS: Record<string, string> = {
+  mass_concentration: "Concentration massique",
+  number_concentration: "Concentration en nombre",
+};
+
+export const BASIS_LABELS: Record<string, string> = {
+  per_volume: "par volume",
+  per_mass: "par masse",
+};
+
+/** Statuts de détection, dans l'ordre d'affichage. */
+export const DETECTION_STATUS_LABELS: Record<string, string> = {
+  quantified: "Quantifié",
+  between_lod_loq: "Entre LOD et LOQ",
+  below_lod: "< LOD",
+  not_quantified: "Non quantifié",
+  not_analysed: "Non analysé",
+};

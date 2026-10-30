@@ -1,17 +1,295 @@
-import { requireLab } from "@/server/lab-context";
+import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
+import { formatNumberFr, NumberFr } from "@/components/app/NumberFr";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  BASIS_LABELS,
+  DETECTION_STATUS_LABELS,
+  labelOf,
+  MATRIX_LABELS,
+  QUANTITY_KIND_LABELS,
+} from "@/lib/labels";
+import { polymerLabel } from "@/lib/polymer-labels";
+import { canWrite } from "@/lib/roles";
+import { unitLabel } from "@/lib/units";
+import { EngineUnavailableError } from "@/server/engine/client";
+import { requireLab } from "@/server/lab-context";
+import { getStudyResults, type StudyResults } from "@/server/results";
+import { loadStudy } from "../load-study";
+import { groupFrequencies, groupResults, type ResultGroup } from "./group-results";
+import { FrequencyChart, SamplePointsChart } from "./ResultCharts";
+
+const ENGINE_DOWN = "Le moteur d'analyse est indisponible.";
+const CONTEXT_CHANGED =
+  "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
+
+const percent = new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 });
+
+const matrixName = (matrix: string, detail: string) =>
+  `${labelOf(MATRIX_LABELS, matrix)}${detail ? ` (${detail})` : ""}`;
+
+function groupTitle(g: ResultGroup) {
+  return [
+    g.method,
+    matrixName(g.matrix, g.matrixDetail),
+    `${labelOf(QUANTITY_KIND_LABELS, g.kind)} ${labelOf(BASIS_LABELS, g.basis)}`,
+    unitLabel(g.unit),
+  ].join(" · ");
+}
+
+/** Colonnes de statut : celles que le moteur renvoie, dans l'ordre d'affichage habituel. */
+function statusColumns(g: ResultGroup): string[] {
+  const present = new Set(g.stats.flatMap((s) => Object.keys(s.counts_by_status)));
+  const known = Object.keys(DETECTION_STATUS_LABELS).filter((k) => present.has(k));
+  const others = [...present].filter((k) => !(k in DETECTION_STATUS_LABELS));
+  return [...known, ...others];
+}
+
+function StatsTable({ group }: { group: ResultGroup }) {
+  const unit = unitLabel(group.unit);
+  const statuses = statusColumns(group);
+  return (
+    <Table>
+      <TableCaption className="sr-only">Statistiques — {groupTitle(group)}</TableCaption>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Polymère</TableHead>
+          <TableHead className="text-right">n quantifiés</TableHead>
+          <TableHead className="text-right">Min ({unit})</TableHead>
+          <TableHead className="text-right">Médiane ({unit})</TableHead>
+          <TableHead className="text-right">Moyenne ({unit})</TableHead>
+          <TableHead className="text-right">Max ({unit})</TableHead>
+          {statuses.map((s) => (
+            <TableHead key={s} className="text-right">
+              {labelOf(DETECTION_STATUS_LABELS, s)}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {group.stats.map((s) => (
+          <TableRow key={s.polymer}>
+            <TableCell>{polymerLabel(s.polymer)}</TableCell>
+            <TableCell className="text-right">
+              <NumberFr value={s.n_quantified} />
+            </TableCell>
+            <TableCell className="text-right">
+              <NumberFr value={s.min} />
+            </TableCell>
+            <TableCell className="text-right">
+              <NumberFr value={s.median} />
+            </TableCell>
+            <TableCell className="text-right">
+              <NumberFr value={s.mean} />
+            </TableCell>
+            <TableCell className="text-right">
+              <NumberFr value={s.max} />
+            </TableCell>
+            {statuses.map((k) => (
+              <TableCell key={k} className="text-right">
+                <NumberFr value={s.counts_by_status[k] ?? 0} />
+              </TableCell>
+            ))}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+}
+
+function PointsSection({ group }: { group: ResultGroup }) {
+  const unit = unitLabel(group.unit);
+  const title = groupTitle(group);
+  // Seuls les échantillons quantifiés ont une valeur à tracer ; les autres statuts ne le sont jamais.
+  const quantified = group.samples.filter((s) => s.status === "quantified" && s.value !== null);
+  const polymerCodes = [
+    ...new Set([...group.stats.map((s) => s.polymer), ...quantified.map((s) => s.polymer)]),
+  ];
+  const points = quantified.map((s) => ({
+    sampleId: s.sample_id,
+    polymerIndex: polymerCodes.indexOf(s.polymer),
+    value: s.value as number,
+  }));
+  return (
+    <div className="space-y-3">
+      <h3 className="text-base font-medium">Valeurs par échantillon — {title}</h3>
+      <p className="text-sm text-muted-foreground">
+        Chaque point est un échantillon quantifié, en {unit}. Seuls les échantillons quantifiés sont
+        tracés : les autres statuts sont comptés dans le tableau des statistiques.
+      </p>
+      {points.length === 0 ? (
+        <p className="text-sm">Aucun échantillon quantifié dans ce groupe.</p>
+      ) : (
+        <>
+          <SamplePointsChart
+            polymers={polymerCodes.map(polymerLabel)}
+            points={points}
+            unit={unit}
+            ariaLabel={`Valeurs par échantillon (${unit}) — ${title}`}
+          />
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">Voir les données</summary>
+            <Table>
+              <TableCaption className="sr-only">
+                Données des valeurs par échantillon — {title}
+              </TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Échantillon</TableHead>
+                  <TableHead>Polymère</TableHead>
+                  <TableHead className="text-right">Valeur ({unit})</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {quantified.map((s) => (
+                  <TableRow key={`${s.sample_id}|${s.polymer}`}>
+                    <TableCell>{s.sample_id}</TableCell>
+                    <TableCell>{polymerLabel(s.polymer)}</TableCell>
+                    <TableCell className="text-right">
+                      <NumberFr value={s.value} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </details>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
+  const { summary } = data;
+  const versions = [...new Set(data.imports.map((i) => i.rulesVersion))];
+  const frequencyGroups = groupFrequencies(summary);
+  const groups = groupResults(summary);
+  return (
+    <div className="space-y-8">
+      {data.mixedRulesVersions ? (
+        <Alert>
+          <AlertDescription>
+            Les imports actifs ont été contrôlés avec des versions de règles différentes (
+            {versions.join(", ")}) : les statuts ne sont pas forcément comparables entre imports.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {data.contextChanged ? (
+        <Alert>
+          <AlertDescription>{CONTEXT_CHANGED}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section className="space-y-2">
+        <h2 className="text-lg font-semibold">Règle d&apos;agrégation</h2>
+        <p className="text-sm">{summary.aggregation_rule}</p>
+      </section>
+
+      <section className="space-y-6">
+        <h2 className="text-lg font-semibold">Fréquences de quantification</h2>
+        {frequencyGroups.map((fg) => {
+          const name = matrixName(fg.matrix, fg.matrixDetail);
+          return (
+            <div key={fg.key} className="space-y-3">
+              <h3 className="text-base font-medium">
+                Fréquence de quantification par polymère — {name}
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Part des échantillons quantifiés pour chaque polymère, dans la matrice « {name} ».
+              </p>
+              <FrequencyChart
+                bars={fg.rows.map((r) => ({ label: polymerLabel(r.polymer), fraction: r.fraction }))}
+                ariaLabel={`Fréquence de quantification par polymère — ${name}`}
+              />
+              <Table>
+                <TableCaption className="sr-only">Fréquences de quantification — {name}</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Polymère</TableHead>
+                    <TableHead>Matrice</TableHead>
+                    <TableHead className="text-right">Quantifiés / échantillons</TableHead>
+                    <TableHead className="text-right">Fréquence</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {fg.rows.map((r) => (
+                    <TableRow key={r.polymer}>
+                      <TableCell>{polymerLabel(r.polymer)}</TableCell>
+                      <TableCell>{name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumberFr(r.n_quantified)}/{formatNumberFr(r.n_samples)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {percent.format(r.fraction)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          );
+        })}
+      </section>
+
+      {groups.map((g) => (
+        <section key={g.key} className="space-y-4">
+          <h2 className="text-lg font-semibold">{groupTitle(g)}</h2>
+          {g.stats.length > 0 ? <StatsTable group={g} /> : null}
+          <PointsSection group={g} />
+        </section>
+      ))}
+    </div>
+  );
+}
 
 export default async function ResultatsPage({
   params,
 }: {
-  params: Promise<{ labSlug: string }>;
+  params: Promise<{ labSlug: string; studyId: string }>;
 }) {
-  const { labSlug } = await params;
-  await requireLab(labSlug);
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Résultats</h2>
-      <EmptyState title="Disponible à l'étape suivante du prototype" />
-    </section>
-  );
+  const { labSlug, studyId } = await params;
+  const [study, ctx] = await Promise.all([loadStudy(labSlug, studyId), requireLab(labSlug)]);
+
+  let data: StudyResults;
+  try {
+    data = await getStudyResults(ctx, study.id);
+  } catch (e) {
+    if (e instanceof EngineUnavailableError) {
+      return (
+        <Alert variant="destructive">
+          <AlertDescription>{ENGINE_DOWN}</AlertDescription>
+        </Alert>
+      );
+    }
+    throw e;
+  }
+
+  if (data.empty) {
+    const canImport = canWrite(ctx.role) && study.archivedAt === null;
+    return (
+      <EmptyState
+        title="Aucun import actif : importez un fichier pour voir les résultats."
+        action={
+          canImport ? (
+            <Link
+              href={`/labo/${labSlug}/etudes/${study.id}/imports`}
+              className="text-sm font-medium underline underline-offset-4"
+            >
+              Aller aux imports
+            </Link>
+          ) : undefined
+        }
+      />
+    );
+  }
+  return <Results data={data} />;
 }
