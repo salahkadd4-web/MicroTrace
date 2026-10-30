@@ -16,7 +16,8 @@ export async function GET(
   { params }: { params: Promise<{ labSlug: string; studyId: string }> },
 ): Promise<Response> {
   const { labSlug, studyId } = await params;
-  const auth = await authenticate(labSlug);
+  const nav = { request, labSlug, studyId };
+  const auth = await authenticate(labSlug, nav);
   if ("response" in auth) return auth.response;
 
   const format = new URL(request.url).searchParams.get("format");
@@ -24,7 +25,7 @@ export async function GET(
   try {
     return attachment(await buildDictionaryDownload(auth.ctx, studyId, format));
   } catch (e) {
-    return failure(e, "rapport/dictionnaire", DICTIONARY_REFUSED);
+    return failure(e, "rapport/dictionnaire", DICTIONARY_REFUSED, nav);
   }
 }
 

@@ -1,10 +1,10 @@
 import {
   attachment,
   authenticate,
-  DICTIONARY_REFUSED,
+  FILE_REFUSED,
   failure,
   headNotAllowed,
-  NOTHING_TO_EXPORT,
+  nothingToExport,
   plain,
   REPORT_REFUSED,
 } from "@/server/download-response";
@@ -21,7 +21,8 @@ export async function GET(
   { params }: { params: Promise<{ labSlug: string; studyId: string }> },
 ): Promise<Response> {
   const { labSlug, studyId } = await params;
-  const auth = await authenticate(labSlug);
+  const nav = { request, labSlug, studyId };
+  const auth = await authenticate(labSlug, nav);
   if ("response" in auth) return auth.response;
 
   const format = new URL(request.url).searchParams.get("format");
@@ -30,13 +31,14 @@ export async function GET(
   }
   try {
     const result = await buildReportDownload(auth.ctx, studyId, format as DownloadFormat);
-    if (result.kind === "empty") return plain(NOTHING_TO_EXPORT, 409);
+    if (result.kind === "empty") return nothingToExport(nav);
     return attachment(result, format === "html");
   } catch (e) {
     return failure(
       e,
       "rapport/telecharger",
-      format === "csv" ? DICTIONARY_REFUSED : REPORT_REFUSED,
+      format === "csv" ? FILE_REFUSED : REPORT_REFUSED,
+      nav,
     );
   }
 }

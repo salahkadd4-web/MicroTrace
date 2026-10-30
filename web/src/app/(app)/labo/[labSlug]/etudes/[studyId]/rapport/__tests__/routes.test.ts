@@ -18,6 +18,7 @@ import {
   engineClient,
   type ImportResult,
 } from "@/server/engine/client";
+import { NOTHING_TO_EXPORT } from "@/lib/engine-messages";
 import { measurementRow } from "@/server/imports";
 import { requireUser } from "@/server/session";
 import { resetDb } from "../../../../../../../../../test/db-reset";
@@ -221,7 +222,7 @@ describe("GET rapport/telecharger", () => {
     await setup();
     await callReport("?format=md");
     const req = report.mock.calls[0][0];
-    expect(req.context).toEqual(frozen);
+    expect(req.context).toEqual({ ...frozen, reference_doi: null, reference_license: null });
     expect(req.context_changed).toBe(true); // le contexte actuel de l'étude diffère du figé
     expect(req.study).toEqual({ title: "Étude « Sang » n°1" });
     expect(req.imports[0]).toMatchObject({
@@ -245,18 +246,50 @@ describe("GET rapport/telecharger", () => {
     const text = new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes).slice(1);
     const [head, line, tail] = text.split("\r\n");
     expect(tail).toBe("");
-    expect(head).toBe([...NAMES, ...EXTRA, "import"].join(";"));
+    expect(head).toBe([...NAMES, ...EXTRA, "data_nature", "import"].join(";"));
     expect(line.split(";").length).toBeGreaterThan(NAMES.length); // comment est cité
     expect(line).toBe(
       [
         "S1", "whole_blood", "PET", "-0.5", "ug/mL", "Py-GC/MS", "A", "sample", "EDTA", "0.1", "",
         "quantified", "confirmed", "", "", "2024-01-02", "B1", "'=HYPERLINK(x)", '"a;""b"""',
         "pet", "py_gc_ms", "-0.5", "-0.5", "ug/mL", "0.1", "", "2", "PET",
-        "données été.csv",
+        "laboratory", "données été.csv",
       ].join(";"),
     );
     expect((await downloads())[0].after).toEqual({ format: "csv" });
     expect(report).not.toHaveBeenCalled();
+  });
+
+  it("étude simulée : colonne data_nature, fichier préfixé SIMULE-, rapport SIMULÉ", async () => {
+    await setup();
+    await prisma.study.update({ where: { id: studyId }, data: { nature: "simulated" } });
+    const csv = await callReport("?format=csv");
+    expect(csv.headers.get("content-disposition")).toContain('filename="SIMULE-mesures-');
+    const text = (await csv.text()).slice(1);
+    const [head, line] = text.split(String.fromCharCode(13, 10));
+    const cols = head.split(";");
+    expect(cols.slice(-2)).toEqual(["data_nature", "import"]);
+    expect(line.split(";").at(-2)).toBe("simulated");
+    const md = await callReport("?format=md");
+    expect(md.headers.get("content-disposition")).toContain('filename="SIMULE-rapport-');
+    // Nature passée à « simulée » après l'import : le moteur reçoit la nature actuelle (SIMULÉ).
+    expect(report.mock.calls[0][0].context.data_nature).toBe("simulated");
+    expect(report.mock.calls[0][0].context_changed).toBe(true);
+  });
+
+  it("DOI, licence et correction du blanc actuels dans le rapport", async () => {
+    await setup();
+    await prisma.study.update({
+      where: { id: studyId },
+      data: { referenceDoi: "10.1234/neuf", referenceLicense: "CC0-1.0", blankCorrected: "yes" },
+    });
+    await callReport("?format=md");
+    expect(report.mock.calls[0][0].context).toMatchObject({
+      reference_doi: "10.1234/neuf",
+      reference_license: "CC0-1.0",
+      blank_corrected: "yes",
+      methods: frozen.methods,
+    });
   });
 
   it("format inconnu ou absent : 400", async () => {
@@ -304,7 +337,7 @@ describe("GET rapport/telecharger", () => {
       const res = await callReport(`?format=${f}`, "labo-a", emptyStudyId);
       expect(res.status).toBe(409);
       expect(res.headers.get("content-type")).toBe("text/plain; charset=utf-8");
-      expect(await res.text()).toBe("Aucun import actif : rien à exporter.");
+      expect(await res.text()).toBe(NOTHING_TO_EXPORT);
     }
     expect(report).not.toHaveBeenCalled();
     expect(await downloads()).toHaveLength(0);
@@ -323,8 +356,59 @@ describe("GET rapport/telecharger", () => {
     dictionary.mockRejectedValue(new EngineError(500, "x"));
     const csv = await callReport("?format=csv");
     expect(csv.status).toBe(502);
-    expect(await csv.text()).toBe("Le moteur d'analyse n'a pas pu produire le dictionnaire de données.");
+    expect(await csv.text()).toBe("Le moteur d'analyse n'a pas pu produire le fichier.");
     expect(await downloads()).toHaveLength(0);
+  });
+
+  it("navigation : les échecs ramènent à la page Rapport (303), sans audit", async () => {
+    await setup();
+    const base = `/labo/labo-a/etudes/${studyId}/rapport`;
+    const navigate = (q: string, id = studyId) =>
+      reportGET(
+        new Request(url("telecharger", q), { headers: { "sec-fetch-mode": "navigate" } }),
+        { params: Promise.resolve({ labSlug: "labo-a", studyId: id }) },
+      );
+    report.mockRejectedValue(new EngineUnavailableError());
+    let res = await navigate("?format=html");
+    expect([res.status, res.headers.get("location")]).toEqual([303, `${base}?erreur=moteur`]);
+    expect(res.headers.get("content-disposition")).toBeNull();
+    report.mockRejectedValue(new EngineError(422, "secret"));
+    res = await navigate("?format=md");
+    expect(res.headers.get("location")).toBe(`${base}?erreur=refus`);
+    report.mockRejectedValue(new EngineError(413, "trop gros"));
+    res = await navigate("?format=md");
+    expect(res.headers.get("location")).toBe(`${base}?erreur=volume`);
+    dictionary.mockRejectedValue(new EngineError(500, "x"));
+    res = await navigate("?format=csv");
+    expect(res.headers.get("location")).toBe(`${base}?erreur=refus`);
+    res = await navigate("?format=html", emptyStudyId);
+    expect(res.headers.get("location")).toBe(`/labo/labo-a/etudes/${emptyStudyId}/rapport?erreur=vide`);
+    expect(await downloads()).toHaveLength(0);
+    // Hors navigation (curl, fetch) : texte brut ; 413 a son propre message.
+    expect((await callReport("?format=md")).status).toBe(502);
+    report.mockRejectedValue(new EngineError(413, "trop gros"));
+    const big = await callReport("?format=md");
+    expect(await big.text()).toBe(
+      "Étude trop volumineuse pour le calcul : retirez un import ou scindez l'étude.",
+    );
+  });
+
+  it("navigation sans session : 303 vers /connexion?callbackUrl= la page Rapport ; autre laboratoire : 404", async () => {
+    await setup();
+    const nav = (slug: string, id: string) =>
+      reportGET(
+        new Request(url("telecharger", "?format=html"), { headers: { "sec-fetch-mode": "navigate" } }),
+        { params: Promise.resolve({ labSlug: slug, studyId: id }) },
+      );
+    sessionUser.mockImplementation(async () => redirect("/connexion"));
+    const res = await nav("labo-a", studyId);
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toBe(
+      `/connexion?callbackUrl=${encodeURIComponent(`/labo/labo-a/etudes/${studyId}/rapport`)}`,
+    );
+    sessionUser.mockReset();
+    sessionUser.mockResolvedValue({ id: (await prisma.user.findFirstOrThrow()).id, name: "m", email: "m@example.org" });
+    expect((await nav("labo-a", otherStudyId)).status).toBe(404);
   });
 
   it("moteur qui refuse : 502 sans le détail du moteur, pas d'audit", async () => {

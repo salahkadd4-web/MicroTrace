@@ -1,14 +1,14 @@
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DOWNLOAD_ERRORS, NOTHING_TO_EXPORT } from "@/lib/engine-messages";
 import { requireLab } from "@/server/lab-context";
 import { getReportAvailability } from "@/server/report-download";
 import { loadStudy } from "../load-study";
 
-const NOTHING_TO_EXPORT = "Aucun import actif : rien à exporter.";
-
 const CONTENTS = [
   "Le titre, la date et les versions (moteur, règles de contrôle de chaque import).",
-  "La nature des données, le DOI et la licence de référence, la correction du blanc, tels qu'ils étaient lors des imports.",
-  "Les méthodes et les limites de détection (LOD, LOQ) utilisées pour calculer les statuts.",
+  "La nature des données, le DOI et la licence de référence, la correction du blanc, tels qu'ils sont dans les paramètres de l'étude (une étude simulée est signalée SIMULÉ).",
+  "Les méthodes et les limites de détection (LOD, LOQ) utilisées pour calculer les statuts, telles qu'elles étaient lors des imports.",
   "Les imports actifs : fichier, empreinte SHA-256, date, auteur, nombre d'erreurs, d'avertissements et d'informations.",
   "La règle d'agrégation, les fréquences de quantification et les statistiques par groupe, calculées par le moteur.",
   "Le résumé des contrôles qualité, les avertissements et les limites d'interprétation.",
@@ -41,10 +41,16 @@ function Download({
 
 export default async function RapportPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ labSlug: string; studyId: string }>;
+  searchParams?: Promise<{ erreur?: string | string[] }>;
 }) {
   const { labSlug, studyId } = await params;
+  const erreur = (await searchParams)?.erreur;
+  const failure = typeof erreur === "string" && Object.hasOwn(DOWNLOAD_ERRORS, erreur)
+      ? DOWNLOAD_ERRORS[erreur]
+      : undefined;
   const [study, ctx] = await Promise.all([loadStudy(labSlug, studyId), requireLab(labSlug)]);
   const { hasMeasurements } = await getReportAvailability(ctx, study.id);
   const base = `/labo/${labSlug}/etudes/${study.id}/rapport`;
@@ -67,6 +73,11 @@ export default async function RapportPage({
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Télécharger</h2>
+        {failure ? (
+          <Alert variant="destructive">
+            <AlertDescription>{failure}</AlertDescription>
+          </Alert>
+        ) : null}
         {hasMeasurements ? null : (
           <p id="rapport-vide" className="text-sm text-muted-foreground">
             {NOTHING_TO_EXPORT}
@@ -94,7 +105,7 @@ export default async function RapportPage({
         </div>
         <p className="text-sm text-muted-foreground">
           Le CSV des mesures actives utilise le point-virgule comme séparateur et contient les
-          valeurs telles qu&apos;enregistrées, avec le nom du fichier d&apos;import.
+          valeurs telles qu&apos;enregistrées, avec la nature des données de l&apos;étude et le nom du fichier d&apos;import. Le nom d&apos;un fichier d&apos;étude simulée commence par SIMULE-.
         </p>
       </section>
 

@@ -25,9 +25,9 @@ const study = {
   project: { id: "p1", title: "Projet un" },
 };
 
-async function renderPage() {
+async function renderPage(erreur?: string) {
   const params = Promise.resolve({ labSlug: "labo", studyId: "s1" });
-  const page = await RapportPage({ params });
+  const page = await RapportPage({ params, searchParams: Promise.resolve({ erreur }) });
   render(await StudyLayout({ params, children: page }));
 }
 
@@ -61,11 +61,30 @@ describe("page Rapport", () => {
   it("sans mesure active : rapport et CSV désactivés avec l'explication, dictionnaire disponible", async () => {
     vi.mocked(getReportAvailability).mockResolvedValue({ hasMeasurements: false });
     await renderPage();
-    expect(screen.getByText("Aucun import actif : rien à exporter.")).toBeInTheDocument();
+    expect(screen.getByText("Aucune mesure d'échantillon dans les imports actifs : rien à exporter.")).toBeInTheDocument();
     for (const name of [/Rapport HTML/, /Rapport Markdown/, /Mesures actives/]) {
       expect(screen.queryByRole("link", { name })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name })).toBeDisabled();
     }
     expect(href(/Dictionnaire \(CSV\)/)).toContain("dictionnaire?format=csv");
+  });
+
+  it("?erreur= : message fixe en Alert, jamais une valeur inconnue", async () => {
+    await renderPage("moteur");
+    expect(screen.getByRole("alert")).toHaveTextContent("Le moteur d'analyse est indisponible.");
+  });
+
+  it.each([
+    ["refus", "Le moteur d'analyse n'a pas pu produire le fichier."],
+    ["volume", "Étude trop volumineuse pour le calcul : retirez un import ou scindez l'étude."],
+    ["vide", "Aucune mesure d'échantillon dans les imports actifs : rien à exporter."],
+  ])("?erreur=%s", async (code, text) => {
+    await renderPage(code);
+    expect(screen.getByRole("alert")).toHaveTextContent(text);
+  });
+
+  it.each(["constructor", "__proto__", "inconnu"])("?erreur=%s : aucune alerte", async (code) => {
+    await renderPage(code);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
