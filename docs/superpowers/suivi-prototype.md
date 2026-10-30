@@ -49,3 +49,14 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Les nombres de l'écran Résultats suivent la règle du rapport du moteur (`fmt_fr` : 6 chiffres significatifs, arrondi à la paire, pourcentage à une décimale, sans séparateur de milliers) ; les tests de `NumberFr` et de `test_summary_report.py` portent les mêmes cas à garder en miroir.
 - Page Résultats : le tableau « Voir les données » est limité à 500 lignes par groupe ; le nuage de points trace tous les échantillons quantifiés sans seuil (à plafonner si une étude approche 50 000 points). Le budget de 75 Mo suppose des textes libres courts (commentaire, lot, laboratoire) : au-delà, le moteur répond 413 et l'écran propose de retirer un import ou de scinder l'étude.
 - Les tests de bout en bout recompilent l'application à chaque exécution (environ trois minutes) ; un arrêt brutal pendant la compilation peut laisser des processus orphelins.
+
+## Passe de design — points reportés (2026-10-30)
+
+- Le code brut `PS_SUM` apparaît dans le tableau des limites de Paramètres et dans la colonne « Objet » du Journal (« PS_SUM (Py-GC/MS) »), alors que Résultats affiche « PS (somme) ». Piste : afficher `polymerLabel(code)` avec le code en repère secondaire (`font-mono text-xs text-muted-foreground`), et remplacer le champ libre « Polymère » de « Ajouter une limite » par une liste (libellé affiché, code envoyé) ; vérifier les tests qui lisent les codes bruts.
+- Le sélecteur de laboratoires n'est pas capturé dans les images de revue : les données du test de bout en bout n'ont qu'un laboratoire par utilisateur.
+- Le thème sombre est défini dans `globals.css` (jetons) mais n'est pas activé.
+- Bouton « Supprimer » d'une limite (Paramètres) en `destructive` plein, alors que les autres déclencheurs de ligne (Retirer, Révoquer, Suspendre) sont en `outline sm` : harmoniser (`ConfirmActionButton` avec une propriété `size`).
+- Paramètres : l'état vide et le panneau « Ajouter un contrôle qualité » sont tous deux en pointillés ; les formulaires à 2 colonnes (`max-w-3xl`) s'arrêtent avant le bord de leur panneau à 1024 px.
+- Pages hors périmètre restées à l'ancien style : `aucun-laboratoire`, avis de laboratoire suspendu, `app/not-found.tsx` (état vide sans icône, liens simplement soulignés).
+- Images de revue : attente fixe de 500 ms au lieu de `document.fonts.ready` ; le champ fichier natif s'affiche en anglais selon la langue de Chromium.
+- Imports : la colonne d'actions est collée à droite (`sticky`) pour rester visible sur tablette ; le tableau des statistiques de Résultats défile dans son cadre (exception acceptée).
