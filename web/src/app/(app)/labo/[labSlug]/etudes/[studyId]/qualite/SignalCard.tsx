@@ -68,7 +68,7 @@ export function SignalCard({
         <h4 className="text-base font-medium">
           {signal.subject_label} — {polymerLabel(signal.group.polymer)}
         </h4>
-        <Badge variant="outline">{groupLabel(signal.group)}</Badge>
+        <Badge variant="outline" className="h-auto whitespace-normal">{groupLabel(signal.group)}</Badge>
       </div>
       <p className="text-sm">{signal.explanation}</p>
 

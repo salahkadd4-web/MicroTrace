@@ -1,4 +1,5 @@
 import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Section } from "@/components/app/Section";
@@ -248,7 +249,20 @@ export default async function QualitePage({
   if (data.kind === "empty") {
     return (
       <div className="space-y-6">
-        <EmptyState icon={ShieldCheck} title={NO_SAMPLE_MEASUREMENTS} />
+        <EmptyState
+          icon={ShieldCheck}
+          title={NO_SAMPLE_MEASUREMENTS}
+          action={
+            canWrite(ctx.role) && study.archivedAt === null ? (
+              <Link
+                href={`/labo/${labSlug}/etudes/${study.id}/imports`}
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Aller aux imports
+              </Link>
+            ) : undefined
+          }
+        />
         <DisappearedSection items={data.disappeared} />
       </div>
     );

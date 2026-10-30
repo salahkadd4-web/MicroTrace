@@ -295,6 +295,22 @@ describe("page Qualité", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Signaux disparus" })).toBeInTheDocument();
   });
 
+  it("état vide : lien vers les imports pour un rôle d'écriture, pas pour un lecteur", async () => {
+    vi.mocked(getStudyQuality).mockResolvedValue({ kind: "empty", disappeared: [] } as never);
+    await renderPage();
+    expect(screen.getByRole("link", { name: "Aller aux imports" })).toHaveAttribute(
+      "href",
+      "/labo/labo/etudes/s1/imports",
+    );
+  });
+
+  it("état vide : pas de lien vers les imports pour un lecteur", async () => {
+    vi.mocked(requireLab).mockResolvedValue(asRole("viewer"));
+    vi.mocked(getStudyQuality).mockResolvedValue({ kind: "empty", disappeared: [] } as never);
+    await renderPage();
+    expect(screen.queryByRole("link", { name: "Aller aux imports" })).not.toBeInTheDocument();
+  });
+
   it("état vide sans décision : pas de section disparus", async () => {
     vi.mocked(getStudyQuality).mockResolvedValue({ kind: "empty", disappeared: [] } as never);
     await renderPage();
