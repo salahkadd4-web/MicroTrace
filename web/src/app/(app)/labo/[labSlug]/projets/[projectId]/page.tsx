@@ -1,8 +1,10 @@
+import { FlaskConical } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Section } from "@/components/app/Section";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -26,10 +28,10 @@ export default async function ProjetPage({ params }: { params: Promise<{ labSlug
   return (
     <>
       <PageHeader title={project.title} subtitle={project.description || undefined} />
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Études</h2>
+      <Section title="Études">
         {project.studies.length === 0 ? (
           <EmptyState
+            icon={FlaskConical}
             title="Aucune étude dans ce projet."
             description={canWrite(ctx.role) ? "Créez une première étude ci-dessous." : undefined}
           />
@@ -47,13 +49,15 @@ export default async function ProjetPage({ params }: { params: Promise<{ labSlug
               {project.studies.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell>
-                    <Link href={`/labo/${labSlug}/etudes/${s.id}/parametres`} className="underline">
+                    <Link href={`/labo/${labSlug}/etudes/${s.id}/parametres`} className="font-medium text-primary underline-offset-4 hover:underline">
                       {s.title}
                     </Link>
                   </TableCell>
                   <TableCell>{labelOf(NATURE_LABELS, s.nature)}</TableCell>
                   <TableCell>
-                    {s.archivedAt ? <Badge variant="secondary">Archivée</Badge> : "Active"}
+                    <Badge variant={s.archivedAt ? "neutral" : "positive"}>
+                      {s.archivedAt ? "Archivée" : "Active"}
+                    </Badge>
                   </TableCell>
                   <TableCell>
                     <DateTimeFr value={s.createdAt} />
@@ -63,12 +67,11 @@ export default async function ProjetPage({ params }: { params: Promise<{ labSlug
             </TableBody>
           </Table>
         )}
-      </section>
+      </Section>
       {canWrite(ctx.role) ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Nouvelle étude</h2>
+        <Section title="Nouvelle étude">
           <CreateStudyForm labSlug={labSlug} projectId={project.id} />
-        </section>
+        </Section>
       ) : null}
     </>
   );

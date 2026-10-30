@@ -1,6 +1,8 @@
+import { Building2 } from "lucide-react";
 import { EmptyState } from "@/components/app/EmptyState";
 import { NumberFr } from "@/components/app/NumberFr";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Section } from "@/components/app/Section";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -24,10 +26,10 @@ export default async function AdminPage() {
         title="Console de la plateforme"
         subtitle="Compteurs seulement : aucune donnée scientifique des laboratoires n'est affichée."
       />
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Laboratoires</h2>
+<Section title="Laboratoires">
         {labs.length === 0 ? (
           <EmptyState
+            icon={Building2}
             title="Aucun laboratoire pour le moment."
             description="Créez le premier laboratoire ci-dessous."
           />
@@ -50,9 +52,9 @@ export default async function AdminPage() {
               {labs.map((l) => (
                 <TableRow key={l.id}>
                   <TableCell>{l.name}</TableCell>
-                  <TableCell>{l.slug}</TableCell>
+                  <TableCell className="font-mono text-xs">{l.slug}</TableCell>
                   <TableCell>
-                    <Badge variant={l.suspended ? "destructive" : "secondary"}>
+                    <Badge variant={l.suspended ? "destructive" : "positive"}>
                       {l.suspended ? "Suspendu" : "Actif"}
                     </Badge>
                   </TableCell>
@@ -73,19 +75,17 @@ export default async function AdminPage() {
             </TableBody>
           </Table>
         )}
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Créer un laboratoire</h2>
+      </Section>
+      <Section title="Créer un laboratoire">
         <CreateLaboratoryForm />
-      </section>
+      </Section>
       {orphans.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Nouvelle invitation du responsable</h2>
-          <p className="text-sm text-muted-foreground">
-            Laboratoires sans responsable : {orphans.map((l) => l.name).join(", ")}.
-          </p>
+        <Section
+          title="Nouvelle invitation du responsable"
+          description={`Laboratoires sans responsable : ${orphans.map((l) => l.name).join(", ")}.`}
+        >
           <ReinviteForm labs={orphans.map((l) => ({ id: l.id, name: l.name }))} />
-        </section>
+        </Section>
       ) : null}
     </>
   );

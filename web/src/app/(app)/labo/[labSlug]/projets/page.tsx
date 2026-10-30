@@ -1,8 +1,10 @@
+import { FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { NumberFr } from "@/components/app/NumberFr";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Section } from "@/components/app/Section";
 import {
   Table,
   TableBody,
@@ -28,10 +30,10 @@ export default async function ProjetsPage({
   return (
     <>
       <PageHeader title="Projets" subtitle="Prototype de recherche, pas un dispositif médical" />
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Liste des projets</h2>
+      <Section title="Liste des projets">
         {projects.length === 0 ? (
           <EmptyState
+            icon={FolderOpen}
             title="Aucun projet pour le moment."
             description={canWrite(ctx.role) ? "Créez un premier projet ci-dessous." : undefined}
           />
@@ -48,7 +50,7 @@ export default async function ProjetsPage({
               {projects.map((p) => (
                 <TableRow key={p.id}>
                   <TableCell>
-                    <Link href={`/labo/${labSlug}/projets/${p.id}`} className="underline">
+                    <Link href={`/labo/${labSlug}/projets/${p.id}`} className="font-medium text-primary underline-offset-4 hover:underline">
                       {p.title}
                     </Link>
                   </TableCell>
@@ -63,18 +65,16 @@ export default async function ProjetsPage({
             </TableBody>
           </Table>
         )}
-      </section>
+      </Section>
       {canWrite(ctx.role) ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Nouveau projet</h2>
-          <CreateProjectForm labSlug={labSlug} />
-        </section>
-      ) : null}
-      {canWrite(ctx.role) ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Études d&apos;exemple</h2>
-          <ExampleStudies labSlug={labSlug} />
-        </section>
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <Section title="Nouveau projet">
+            <CreateProjectForm labSlug={labSlug} />
+          </Section>
+          <Section title="Études d'exemple">
+            <ExampleStudies labSlug={labSlug} />
+          </Section>
+        </div>
       ) : null}
     </>
   );

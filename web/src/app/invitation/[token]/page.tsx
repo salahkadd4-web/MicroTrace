@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Logo } from "@/components/app/Logo";
 import { PageHeader } from "@/components/app/PageHeader";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -47,17 +48,16 @@ export default async function InvitationPage({
       body = (
         <>
           <Intro labName={preview.labName} role={preview.role} />
-          <Alert>
+          <Alert variant="info">
             <AlertDescription>
               Un compte existe déjà pour cette adresse : connectez-vous puis rouvrez le lien.
             </AlertDescription>
           </Alert>
-          <Link
-            href={`/connexion?callbackUrl=${encodeURIComponent(`/invitation/${token}`)}`}
-            className="underline"
-          >
-            Se connecter
-          </Link>
+          <Button asChild variant="outline">
+            <Link href={`/connexion?callbackUrl=${encodeURIComponent(`/invitation/${token}`)}`}>
+              Se connecter
+            </Link>
+          </Button>
         </>
       );
       break;
@@ -88,21 +88,28 @@ export default async function InvitationPage({
     case "already-member":
       body = (
         <>
-          <Alert>
+          <Alert variant="info">
             <AlertDescription>Vous êtes déjà membre de ce laboratoire.</AlertDescription>
           </Alert>
-          <Link href={`/labo/${preview.labSlug}/projets`} className="underline">
-            Ouvrir le laboratoire
-          </Link>
+          <Button asChild variant="outline">
+            <Link href={`/labo/${preview.labSlug}/projets`}>Ouvrir le laboratoire</Link>
+          </Button>
         </>
       );
       break;
   }
 
   return (
-    <main className="mx-auto w-full max-w-sm space-y-4 p-6">
-      <PageHeader title="Invitation" subtitle="Prototype de recherche, pas un dispositif médical" />
-      {body}
+    <main className="grid min-h-screen place-items-center p-6">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="flex justify-center">
+          <Logo variant="full" size={48} wordmarkClassName="text-2xl" />
+        </div>
+        <div className="space-y-4 rounded-xl border bg-card p-6 shadow-xs">
+          <PageHeader title="Invitation" subtitle="Prototype de recherche, pas un dispositif médical" />
+          {body}
+        </div>
+      </div>
     </main>
   );
 }

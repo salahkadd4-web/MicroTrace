@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Logo } from "@/components/app/Logo";
+import { NavLink } from "@/components/app/NavLink";
 import { Button } from "@/components/ui/button";
 
 type LabLink = { slug: string; name: string };
@@ -24,60 +26,50 @@ export function AppShell({
   signOutAction: () => void | Promise<void>;
   children: ReactNode;
 }) {
+  const showSwitcher = Boolean(lab) && labs.length >= 2;
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b bg-card">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <div className="flex items-center gap-6">
-            <Link href={lab ? `/labo/${lab.slug}/projets` : "/"} className="font-semibold">
-              MicroTrace Studio
-            </Link>
-            {lab ? (
-              <>
-                <span className="text-sm font-medium">{lab.name}</span>
-                <nav aria-label="Navigation principale">
-                  <Link
-                    href={`/labo/${lab.slug}/projets`}
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Projets
-                  </Link>
-                  {canManageMembers ? (
-                    <Link
-                      href={`/labo/${lab.slug}/membres`}
-                      className="ml-4 text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      Membres
-                    </Link>
-                  ) : null}
-                </nav>
-              </>
-            ) : null}
+      <header className="sticky top-0 z-30 border-b bg-card">
+        <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-4 px-6">
+          <Link
+            href={lab ? `/labo/${lab.slug}/projets` : "/"}
+            className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          >
+            <Logo variant="full" />
+          </Link>
+          {lab ? (
+            <>
+              <span aria-hidden="true" className="h-6 w-px bg-border" />
+              {showSwitcher ? null : <span className="text-sm font-semibold">{lab.name}</span>}
+              <nav aria-label="Navigation principale" className="flex items-center gap-1">
+                <NavLink href={`/labo/${lab.slug}/projets`}>Projets</NavLink>
+                {canManageMembers ? (
+                  <NavLink href={`/labo/${lab.slug}/membres`}>Membres</NavLink>
+                ) : null}
+              </nav>
+            </>
+          ) : null}
+          <div className="ml-auto flex items-center gap-3 text-sm">
             {isPlatformAdmin ? (
-              <Link
-                href="/admin"
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Console
-              </Link>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/admin">Console</Link>
+              </Button>
             ) : null}
-            {lab && labs.length >= 2 ? (
-              <nav aria-label="Laboratoires" className="flex gap-3 text-sm">
+            {lab && showSwitcher ? (
+              <nav aria-label="Laboratoires" className="inline-flex rounded-lg border bg-muted p-0.5">
                 {labs.map((l) => (
                   <Link
                     key={l.slug}
                     href={`/labo/${l.slug}/projets`}
                     aria-current={l.slug === lab.slug ? "true" : undefined}
-                    className="text-muted-foreground hover:text-foreground aria-[current=true]:font-medium aria-[current=true]:text-foreground aria-[current=true]:underline"
+                    className="inline-flex h-7 items-center rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-card aria-[current=true]:font-medium aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
                   >
                     {l.name}
                   </Link>
                 ))}
               </nav>
             ) : null}
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span>{userName}</span>
+            <span className="text-muted-foreground">{userName}</span>
             <form action={signOutAction}>
               <Button type="submit" variant="outline" size="sm">
                 Se déconnecter
@@ -86,9 +78,7 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-6">
-        {children}
-      </main>
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-6 px-6 py-8">{children}</main>
     </div>
   );
 }

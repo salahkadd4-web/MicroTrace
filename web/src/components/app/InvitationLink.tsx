@@ -19,10 +19,10 @@ export function InvitationLink({ link }: { link: string }) {
   }
 
   return (
-    <div className="space-y-2 rounded-lg border p-4">
+    <div className="space-y-2 rounded-lg border bg-accent/50 p-4">
       <Label htmlFor="invitation-link">Lien d&apos;invitation</Label>
       <div className="flex gap-2">
-        <Input id="invitation-link" readOnly value={link} onFocus={(e) => e.target.select()} />
+        <Input id="invitation-link" className="font-mono text-xs" readOnly value={link} onFocus={(e) => e.target.select()} />
         <Button type="button" variant="outline" onClick={copy}>
           Copier le lien
         </Button>

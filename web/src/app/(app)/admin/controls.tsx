@@ -15,7 +15,7 @@ export function CreateLaboratoryForm() {
       action={createLaboratoryAction}
       submitLabel="Créer le laboratoire"
       pendingLabel="Création…"
-      className="max-w-xl"
+      columns={2}
     >
       {(state) => (
         <>
@@ -25,7 +25,11 @@ export function CreateLaboratoryForm() {
           <FormField id="lab-admin-email" label="Adresse e-mail du premier responsable">
             <Input id="lab-admin-email" name="email" type="email" autoComplete="off" required />
           </FormField>
-          {state.link ? <InvitationLink link={state.link} /> : null}
+          {state.link ? (
+            <div className="sm:col-span-2">
+              <InvitationLink link={state.link} />
+            </div>
+          ) : null}
         </>
       )}
     </ActionForm>
@@ -50,6 +54,7 @@ export function SuspendButton({
           : `Les membres de ${name} verront « Laboratoire suspendu. » et ne pourront plus accéder à leurs données.`
       }
       confirmLabel={suspended ? "Réactiver" : "Suspendre"}
+      confirmVariant={suspended ? "default" : "destructive"}
       onConfirm={async () => (await setSuspendedAction(laboratoryId, !suspended)).error}
       trigger={
         <Button variant="outline" size="sm">
@@ -67,7 +72,7 @@ export function ReinviteForm({ labs }: { labs: { id: string; name: string }[] })
       action={reinviteFirstAdminAction}
       submitLabel="Créer l'invitation"
       pendingLabel="Création…"
-      className="max-w-xl"
+      columns={2}
     >
       {(state) => (
         <>
@@ -81,7 +86,11 @@ export function ReinviteForm({ labs }: { labs: { id: string; name: string }[] })
           <FormField id="reinvite-email" label="Adresse e-mail du responsable">
             <Input id="reinvite-email" name="email" type="email" autoComplete="off" required />
           </FormField>
-          {state.link ? <InvitationLink link={state.link} /> : null}
+          {state.link ? (
+            <div className="sm:col-span-2">
+              <InvitationLink link={state.link} />
+            </div>
+          ) : null}
         </>
       )}
     </ActionForm>

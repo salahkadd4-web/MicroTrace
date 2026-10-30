@@ -1,7 +1,9 @@
+import { MailOpen } from "lucide-react";
 import { notFound } from "next/navigation";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { PageHeader } from "@/components/app/PageHeader";
+import { Section } from "@/components/app/Section";
 import {
   Table,
   TableBody,
@@ -36,8 +38,7 @@ export default async function MembresPage({
   return (
     <>
       <PageHeader title="Membres" subtitle={ctx.labName} />
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Membres du laboratoire</h2>
+      <Section title="Membres du laboratoire">
         <Table>
           <TableHeader>
             <TableRow>
@@ -77,11 +78,10 @@ export default async function MembresPage({
             ))}
           </TableBody>
         </Table>
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Invitations en attente</h2>
+      </Section>
+      <Section title="Invitations en attente">
         {invitations.length === 0 ? (
-          <EmptyState title="Aucune invitation en attente." />
+          <EmptyState icon={MailOpen} title="Aucune invitation en attente." />
         ) : (
           <Table>
             <TableHeader>
@@ -114,11 +114,10 @@ export default async function MembresPage({
             </TableBody>
           </Table>
         )}
-      </section>
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Inviter une personne</h2>
+      </Section>
+      <Section title="Inviter une personne">
         <InviteForm labSlug={labSlug} />
-      </section>
+      </Section>
     </>
   );
 }

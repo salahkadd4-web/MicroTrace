@@ -12,7 +12,6 @@ export function CreateProjectForm({ labSlug }: { labSlug: string }) {
       action={createProjectAction.bind(null, labSlug)}
       submitLabel="Créer le projet"
       pendingLabel="Création…"
-      className="max-w-xl"
     >
       {() => (
         <>

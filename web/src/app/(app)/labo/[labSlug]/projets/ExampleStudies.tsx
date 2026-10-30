@@ -22,21 +22,29 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div className="space-y-3 rounded-lg border p-4">
         <p className="text-sm text-muted-foreground">
           Étude fictive (données simulées façon Leslie 2022), pour essayer l&apos;import et les analyses
           sans données réelles.
         </p>
-        <Button type="button" variant="outline" disabled={actionPending} onClick={() => start("fictif")}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-9 w-full whitespace-normal py-1.5"
+          disabled={actionPending} onClick={() => start("fictif")}>
           {actionPending && current === "fictif" ? "Création…" : "Créer l'étude d'exemple (fictive)"}
         </Button>
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3 rounded-lg border p-4">
         <p className="text-sm text-muted-foreground">
           Données publiées : Leslie et al., Environment International 163 (2022) 107199, licence CC
           BY 4.0.
         </p>
-        <Button type="button" variant="outline" disabled={actionPending} onClick={() => start("leslie2022")}>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-auto min-h-9 w-full whitespace-normal py-1.5"
+          disabled={actionPending} onClick={() => start("leslie2022")}>
           {actionPending && current === "leslie2022" ? "Création…" : "Créer l'étude d'exemple réelle (Leslie et al. 2022)"}
         </Button>
       </div>

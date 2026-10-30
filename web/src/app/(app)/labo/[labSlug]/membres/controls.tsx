@@ -26,7 +26,7 @@ export function InviteForm({ labSlug }: { labSlug: string }) {
       action={inviteMemberAction.bind(null, labSlug)}
       submitLabel="Créer l'invitation"
       pendingLabel="Création…"
-      className="max-w-xl"
+      columns={2}
     >
       {(state) => (
         <>
@@ -41,7 +41,11 @@ export function InviteForm({ labSlug }: { labSlug: string }) {
               defaultValue="researcher"
             />
           </FormField>
-          {state.link ? <InvitationLink link={state.link} /> : null}
+          {state.link ? (
+            <div className="sm:col-span-2">
+              <InvitationLink link={state.link} />
+            </div>
+          ) : null}
         </>
       )}
     </ActionForm>
@@ -127,6 +131,7 @@ export function RemoveMemberButton({
       title="Retirer ce membre ?"
       description={`${memberName} n'aura plus accès au laboratoire. Ses données restent dans le laboratoire.`}
       confirmLabel="Retirer"
+      confirmVariant="destructive"
       onConfirm={async () => (await removeMemberAction(labSlug, membershipId)).error}
       trigger={
         <Button variant="outline" size="sm">
@@ -151,6 +156,7 @@ export function RevokeInvitationButton({
       title="Révoquer cette invitation ?"
       description={`Le lien envoyé à ${email} ne fonctionnera plus.`}
       confirmLabel="Révoquer"
+      confirmVariant="destructive"
       onConfirm={async () => (await revokeInvitationAction(labSlug, invitationId)).error}
       trigger={
         <Button variant="outline" size="sm">

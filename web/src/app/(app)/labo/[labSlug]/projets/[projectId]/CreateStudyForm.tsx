@@ -10,7 +10,7 @@ export function CreateStudyForm({ labSlug, projectId }: { labSlug: string; proje
       action={createStudyAction.bind(null, labSlug)}
       submitLabel="Créer l'étude"
       pendingLabel="Création…"
-      className="max-w-xl"
+      columns={2}
     >
       {() => (
         <>
