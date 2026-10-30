@@ -1,5 +1,7 @@
 import { DateTimeFr } from "@/components/app/DateTimeFr";
+import { ScrollText } from "lucide-react";
 import { EmptyState } from "@/components/app/EmptyState";
+import { Section } from "@/components/app/Section";
 import {
   Table,
   TableBody,
@@ -25,10 +27,9 @@ export default async function JournalPage({
   const events = await listAuditEvents(ctx, study.id);
   const labels = { methodNames: new Map((study.methods ?? []).map((m) => [m.id, m.name])) };
   return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">Journal</h2>
+    <Section title="Journal">
       {events.length === 0 ? (
-        <EmptyState title="Aucun événement enregistré." />
+        <EmptyState icon={ScrollText} title="Aucun événement enregistré." />
       ) : (
         <Table>
           <TableHeader>
@@ -62,6 +63,6 @@ export default async function JournalPage({
           </TableBody>
         </Table>
       )}
-    </section>
+    </Section>
   );
 }

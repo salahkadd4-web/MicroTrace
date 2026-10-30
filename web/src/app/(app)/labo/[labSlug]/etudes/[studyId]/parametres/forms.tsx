@@ -31,6 +31,16 @@ const UNIT_OPTIONS = UNIT_CODES.map((code) => ({ value: code, label: unitLabel(c
 
 const DECIMAL = { type: "text", inputMode: "decimal", autoComplete: "off" } as const;
 
+/** Cadre d'un formulaire d'ajout : titre h3 discret, puis le formulaire dans un encadré en pointillé. */
+function FormPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-lg border border-dashed p-4">
+      <h3 className="text-sm font-semibold">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 function StudyId({ studyId }: { studyId: string }) {
   return <input type="hidden" name="studyId" value={studyId} />;
 }
@@ -45,43 +55,47 @@ export function ReferenceForm({
   defaults: StudyFieldValues;
 }) {
   return (
-    <ActionForm
-      action={updateReferenceAction.bind(null, labSlug)}
-      submitLabel="Enregistrer"
-      pendingLabel="Enregistrement…"
-      className="max-w-xl"
-      resetOnSuccess={false}
-    >
-      {() => (
-        <>
-          <StudyId studyId={studyId} />
-          <StudyFields defaults={defaults} />
-        </>
-      )}
-    </ActionForm>
+    <FormPanel title="Modifier la référence">
+      <ActionForm
+        action={updateReferenceAction.bind(null, labSlug)}
+        submitLabel="Enregistrer"
+        pendingLabel="Enregistrement…"
+        columns={2}
+        resetOnSuccess={false}
+      >
+        {() => (
+          <>
+            <StudyId studyId={studyId} />
+            <StudyFields defaults={defaults} />
+          </>
+        )}
+      </ActionForm>
+    </FormPanel>
   );
 }
 
 export function AddMethodForm({ labSlug, studyId }: { labSlug: string; studyId: string }) {
   return (
-    <ActionForm
-      action={addMethodAction.bind(null, labSlug)}
-      submitLabel="Ajouter la méthode"
-      pendingLabel="Ajout…"
-      className="max-w-xl"
-    >
-      {() => (
-        <>
-          <StudyId studyId={studyId} />
-          <FormField id="method-name" label="Nom de la méthode">
-            <Input id="method-name" name="name" required />
-          </FormField>
-          <FormField id="method-technique" label="Technique">
-            <SelectField id="method-technique" name="technique" options={TECHNIQUE_OPTIONS} />
-          </FormField>
-        </>
-      )}
-    </ActionForm>
+    <FormPanel title="Ajouter une méthode">
+      <ActionForm
+        action={addMethodAction.bind(null, labSlug)}
+        submitLabel="Ajouter la méthode"
+        pendingLabel="Ajout…"
+        columns={2}
+      >
+        {() => (
+          <>
+            <StudyId studyId={studyId} />
+            <FormField id="method-name" label="Nom de la méthode">
+              <Input id="method-name" name="name" required />
+            </FormField>
+            <FormField id="method-technique" label="Technique">
+              <SelectField id="method-technique" name="technique" options={TECHNIQUE_OPTIONS} />
+            </FormField>
+          </>
+        )}
+      </ActionForm>
+    </FormPanel>
   );
 }
 
@@ -96,74 +110,78 @@ export function AddLimitForm({
 }) {
   const methodOptions = methods.map((m) => ({ value: m.id, label: m.name }));
   return (
-    <ActionForm
-      action={upsertLimitAction.bind(null, labSlug)}
-      submitLabel="Enregistrer la limite"
-      pendingLabel="Enregistrement…"
-      className="max-w-xl"
-    >
-      {(state) => (
-        <>
-          <StudyId studyId={studyId} />
-          <FormField id="limit-method" label="Méthode">
-            <SelectField id="limit-method" name="methodId" options={methodOptions} />
-          </FormField>
-          <FormField id="limit-polymer" label="Polymère">
-            <Input id="limit-polymer" name="polymer" required />
-          </FormField>
-          <FormField id="limit-lod" label="LOD" error={state.fieldErrors?.lod}>
-            <Input id="limit-lod" name="lod" {...DECIMAL} aria-invalid={!!state.fieldErrors?.lod} />
-          </FormField>
-          <FormField id="limit-loq" label="LOQ" error={state.fieldErrors?.loq}>
-            <Input id="limit-loq" name="loq" {...DECIMAL} aria-invalid={!!state.fieldErrors?.loq} />
-          </FormField>
-          <FormField id="limit-unit" label="Unité">
-            <SelectField id="limit-unit" name="unitCode" options={UNIT_OPTIONS} />
-          </FormField>
-          <FormField id="limit-source" label="Source">
-            <Input id="limit-source" name="source" required />
-          </FormField>
-        </>
-      )}
-    </ActionForm>
+    <FormPanel title="Ajouter une limite de détection">
+      <ActionForm
+        action={upsertLimitAction.bind(null, labSlug)}
+        submitLabel="Enregistrer la limite"
+        pendingLabel="Enregistrement…"
+        columns={2}
+      >
+        {(state) => (
+          <>
+            <StudyId studyId={studyId} />
+            <FormField id="limit-method" label="Méthode">
+              <SelectField id="limit-method" name="methodId" options={methodOptions} />
+            </FormField>
+            <FormField id="limit-polymer" label="Polymère">
+              <Input id="limit-polymer" name="polymer" required />
+            </FormField>
+            <FormField id="limit-lod" label="LOD" error={state.fieldErrors?.lod}>
+              <Input id="limit-lod" name="lod" {...DECIMAL} aria-invalid={!!state.fieldErrors?.lod} />
+            </FormField>
+            <FormField id="limit-loq" label="LOQ" error={state.fieldErrors?.loq}>
+              <Input id="limit-loq" name="loq" {...DECIMAL} aria-invalid={!!state.fieldErrors?.loq} />
+            </FormField>
+            <FormField id="limit-unit" label="Unité">
+              <SelectField id="limit-unit" name="unitCode" options={UNIT_OPTIONS} />
+            </FormField>
+            <FormField id="limit-source" label="Source">
+              <Input id="limit-source" name="source" required />
+            </FormField>
+          </>
+        )}
+      </ActionForm>
+    </FormPanel>
   );
 }
 
 export function AddQcForm({ labSlug, studyId }: { labSlug: string; studyId: string }) {
   return (
-    <ActionForm
-      action={addQcAction.bind(null, labSlug)}
-      submitLabel="Ajouter le contrôle"
-      pendingLabel="Ajout…"
-      className="max-w-xl"
-    >
-      {(state) => (
-        <>
-          <StudyId studyId={studyId} />
-          <FormField id="qc-polymer" label="Polymère">
-            <Input id="qc-polymer" name="polymer" required />
-          </FormField>
-          <FormField id="qc-kind" label="Type de contrôle">
-            <SelectField id="qc-kind" name="kind" options={QC_KIND_OPTIONS} />
-          </FormField>
-          <FormField id="qc-n" label="Effectif (n)" error={state.fieldErrors?.n}>
-            <Input id="qc-n" name="n" {...DECIMAL} required aria-invalid={!!state.fieldErrors?.n} />
-          </FormField>
-          <FormField id="qc-mean" label="Moyenne" error={state.fieldErrors?.mean}>
-            <Input id="qc-mean" name="mean" {...DECIMAL} aria-invalid={!!state.fieldErrors?.mean} />
-          </FormField>
-          <FormField id="qc-sd" label="Écart type" error={state.fieldErrors?.sd}>
-            <Input id="qc-sd" name="sd" {...DECIMAL} aria-invalid={!!state.fieldErrors?.sd} />
-          </FormField>
-          <FormField id="qc-unit" label="Unité">
-            <SelectField id="qc-unit" name="unitCode" options={UNIT_OPTIONS} />
-          </FormField>
-          <FormField id="qc-source" label="Source">
-            <Input id="qc-source" name="source" required />
-          </FormField>
-        </>
-      )}
-    </ActionForm>
+    <FormPanel title="Ajouter un contrôle qualité">
+      <ActionForm
+        action={addQcAction.bind(null, labSlug)}
+        submitLabel="Ajouter le contrôle"
+        pendingLabel="Ajout…"
+        columns={2}
+      >
+        {(state) => (
+          <>
+            <StudyId studyId={studyId} />
+            <FormField id="qc-polymer" label="Polymère">
+              <Input id="qc-polymer" name="polymer" required />
+            </FormField>
+            <FormField id="qc-kind" label="Type de contrôle">
+              <SelectField id="qc-kind" name="kind" options={QC_KIND_OPTIONS} />
+            </FormField>
+            <FormField id="qc-n" label="Effectif (n)" error={state.fieldErrors?.n}>
+              <Input id="qc-n" name="n" {...DECIMAL} required aria-invalid={!!state.fieldErrors?.n} />
+            </FormField>
+            <FormField id="qc-mean" label="Moyenne" error={state.fieldErrors?.mean}>
+              <Input id="qc-mean" name="mean" {...DECIMAL} aria-invalid={!!state.fieldErrors?.mean} />
+            </FormField>
+            <FormField id="qc-sd" label="Écart type" error={state.fieldErrors?.sd}>
+              <Input id="qc-sd" name="sd" {...DECIMAL} aria-invalid={!!state.fieldErrors?.sd} />
+            </FormField>
+            <FormField id="qc-unit" label="Unité">
+              <SelectField id="qc-unit" name="unitCode" options={UNIT_OPTIONS} />
+            </FormField>
+            <FormField id="qc-source" label="Source">
+              <Input id="qc-source" name="source" required />
+            </FormField>
+          </>
+        )}
+      </ActionForm>
+    </FormPanel>
   );
 }
 
@@ -186,6 +204,7 @@ function ConfirmActionButton({
   title,
   description,
   confirmLabel,
+  confirmVariant,
   requireReason,
   variant,
   disabled,
@@ -195,6 +214,7 @@ function ConfirmActionButton({
   title: string;
   description: string;
   confirmLabel: string;
+  confirmVariant?: "default" | "destructive";
   requireReason?: boolean;
   variant?: "default" | "outline" | "destructive";
   disabled?: boolean;
@@ -205,6 +225,7 @@ function ConfirmActionButton({
       title={title}
       description={description}
       confirmLabel={confirmLabel}
+      confirmVariant={confirmVariant}
       requireReason={requireReason}
       onConfirm={async (reason) => (await run(reason)).error}
       trigger={
@@ -223,6 +244,7 @@ export function RemoveLimitButton({ labSlug, limitId }: { labSlug: string; limit
       title="Supprimer la limite"
       description="Cette limite de détection sera supprimée. L'opération est enregistrée au journal."
       confirmLabel="Supprimer"
+      confirmVariant="destructive"
       variant="destructive"
       run={() => removeLimitAction(labSlug, limitId)}
     />
@@ -262,6 +284,7 @@ export function ArchiveControl({ labSlug, studyId }: { labSlug: string; studyId:
       title="Archiver l'étude"
       description="L'étude passera en lecture seule. Indiquez le motif de l'archivage."
       confirmLabel="Archiver"
+      confirmVariant="destructive"
       requireReason
       variant="destructive"
       run={(reason) => archiveStudyAction(labSlug, studyId, reason ?? "")}

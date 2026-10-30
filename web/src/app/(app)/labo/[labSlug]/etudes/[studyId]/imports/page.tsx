@@ -1,6 +1,8 @@
+import { FileUp } from "lucide-react";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { NumberFr } from "@/components/app/NumberFr";
+import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -48,16 +50,15 @@ export default async function ImportsPage({
   ]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {archived ? (
-        <Alert>
+        <Alert variant="info">
           <AlertDescription>Étude archivée : lecture seule.</AlertDescription>
         </Alert>
       ) : null}
 
       {writable ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold">Nouvel import</h2>
+        <Section title="Nouvel import">
           {fields ? (
             <ImportWizard labSlug={labSlug} studyId={study.id} fields={fields} />
           ) : (
@@ -65,13 +66,12 @@ export default async function ImportsPage({
               <AlertDescription>{ENGINE_DOWN}</AlertDescription>
             </Alert>
           )}
-        </section>
+        </Section>
       ) : null}
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Imports</h2>
+      <Section title="Imports">
         {imports.length === 0 ? (
-          <EmptyState title="Aucun import pour cette étude." />
+          <EmptyState icon={FileUp} title="Aucun import pour cette étude." />
         ) : (
           <Table>
             <TableHeader>
@@ -92,7 +92,7 @@ export default async function ImportsPage({
             <TableBody>
               {imports.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell>{r.fileName}</TableCell>
+                  <TableCell className="font-medium">{r.fileName}</TableCell>
                   <TableCell>
                     <DateTimeFr value={r.createdAt} />
                   </TableCell>
@@ -111,7 +111,7 @@ export default async function ImportsPage({
                   </TableCell>
                   <TableCell>
                     {r.status === "active" ? (
-                      <Badge variant="secondary">Actif</Badge>
+                      <Badge variant="positive">Actif</Badge>
                     ) : (
                       <div className="space-y-1">
                         <Badge variant="outline">Retiré</Badge>
@@ -140,7 +140,7 @@ export default async function ImportsPage({
             </TableBody>
           </Table>
         )}
-      </section>
+      </Section>
     </div>
   );
 }

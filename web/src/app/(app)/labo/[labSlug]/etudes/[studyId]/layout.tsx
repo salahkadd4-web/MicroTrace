@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { DataNatureBanner } from "@/components/app/DataNatureBanner";
 import { PageHeader } from "@/components/app/PageHeader";
@@ -18,8 +19,18 @@ export default async function StudyLayout({
     <>
       <PageHeader
         title={study.title}
-        subtitle={`Projet : ${study.project.title}`}
-        actions={study.archivedAt ? <Badge variant="secondary">Archivée</Badge> : undefined}
+        subtitle={
+          <>
+            Projet :{" "}
+            <Link
+              href={`/labo/${labSlug}/projets/${study.project.id}`}
+              className="font-medium text-primary underline-offset-4 hover:underline"
+            >
+              {study.project.title}
+            </Link>
+          </>
+        }
+        actions={study.archivedAt ? <Badge variant="neutral">Archivée</Badge> : undefined}
       />
       <DataNatureBanner nature={study.nature} />
       <StudyTabs labSlug={labSlug} studyId={study.id} />

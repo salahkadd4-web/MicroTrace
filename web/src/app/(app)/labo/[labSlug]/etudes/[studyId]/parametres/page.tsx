@@ -1,6 +1,8 @@
+import { Gauge, Layers, FlaskConical } from "lucide-react";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { NumberFr } from "@/components/app/NumberFr";
+import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -26,15 +28,6 @@ import {
   RemoveLimitButton,
 } from "./forms";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-3">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {children}
-    </section>
-  );
-}
-
 export default async function ParametresPage({
   params,
 }: {
@@ -55,14 +48,14 @@ export default async function ParametresPage({
   return (
     <>
       {archived ? (
-        <Alert>
+        <Alert variant="info">
           <AlertDescription>Étude archivée : lecture seule.</AlertDescription>
         </Alert>
       ) : null}
-      <fieldset disabled={archived} className="min-w-0 space-y-8">
+      <fieldset disabled={archived} className="min-w-0 space-y-6">
         <Section title="Méthodes">
           {methods.length === 0 ? (
-            <EmptyState title="Aucune méthode définie." />
+            <EmptyState icon={FlaskConical} title="Aucune méthode définie." />
           ) : (
             <Table>
               <TableHeader>
@@ -74,7 +67,7 @@ export default async function ParametresPage({
               <TableBody>
                 {methods.map((m) => (
                   <TableRow key={m.id}>
-                    <TableCell>{m.name}</TableCell>
+                    <TableCell className="font-medium">{m.name}</TableCell>
                     <TableCell>{labelOf(TECHNIQUE_LABELS, m.technique)}</TableCell>
                   </TableRow>
                 ))}
@@ -86,7 +79,7 @@ export default async function ParametresPage({
 
         <Section title="Limites de détection">
           {limits.length === 0 ? (
-            <EmptyState title="Aucune limite de détection définie." />
+            <EmptyState icon={Gauge} title="Aucune limite de détection définie." />
           ) : (
             <Table>
               <TableHeader>
@@ -140,7 +133,7 @@ export default async function ParametresPage({
 
         <Section title="Contrôles qualité">
           {study.qcSummaries.length === 0 ? (
-            <EmptyState title="Aucun contrôle qualité résumé." />
+            <EmptyState icon={Layers} title="Aucun contrôle qualité résumé." />
           ) : (
             <Table>
               <TableHeader>
@@ -192,7 +185,7 @@ export default async function ParametresPage({
               }}
             />
           ) : (
-            <dl className="grid max-w-xl grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dl className="grid max-w-xl grid-cols-[12rem_1fr] gap-y-2 text-sm">
               <dt className="text-muted-foreground">Nature des données</dt>
               <dd>{labelOf(NATURE_LABELS, study.nature)}</dd>
               <dt className="text-muted-foreground">DOI de référence</dt>

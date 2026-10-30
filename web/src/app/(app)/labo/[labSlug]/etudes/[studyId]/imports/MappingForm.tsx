@@ -116,8 +116,8 @@ export function MappingForm({
 
       <div className="space-y-4">
         {fields.map((f) => (
-          <fieldset key={f.name} className="grid gap-3 sm:grid-cols-2">
-            <legend className="mb-2 text-sm font-medium">
+          <fieldset key={f.name} className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
+            <legend className="px-1 text-sm font-medium">
               {f.label} <span className="font-normal text-muted-foreground">({f.name})</span>
             </legend>
             <FormField id={`map-col-${f.name}`} label={`${f.label} : colonne`}>
@@ -146,8 +146,8 @@ export function MappingForm({
       </div>
 
       {mapping.mode === "wide" ? (
-        <fieldset className="space-y-3">
-          <legend className="mb-2 text-sm font-medium">Colonnes de polymères</legend>
+        <fieldset className="space-y-3 rounded-lg border p-3">
+          <legend className="px-1 text-sm font-medium">Colonnes de polymères</legend>
           {polymerCandidates.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucune colonne disponible.</p>
           ) : (

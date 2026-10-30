@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
 import { Button } from "@/components/ui/button";
@@ -14,21 +15,24 @@ const SUSPENDED = "Laboratoire suspendu.";
 export default function LaboErrorPage({ error }: { error: Error & { digest?: string } }) {
   const suspended = error.message === SUSPENDED;
   return (
-    <EmptyState
-      title={suspended ? SUSPENDED : "Une erreur est survenue"}
-      description={
-        suspended
-          ? "L'accès à ce laboratoire est suspendu par l'équipe de la plateforme."
-          : "La page n'a pas pu être affichée. Le laboratoire a peut-être été suspendu : rechargez la page pour le vérifier."
-      }
-      action={
-        <div className="flex flex-col items-center gap-2">
-          <Button onClick={() => window.location.reload()}>Recharger</Button>
-          <Link href="/" className="underline">
-            Retour à l&apos;accueil
-          </Link>
-        </div>
-      }
-    />
+    <div className="mx-auto max-w-xl py-16">
+      <EmptyState
+        icon={CircleAlert}
+        title={suspended ? SUSPENDED : "Une erreur est survenue"}
+        description={
+          suspended
+            ? "L'accès à ce laboratoire est suspendu par l'équipe de la plateforme."
+            : "La page n'a pas pu être affichée. Le laboratoire a peut-être été suspendu : rechargez la page pour le vérifier."
+        }
+        action={
+          <div className="flex flex-col items-center gap-2">
+            <Button onClick={() => window.location.reload()}>Recharger</Button>
+            <Link href="/" className="font-medium text-primary underline-offset-4 hover:underline">
+              Retour à l&apos;accueil
+            </Link>
+          </div>
+        }
+      />
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormError } from "@/components/app/FormError";
 import { FormField } from "@/components/app/FormField";
@@ -256,25 +257,28 @@ export function ImportWizard({
 
   return (
     <div className="space-y-4">
-      <ol className="flex flex-wrap gap-2 text-sm" aria-label="Étapes de l'import">
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Étapes de l'import">
         {STEPS.map((label, index) => (
           <li
             key={label}
             aria-current={step === index + 1 ? "step" : undefined}
             className={cn(
-              "rounded-md border px-3 py-1",
+              "flex h-9 items-center gap-1.5 rounded-md border px-3 text-sm",
               step === index + 1
-                ? "border-primary font-medium text-foreground"
-                : "text-muted-foreground",
+                ? "border-primary bg-accent font-medium text-accent-foreground"
+                : index + 1 < step
+                  ? "border-transparent bg-secondary text-foreground"
+                  : "text-muted-foreground",
             )}
           >
             {label}
+            {index + 1 < step ? <Check className="size-3.5" aria-hidden="true" /> : null}
           </li>
         ))}
       </ol>
 
       {success ? (
-        <Alert role="status">
+        <Alert variant="info" role="status">
           <AlertDescription>Import enregistré.</AlertDescription>
         </Alert>
       ) : null}
@@ -333,24 +337,26 @@ export function ImportWizard({
                 Aperçu des {PREVIEW_ROWS} premières lignes
                 {table.sheet ? ` de la feuille « ${table.sheet} »` : ""}.
               </p>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {table.columns.map((c) => (
-                      <TableHead key={c}>{c}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {table.preview.slice(0, PREVIEW_ROWS).map((row, r) => (
-                    <TableRow key={r}>
-                      {previewCells(row, table.columns).map((cell, c) => (
-                        <TableCell key={c}>{cell}</TableCell>
+              <div className="max-h-96 overflow-auto rounded-lg">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {table.columns.map((c) => (
+                        <TableHead key={c}>{c}</TableHead>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {table.preview.slice(0, PREVIEW_ROWS).map((row, r) => (
+                      <TableRow key={r}>
+                        {previewCells(row, table.columns).map((cell, c) => (
+                          <TableCell key={c}>{cell}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
               {sheetFailed && token ? (
                 <Button
                   type="button"
@@ -413,7 +419,7 @@ export function ImportWizard({
         </div>
       ) : null}
 
-      <div className="flex gap-2">
+      <div className="flex justify-between border-t pt-4">
         {step > 1 ? (
           <Button
             type="button"
@@ -427,6 +433,7 @@ export function ImportWizard({
         {step < 4 ? (
           <Button
             type="button"
+            className="ml-auto"
             disabled={!canGoNext || busy}
             onClick={() => setStep((s) => (s + 1) as Step)}
           >

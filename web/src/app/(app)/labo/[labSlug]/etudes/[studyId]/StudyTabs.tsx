@@ -15,7 +15,7 @@ const TABS = [
 export function StudyTabs({ labSlug, studyId }: { labSlug: string; studyId: string }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Sections de l'étude" className="flex flex-wrap gap-1 border-b">
+    <nav aria-label="Sections de l'étude" className="sticky top-14 z-20 -mx-6 flex gap-0 overflow-x-auto border-b bg-background/95 px-6 backdrop-blur">
       {TABS.map((t) => {
         const href = `/labo/${labSlug}/etudes/${studyId}/${t.segment}`;
         const current = pathname === href || pathname.startsWith(`${href}/`);
@@ -24,7 +24,7 @@ export function StudyTabs({ labSlug, studyId }: { labSlug: string; studyId: stri
             key={t.segment}
             href={href}
             aria-current={current ? "page" : undefined}
-            className="-mb-px border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:font-medium aria-[current=page]:text-foreground"
+            className="-mb-px inline-flex h-10 items-center border-b-2 border-transparent px-4 text-sm font-medium text-muted-foreground hover:border-border hover:text-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground"
           >
             {t.label}
           </Link>
