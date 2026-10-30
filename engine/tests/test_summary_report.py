@@ -1,4 +1,5 @@
 import base64
+import html
 
 from microtrace_core.results import (
     LESLIE_LIKE_FILENAME,
@@ -216,3 +217,22 @@ def test_generated_at_datetime(client, auth_headers):
     assert re.search(r"Rapport généré le \d\d/\d\d/\d{4} \d\d:\d\d UTC", md)
     r = client.post("/report", headers=auth_headers, json=_req(generated_at="hier"))
     assert r.status_code == 422
+
+
+CONTEXT_CHANGED = ("Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains "
+                   "imports : les statuts restent ceux calculés lors de chaque import.")
+
+
+def test_context_changed_flag(client, auth_headers):
+    base = client.post("/report", headers=auth_headers, json=_req()).json()
+    false = client.post("/report", headers=auth_headers,
+                        json=_req(context_changed=False)).json()
+    assert false == base
+    assert CONTEXT_CHANGED not in base["markdown"]
+    on = client.post("/report", headers=auth_headers, json=_req(context_changed=True)).json()
+    lines = on["markdown"].split("\n")
+    assert f"> **{CONTEXT_CHANGED}**" in lines
+    assert lines.index(f"> **{CONTEXT_CHANGED}**") < lines.index("## Versions")
+    esc = html.escape(CONTEXT_CHANGED, quote=True)
+    assert f"<blockquote><strong>{esc}</strong></blockquote>" in on["html"]
+    assert on["html"].index(esc) < on["html"].index("<h2>Versions</h2>")

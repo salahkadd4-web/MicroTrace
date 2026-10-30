@@ -564,6 +564,12 @@ export interface components {
              * @description ISO 8601; naive values are taken as UTC
              */
             generated_at?: string | null;
+            /**
+             * Context Changed
+             * @description True when the study parameters changed since some imports; the report then states it at the top
+             * @default false
+             */
+            context_changed: boolean;
         };
         /** ReportResponse */
         ReportResponse: {

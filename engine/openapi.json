@@ -1936,6 +1936,12 @@
             ],
             "title": "Generated At",
             "description": "ISO 8601; naive values are taken as UTC"
+          },
+          "context_changed": {
+            "type": "boolean",
+            "title": "Context Changed",
+            "description": "True when the study parameters changed since some imports; the report then states it at the top",
+            "default": false
           }
         },
         "additionalProperties": false,

@@ -269,6 +269,10 @@ class ReportRequest(_Model):
     context: StudyContextModel
     generated_at: datetime | None = Field(
         default=None, description="ISO 8601; naive values are taken as UTC")
+    context_changed: bool = Field(
+        default=False,
+        description="True when the study parameters changed since some imports; "
+                    "the report then states it at the top")
 
 
 class ReportResponse(_Model):

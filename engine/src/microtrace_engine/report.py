@@ -26,6 +26,9 @@ from microtrace_core.results.vocab import label_fr
 from .schemas import ReportRequest
 
 DISCLAIMER = "Prototype de recherche, pas un dispositif médical."
+CONTEXT_CHANGED_WARNING = (
+    "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : "
+    "les statuts restent ceux calculés lors de chaque import.")
 RULES_WARNING = "Attention : règles de contrôle différentes entre imports"
 SEVERITY_FR = {"error": "erreur", "warning": "avertissement", "info": "information"}
 
@@ -81,6 +84,8 @@ def build_markdown(req: ReportRequest, ctx: StudyContext, records: list[Measurem
     if ctx.data_nature is DataNature.simulated:
         L += ["> **SIMULÉ — données fictives**", ""]
     L += [f"> {DISCLAIMER}", ""]
+    if req.context_changed:
+        L += [f"> **{CONTEXT_CHANGED_WARNING}**", ""]
 
     L += ["## Versions", "", f"- Moteur : {_c(version('microtrace-engine'))}",
           f"- Règles du calcul : {_c(RULES_VERSION)}"]
