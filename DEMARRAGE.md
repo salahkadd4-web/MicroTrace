@@ -44,6 +44,8 @@ Le mot de passe vous est demandé deux fois (il ne s'affiche pas). Prenez un mot
 
 ### Télécharger un rapport ou les mesures
 
+Les fichiers arrivent dans le dossier **Téléchargements** de votre navigateur, nommés `rapport-<titre>-<date>.html` (ou `.md`), `mesures-<titre>-<date>.csv` et `dictionnaire-donnees.csv` (ou `.md`).
+
 Dans l'onglet **Rapport** d'une étude, vous pouvez télécharger le rapport (HTML ou Markdown), le CSV des mesures actives et le dictionnaire de données. Pour ouvrir le CSV dans Excel : **Données > À partir d'un fichier texte/CSV**, choisissez le séparateur « ; » et le séparateur décimal « . » (les valeurs sont écrites telles qu'enregistrées, avec un point).
 
 ## 6. Arrêter et redémarrer
@@ -128,6 +130,18 @@ Renseignez ces valeurs dans `web/.env.local` (lu avant `web/.env` ; les valeurs 
 - `ENGINE_SECRET` et `AUTH_SECRET` : mêmes valeurs que dans le `.env` de la racine
 
 Le premier administrateur se crée avec `npm run user:create -- --email … --name … --platform-admin`. Pour arrêter : `docker compose -f docker-compose.yml -f docker-compose.dev.yml down`.
+
+### Tests de bout en bout (Playwright)
+
+Ces tests ouvrent un vrai navigateur et vérifient les parcours complets : étude d'exemple fictive et réelle (Leslie 2022), fichier en erreur, isolation entre laboratoires. Ils démarrent tout seuls leur propre base, le moteur et l'application (sur des ports libres) et suppriment tout à la fin : **Docker n'est pas nécessaire**, et votre base de développement n'est pas touchée.
+
+```powershell
+cd web
+npx playwright install chromium   # une seule fois
+npm run e2e
+```
+
+Il faut que l'environnement Python du dépôt (`.venv`) existe, avec le moteur installé. Comptez environ trois minutes (l'application est compilée dans un dossier séparé, `.next-e2e`, supprimé à la fin).
 
 ## 12. Mise en production
 

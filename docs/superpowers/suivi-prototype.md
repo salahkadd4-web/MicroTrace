@@ -37,9 +37,13 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Le dépôt est effacé au clic sur « Changer de fichier » ; fermer l'onglet laisse le dépôt jusqu'à la purge (24 h, déclenchée à chaque dépôt ou lecture).
 - Les imports créés avant cette version n'ont pas de nombre de lignes (colonne « Lignes » affichée avec un tiret).
 
-## C4 — points reportés (en cours)
+## C4 — points reportés (clos le 2026-10-30)
 
 - Plafond abaissé à 50 000 mesures actives par étude et par import pour rester sous la limite de 75 Mo du moteur ; pistes pour le relever : compression gzip des requêtes, issues agrégées par code dans /report.
-
 - Un GET de premier niveau venu d'un autre site peut déclencher un téléchargement audité (pas de fuite de données, car la réponse n'est pas lisible par l'autre origine ; seulement du bruit dans le journal). Piste : vérifier `Sec-Fetch-Site` (`same-origin` ou `none`) avant d'auditer.
 - Le CSV des mesures utilise le point comme séparateur décimal (valeurs telles qu'enregistrées). Dans Excel en français : importer comme données (Données > À partir d'un fichier texte/CSV) avec le séparateur « ; » et la décimale « . ».
+- La page « introuvable » d'une étude d'un autre laboratoire répond avec le statut HTTP 200 (la mise en page de l'étude est déjà envoyée quand `notFound()` est levé). Aucune donnée n'est divulguée ; les routes de téléchargement renvoient bien 404. Piste : vérifier l'étude avant tout rendu en flux.
+- Les DOI, licence et nature affichés dans le rapport sont ceux du contexte figé de l'import le plus récent : une modification faite après l'import n'apparaît qu'au prochain import.
+- Le CSV des mesures exporte les mesures seulement, pas les contrôles qualité.
+- Les libellés « PS (somme) » et « Au moins un polymère » existent en deux endroits (interface `web/src/lib` et rapport du moteur) : à garder identiques.
+- Les tests de bout en bout recompilent l'application à chaque exécution (environ trois minutes) ; un arrêt brutal pendant la compilation peut laisser des processus orphelins.
