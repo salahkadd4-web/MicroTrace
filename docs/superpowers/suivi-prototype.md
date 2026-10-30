@@ -12,6 +12,7 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - `APP_URL` obligatoire en production : il n'est aujourd'hui que documenté. `trustHost` est toujours actif.
 - Choix de l'hébergeur et du pays d'hébergement, au regard de la loi algérienne 18-07, présenté au fondateur.
 - Commande de maintenance qui liste les fichiers orphelins du magasin de fichiers (§5).
+- Avant tout réentraînement avec les données des laboratoires : clause contractuelle d'utilisation des données, déclaration ANPDP (loi 18-07), consentement opt-in par laboratoire en place (voir la spec, « Cycle de vie des modèles »).
 
 ## C2 — points mineurs reportés (clos le 2026-10-27)
 

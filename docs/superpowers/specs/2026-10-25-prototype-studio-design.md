@@ -280,6 +280,21 @@ Chaque sous-projet a son propre plan, ses relectures par tâche et sa relecture 
 - **Méthode :** statistiques robustes et règles documentées, pas un réseau de neurones : avec quelques dizaines d'échantillons, un modèle appris ne serait pas fiable. Les règles vivent dans B1 (Python), avec leurs tests.
 - **Non retenu :** prédire une concentration ou un effet sanitaire à partir de covariables (pas de données, risque de sur-interprétation).
 
+### Cycle de vie des modèles — décision du fondateur du 2026-10-30
+
+**Demande du fondateur :** « les modèles seront juste pour le test chez les labos, et après, en production, les données des labos servent à réentraîner les modèles ».
+
+- **Phase d'essai (prototype proposé aux laboratoires).** Les modèles C5 et C6 et les règles C7 sont présentés comme des **versions d'essai** : un badge « Modèle d'essai » à côté de chaque sortie, avec la version, la fiche du modèle et la phrase « entraîné sur des données publiques, pas encore sur les vôtres ». Aucune donnée d'un laboratoire ne sert à entraîner quoi que ce soit pendant cette phase.
+- **Production : réentraînement avec les données des laboratoires**, à ces conditions :
+  - **consentement explicite par laboratoire** (opt-in), donné par un `lab_admin`, daté, révocable, et journalisé ; sans lui, les données du laboratoire n'entrent dans aucun jeu d'entraînement ;
+  - **seules les données validées par une personne** servent d'étiquettes : les décisions humaines de `ModelPrediction` (acceptée, corrigée, rejetée) et les mesures confirmées ;
+  - **pseudonymisation vérifiée** avant export, et jamais de donnée personnelle ;
+  - **aucune donnée brute d'un laboratoire n'est visible par un autre** : seuls les poids du modèle commun sont partagés ; la fiche du modèle liste les laboratoires contributeurs seulement avec leur accord ;
+  - **chaque réentraînement produit une nouvelle version** évaluée sur un jeu de test tenu à part (séparé par laboratoire, pour mesurer la généralisation), comparée à la version en service, et déployée seulement si elle est meilleure, avec une fiche mise à jour ; retour arrière possible ;
+  - la révocation du consentement retire les données du laboratoire des **prochains** entraînements.
+- **Cadre légal et contractuel** : la loi algérienne 18-07 (consentement, déclaration à l'ANPDP) et le contrat avec chaque laboratoire (clause d'utilisation des données pour l'amélioration des modèles) doivent être validés avec un juriste **avant** tout réentraînement.
+- **Préparation dès le prototype** : la table `ModelPrediction` garde déjà la décision humaine ; C5 ajoute le réglage de consentement du laboratoire (désactivé par défaut) et l'export des données consenties ; le pipeline de réentraînement lui-même est un sous-projet de production, après les essais.
+
 ### Ordre et dépendances
 C5, C6 et C7 viennent **après C4** : ils ont besoin des écrans d'étude et de la table `ModelPrediction`. Ordre : **C7** (le plus rapide, sans entraînement), puis **C5** (données prêtes), puis **C6** (entraînement le plus long). Chacun a sa conception détaillée, son plan, ses relectures et une **fiche de modèle relue** avant d'être affiché aux chercheurs.
 
