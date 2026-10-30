@@ -1,4 +1,4 @@
-import { Gauge, Layers, FlaskConical } from "lucide-react";
+import { FlaskConical, Gauge, Layers } from "lucide-react";
 import { DateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
 import { NumberFr } from "@/components/app/NumberFr";

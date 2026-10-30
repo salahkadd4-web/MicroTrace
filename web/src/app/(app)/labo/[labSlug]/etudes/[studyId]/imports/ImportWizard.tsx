@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { FormError } from "@/components/app/FormError";
 import { FormField } from "@/components/app/FormField";
 import { formatNumberFr, NumberFr } from "@/components/app/NumberFr";
@@ -337,12 +337,12 @@ export function ImportWizard({
                 Aperçu des {PREVIEW_ROWS} premières lignes
                 {table.sheet ? ` de la feuille « ${table.sheet} »` : ""}.
               </p>
-              <div className="max-h-96 overflow-auto rounded-lg">
+              <div className="max-h-96 overflow-auto rounded-lg border bg-card [&_[data-slot=table-container]]:overflow-visible [&_[data-slot=table-container]]:rounded-none [&_[data-slot=table-container]]:border-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       {table.columns.map((c) => (
-                        <TableHead key={c}>{c}</TableHead>
+                        <TableHead key={c} className="sticky top-0 bg-muted">{c}</TableHead>
                       ))}
                     </TableRow>
                   </TableHeader>

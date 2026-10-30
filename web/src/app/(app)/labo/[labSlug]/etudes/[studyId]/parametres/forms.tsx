@@ -187,14 +187,16 @@ export function AddQcForm({ labSlug, studyId }: { labSlug: string; studyId: stri
 
 export function PrefillForm({ labSlug, studyId }: { labSlug: string; studyId: string }) {
   return (
-    <ActionForm
-      action={prefillAction.bind(null, labSlug)}
-      submitLabel="Préremplir avec Leslie et al. 2022 (Tableau 3)"
-      pendingLabel="Préremplissage…"
-      submitVariant="outline"
-    >
-      {() => <StudyId studyId={studyId} />}
-    </ActionForm>
+    <FormPanel title="Préremplir depuis Leslie et al. 2022">
+      <ActionForm
+        action={prefillAction.bind(null, labSlug)}
+        submitLabel="Préremplir avec Leslie et al. 2022 (Tableau 3)"
+        pendingLabel="Préremplissage…"
+        submitVariant="outline"
+      >
+        {() => <StudyId studyId={studyId} />}
+      </ActionForm>
+    </FormPanel>
   );
 }
 

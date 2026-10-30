@@ -19,6 +19,7 @@ export function RetireButton({
       title="Retirer l'import"
       description={`Les mesures de « ${fileName} » ne compteront plus dans l'étude. L'opération est enregistrée au journal. Indiquez le motif du retrait.`}
       confirmLabel="Retirer l'import"
+      confirmVariant="destructive"
       requireReason
       onConfirm={async (reason) => (await retireImportAction(labSlug, importRunId, reason ?? "")).error}
       trigger={
