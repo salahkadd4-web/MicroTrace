@@ -11,6 +11,7 @@ vi.mock("@/server/engine/client", async (orig) => {
       suggestMapping: vi.fn(),
       checkImport: vi.fn(),
       summary: vi.fn(),
+      quality: vi.fn(),
       report: vi.fn(),
       dictionary: vi.fn(),
     },
@@ -27,6 +28,7 @@ import { engineClient } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import type { LabContext } from "@/server/lab-context";
 import * as projectsModule from "@/server/projects";
+import * as qualityModule from "@/server/quality";
 import * as reportDownloadModule from "@/server/report-download";
 import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
@@ -56,6 +58,7 @@ const {
   revokeInvitation,
 } = membersModule;
 const { createProject, getProject, listProjects } = projectsModule;
+const { getStudyQuality, recordQualityDecision } = qualityModule;
 const { getStudyResults, loadActiveResultsInput } = resultsModule;
 const { buildDictionaryDownload, buildReportDownload, getReportAvailability } =
   reportDownloadModule;
@@ -77,6 +80,7 @@ const {
   upsertDetectionLimit,
 } = settingsModule;
 
+const SIGNAL_KEY = "k1".padEnd(64, "0");
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
 const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";
@@ -273,6 +277,17 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Étude introuvable." },
     },
   },
+  quality: {
+    getStudyQuality: {
+      run: (ctx, ids) => getStudyQuality(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    recordQualityDecision: {
+      run: (ctx, ids) =>
+        recordQualityDecision(ctx, ids.study, { signalKey: SIGNAL_KEY, decision: "to_check" }),
+      outcome: { throws: "Étude introuvable." },
+    },
+  },
   "report-download": {
     buildReportDownload: {
       run: (ctx, ids) => buildReportDownload(ctx, ids.study, "md"),
@@ -359,6 +374,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
       "écrit dans la transaction de l'appelant ; laboratoryId est obligatoire au typage",
   },
   results: {},
+  quality: {},
   "report-download": {},
   examples: {},
   members: {},
@@ -377,6 +393,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   audit: auditModule,
   imports: importsModule,
   results: resultsModule,
+  quality: qualityModule,
   "report-download": reportDownloadModule,
   examples: examplesModule,
   members: membersModule,
@@ -416,6 +433,8 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
         acceptWarnings: true,
       }),
     retireImport: (ctx, ids) => retireImport(ctx, ids.importRun, "motif"),
+    recordQualityDecision: (ctx, ids) =>
+      recordQualityDecision(ctx, ids.study, { signalKey: SIGNAL_KEY, decision: "to_check" }),
   };
 
 /** Écritures réservées aux responsables. */
@@ -548,6 +567,7 @@ async function fullSnapshot() {
     dataFiles: await prisma.dataFile.findMany({ orderBy: { id: "asc" } }),
     importRuns: await prisma.importRun.findMany({ orderBy: { id: "asc" } }),
     measurements: await prisma.measurement.findMany({ orderBy: { id: "asc" } }),
+    predictions: await prisma.modelPrediction.findMany({ orderBy: { id: "asc" } }),
   });
 }
 
@@ -802,6 +822,40 @@ describe("journal", () => {
   });
 });
 
+describe("journal des décisions de qualité", () => {
+  it("un événement forgé au laboratoire de B qui vise une prédiction de A est ignoré", async () => {
+    const prediction = await prisma.modelPrediction.create({
+      data: {
+        studyId: idsA.study,
+        kind: "quality",
+        input: { signalKey: SIGNAL_KEY },
+        output: {},
+        modelName: "quality-rules",
+        modelVersion: "q1",
+      },
+    });
+    const own = await prisma.auditEvent.create({
+      data: {
+        action: "quality.decision",
+        entityType: "ModelPrediction",
+        entityId: prediction.id,
+        laboratoryId: ctxA.laboratoryId,
+      },
+    });
+    const forged = await prisma.auditEvent.create({
+      data: {
+        action: "quality.decision",
+        entityType: "ModelPrediction",
+        entityId: prediction.id,
+        laboratoryId: ctxB.laboratoryId,
+      },
+    });
+    const ids = (await listAuditEvents(ctxA, idsA.study)).map((e) => e.id);
+    expect(ids).toContain(own.id);
+    expect(ids).not.toContain(forged.id);
+  });
+});
+
 describe("un viewer de A", () => {
   for (const [fn, write] of Object.entries(WRITES)) {
     it(`${fn} : refusé sans aucune écriture`, async () => {
@@ -841,6 +895,7 @@ describe("un viewer de A", () => {
       "getImport",
       "getStudyResults",
       "loadActiveResultsInput",
+      "getStudyQuality",
       "buildReportDownload",
       "buildDictionaryDownload",
       "getReportAvailability",
@@ -860,6 +915,7 @@ describe("un viewer de A", () => {
     expect((await getStudyView(viewerA, idsA.study))?.id).toBe(idsA.study);
     expect((await loadActiveResultsInput(viewerA, idsA.study)).study.id).toBe(idsA.study);
     expect(await getStudyResults(viewerA, idsA.study)).toEqual({ empty: true });
+    expect(await getStudyQuality(viewerA, idsA.study)).toEqual({ kind: "empty", disappeared: [] });
     expect(await buildStudyContext(viewerA, idsA.study)).toMatchObject({
       data_nature: "laboratory",
     });

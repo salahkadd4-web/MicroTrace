@@ -3,6 +3,7 @@ import { prisma } from "@/server/db";
 import {
   engineClient,
   type ImportResult,
+  type QualityRequest,
   type StudyContext,
   type SummaryResponse,
 } from "@/server/engine/client";
@@ -14,6 +15,7 @@ import { buildStudyContext } from "@/server/studies";
 
 type MeasurementRecord = ImportResult["records"][number];
 type IssueModel = ImportResult["issues"][number];
+export type QcSummaryInput = NonNullable<QualityRequest["qc_summaries"]>[number];
 
 export type ResultsImport = {
   id: string;
@@ -36,6 +38,8 @@ export type ActiveResultsInput = {
   /** Identifiant de l'import de chaque record, dans le même ordre que `records`. */
   recordImportIds: string[];
   qcRecords: MeasurementRecord[];
+  /** Contrôles qualité résumés de l'étude (polymère puis id) ; vide sans `withQcSummaries`. */
+  qcSummaries: QcSummaryInput[];
   mixedRulesVersions: boolean;
   /** Les méthodes ou les limites actuelles diffèrent de celles figées lors de certains imports. */
   contextChanged: boolean;
@@ -101,14 +105,16 @@ const SNAPSHOT_OPTIONS = {
  * Charge les mesures et contrôles qualité des imports `active` d'une étude du laboratoire,
  * triés par import (date), ligne puis colonne source : ordre reproductible pour l'écran,
  * le rapport et le CSV. Une étude archivée reste lisible. Rôle viewer minimum. Les avertissements
- * des imports (`issues`, volumineux) ne sont lus que pour le rapport : `{ withIssues: true }`.
+ * des imports (`issues`, volumineux) ne sont lus que pour le rapport : `{ withIssues: true }`. Les contrôles
+ * qualité résumés ne sont lus, dans le même instantané, que pour la qualité : `{ withQcSummaries: true }`.
  */
 export async function loadActiveResultsInput(
   ctx: LabContext,
   studyId: string,
-  options: { withIssues?: boolean } = {},
+  options: { withIssues?: boolean; withQcSummaries?: boolean } = {},
 ): Promise<ActiveResultsInput> {
   const withIssues = options.withIssues === true;
+  const withQcSummaries = options.withQcSummaries === true;
   assertRole(ctx, "viewer");
   const snapshot = await prisma.$transaction(async (tx) => {
     const study = await tx.study.findFirst({
@@ -141,8 +147,14 @@ export async function loadActiveResultsInput(
     };
     const rows = await tx.measurement.findMany({ where });
     const qcRows = await tx.qcMeasurement.findMany({ where });
+    const qcSummaries = withQcSummaries
+      ? await tx.qualityControlSummary.findMany({
+          where: { studyId, study: { laboratoryId: ctx.laboratoryId } },
+          orderBy: [{ polymer: "asc" }, { id: "asc" }],
+        })
+      : [];
     const current = await buildStudyContext(ctx, studyId, tx);
-    return { study, runs, users, rows, qcRows, current };
+    return { study, runs, users, rows, qcRows, qcSummaries, current };
   }, SNAPSHOT_OPTIONS);
   const { study, runs, users, current } = snapshot;
 
@@ -188,6 +200,16 @@ export async function loadActiveResultsInput(
     records: rows.map((r) => measurementRecord(r)),
     recordImportIds: rows.map((r) => r.importRunId),
     qcRecords: qcRows.map((r) => measurementRecord(r)),
+    qcSummaries: snapshot.qcSummaries.map((q) => ({
+      id: q.id,
+      polymer: q.polymer,
+      kind: q.kind,
+      n: q.n,
+      mean: q.mean,
+      sd: q.sd,
+      unit_code: q.unitCode,
+      source: q.source,
+    })),
     mixedRulesVersions: new Set(imports.map((i) => i.rulesVersion)).size > 1,
     contextChanged,
     context,

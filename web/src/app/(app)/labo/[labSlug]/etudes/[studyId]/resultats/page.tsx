@@ -21,6 +21,7 @@ import {
   QUANTITY_KIND_LABELS,
 } from "@/lib/labels";
 import {
+  CONTEXT_CHANGED,
   ENGINE_DOWN,
   ENGINE_REFUSED,
   NO_SAMPLE_MEASUREMENTS,
@@ -38,9 +39,6 @@ import { FrequencyChart, SamplePointsChart } from "./ResultCharts";
 
 /** Au-delà, le tableau « Voir les données » est tronqué (poids de la page) ; le CSV reste complet. */
 const MAX_TABLE_ROWS = 500;
-
-const CONTEXT_CHANGED =
-  "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
 
 const matrixName = (matrix: string, detail: string) =>
   `${labelOf(MATRIX_LABELS, matrix)}${detail ? ` (${detail})` : ""}`;

@@ -346,4 +346,35 @@ describe("loadActiveResultsInput", () => {
     await addImport({ context: c });
     expect((await loadActiveResultsInput(ctx, studyId)).context).toEqual(c);
   });
+  it("withQcSummaries : contrôles de l'étude triés par polymère puis id ; [] sans l'option", async () => {
+    await addImport();
+    const base = { studyId, kind: "procedural_blank", n: 3, unitCode: "ug/mL", source: "s" };
+    const b = await prisma.qualityControlSummary.create({ data: { ...base, polymer: "PS", mean: 1 } });
+    const a = await prisma.qualityControlSummary.create({ data: { ...base, polymer: "PET", mean: 0.25, sd: 0.1 } });
+    const a2 = await prisma.qualityControlSummary.create({ data: { ...base, polymer: "PET" } });
+    const r2 = await makeMember(await prisma.laboratory.findFirstOrThrow(), "researcher", "r2@example.org");
+    const p2 = await createProject(r2, { title: "Q" });
+    const otherStudy = await createStudy(r2, p2.id, {
+      title: "Autre",
+      nature: "laboratory",
+      blankCorrected: "unknown",
+    });
+    await prisma.qualityControlSummary.create({
+      data: { ...base, studyId: otherStudy.id, polymer: "AAA", mean: 9 },
+    });
+    expect((await loadActiveResultsInput(ctx, studyId)).qcSummaries).toEqual([]);
+    const r = await loadActiveResultsInput(ctx, studyId, { withQcSummaries: true });
+    const expectedPet = [a, a2].sort((x, y) => (x.id < y.id ? -1 : 1));
+    expect(r.qcSummaries.map((q) => q.id)).toEqual([...expectedPet.map((q) => q.id), b.id]);
+    expect(r.qcSummaries.find((q) => q.id === a.id)).toEqual({
+      id: a.id,
+      polymer: "PET",
+      kind: "procedural_blank",
+      n: 3,
+      mean: 0.25,
+      sd: 0.1,
+      unit_code: "ug/mL",
+      source: "s",
+    });
+  });
 });

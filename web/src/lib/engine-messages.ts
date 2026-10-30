@@ -2,6 +2,10 @@
 export const ENGINE_DOWN = "Le moteur d'analyse est indisponible.";
 export const ENGINE_REFUSED =
   "Le moteur d'analyse n'a pas pu calculer les résultats de cette étude.";
+export const QUALITY_REFUSED =
+  "Le moteur d'analyse n'a pas pu calculer les signaux de qualité de cette étude.";
+export const CONTEXT_CHANGED =
+  "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
 export const STUDY_TOO_LARGE =
   "Étude trop volumineuse pour le calcul : retirez un import ou scindez l'étude.";
 export const NO_SAMPLE_MEASUREMENTS =

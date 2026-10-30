@@ -8,6 +8,7 @@ import {
   TECHNIQUE_LABELS,
   labelOf,
 } from "@/lib/labels";
+import { QUALITY_DECISIONS } from "@/lib/quality";
 import { unitLabel } from "@/lib/units";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -26,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   "import.create": "Import enregistré",
   "import.retire": "Import retiré",
   "import.refused_pii": "Import refusé (données personnelles)",
+  "quality.decision": "Décision qualité enregistrée",
   "report.download": "Rapport téléchargé",
   "lab.create": "Laboratoire créé",
   "lab.suspend": "Laboratoire suspendu",
@@ -48,6 +50,7 @@ const ENTITY_LABELS: Record<string, string> = {
   Invitation: "Invitation",
   Membership: "Membre",
   ImportRun: "Import",
+  ModelPrediction: "Signal de qualité",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -93,6 +96,11 @@ const FIELD_LABELS: Record<string, string> = {
   infoCount: "Informations",
   status: "Statut",
   format: "Format",
+  ruleTitle: "Règle",
+  subject: "Objet du signal",
+  decision: "Décision",
+  modelVersion: "Version des règles",
+  hasNote: "Note jointe",
 };
 
 /** Libellé français d'un code d'action ; un code inconnu est montré tel quel. */
@@ -112,7 +120,7 @@ export type AuditContext = {
 };
 
 /** Champs techniques sans intérêt pour la lecture : jamais affichés. */
-const HIDDEN_FIELDS = new Set(["id", "ids", "studyId", "projectId", "nameKey"]);
+const HIDDEN_FIELDS = new Set(["id", "ids", "studyId", "projectId", "nameKey", "signalKey", "rule"]);
 
 const VALUE_LABELS: Record<string, Record<string, string>> = {
   nature: NATURE_LABELS,
@@ -121,6 +129,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   kind: QC_KIND_LABELS,
   role: ROLE_LABELS,
   status: { active: "Actif", retired: "Retiré" },
+  decision: Object.fromEntries(QUALITY_DECISIONS.map((d) => [d.code, d.label])),
   format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)" },
 };
 
@@ -178,6 +187,11 @@ export function auditObjectName(
       return str("title");
     case "ImportRun":
       return str("fileName");
+    case "ModelPrediction": {
+      const rule = str("ruleTitle");
+      const subject = str("subject");
+      return rule && subject ? `${rule} — ${subject}` : rule;
+    }
     case "Method":
     case "Laboratory":
       return str("name");
