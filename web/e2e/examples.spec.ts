@@ -60,12 +60,13 @@ for (const [name, ex] of Object.entries(EXAMPLES)) {
       await expect(row.getByRole("cell").nth(2), label).toHaveText(ratio, { useInnerText: true });
     }
     await expect(page.getByText("PS_SUM")).toHaveCount(0);
-    // Les graphiques sont bien dessinés : une barre par ligne de fréquence, au moins un point tracé.
+    // Les graphiques sont bien dessinés : une barre par fréquence non nulle (une barre à 0 % n'a
+    // aucune hauteur et n'est pas dessinée), au moins un point tracé.
     await expect(
       page
         .getByRole("img", { name: /^Fréquence de quantification/ })
         .locator(".recharts-bar-rectangle"),
-    ).toHaveCount(FIGURES.length);
+    ).toHaveCount(FIGURES.filter(([, ratio]) => !ratio.startsWith("0/")).length);
     await expect
       .poll(() => page.locator(".recharts-scatter-symbol").count(), { message: "points tracés" })
       .toBeGreaterThan(0);
