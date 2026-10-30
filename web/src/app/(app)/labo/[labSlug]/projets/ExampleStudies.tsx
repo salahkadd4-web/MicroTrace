@@ -31,7 +31,9 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
           type="button"
           variant="outline"
           className="h-auto min-h-9 w-full whitespace-normal py-1.5"
-          disabled={actionPending} onClick={() => start("fictif")}>
+          disabled={actionPending}
+          onClick={() => start("fictif")}
+        >
           {actionPending && current === "fictif" ? "Création…" : "Créer l'étude d'exemple (fictive)"}
         </Button>
       </div>
@@ -44,8 +46,12 @@ export function ExampleStudies({ labSlug }: { labSlug: string }) {
           type="button"
           variant="outline"
           className="h-auto min-h-9 w-full whitespace-normal py-1.5"
-          disabled={actionPending} onClick={() => start("leslie2022")}>
-          {actionPending && current === "leslie2022" ? "Création…" : "Créer l'étude d'exemple réelle (Leslie et al. 2022)"}
+          disabled={actionPending}
+          onClick={() => start("leslie2022")}
+        >
+          {actionPending && current === "leslie2022"
+            ? "Création…"
+            : "Créer l'étude d'exemple réelle (Leslie et al. 2022)"}
         </Button>
       </div>
       <FormError message={state.error} />

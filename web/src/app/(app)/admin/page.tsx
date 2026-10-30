@@ -26,7 +26,7 @@ export default async function AdminPage() {
         title="Console de la plateforme"
         subtitle="Compteurs seulement : aucune donnée scientifique des laboratoires n'est affichée."
       />
-<Section title="Laboratoires">
+      <Section title="Laboratoires">
         {labs.length === 0 ? (
           <EmptyState
             icon={Building2}

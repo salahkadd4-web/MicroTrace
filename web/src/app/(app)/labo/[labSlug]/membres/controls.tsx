@@ -105,6 +105,7 @@ export function RoleControl({
         title="Retirer le rôle de responsable ?"
         description={`${memberName} ne pourra plus gérer les membres du laboratoire.`}
         confirmLabel="Rétrograder"
+        confirmVariant="destructive"
         onConfirm={async () => {
           const next = confirming;
           if (!next) return;

@@ -33,45 +33,59 @@ export function AppShell({
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-4 px-6">
           <Link
             href={lab ? `/labo/${lab.slug}/projets` : "/"}
-            className="rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="shrink-0 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             <Logo variant="full" />
           </Link>
           {lab ? (
             <>
-              <span aria-hidden="true" className="h-6 w-px bg-border" />
-              {showSwitcher ? null : <span className="text-sm font-semibold">{lab.name}</span>}
-              <nav aria-label="Navigation principale" className="flex items-center gap-1">
-                <NavLink href={`/labo/${lab.slug}/projets`}>Projets</NavLink>
+              <span aria-hidden="true" className="h-6 w-px shrink-0 bg-border" />
+              {showSwitcher ? null : (
+                <span title={lab.name} className="min-w-0 max-w-[12rem] truncate text-sm font-semibold">
+                  {lab.name}
+                </span>
+              )}
+              <nav aria-label="Navigation principale" className="flex shrink-0 items-center gap-1">
+                <NavLink
+                  href={`/labo/${lab.slug}/projets`}
+                  alsoActiveFor={[`/labo/${lab.slug}/etudes`]}
+                >
+                  Projets
+                </NavLink>
                 {canManageMembers ? (
                   <NavLink href={`/labo/${lab.slug}/membres`}>Membres</NavLink>
                 ) : null}
               </nav>
             </>
           ) : null}
-          <div className="ml-auto flex items-center gap-3 text-sm">
+          <div className="ml-auto flex min-w-0 items-center gap-3 text-sm">
             {isPlatformAdmin ? (
-              <Button asChild variant="ghost" size="sm">
+              <Button asChild variant="ghost" size="sm" className="shrink-0 whitespace-nowrap">
                 <Link href="/admin">Console</Link>
               </Button>
             ) : null}
             {lab && showSwitcher ? (
-              <nav aria-label="Laboratoires" className="inline-flex rounded-lg border bg-muted p-0.5">
+              <nav aria-label="Laboratoires" className="inline-flex min-w-0 rounded-lg border bg-muted p-0.5">
                 {labs.map((l) => (
                   <Link
                     key={l.slug}
                     href={`/labo/${l.slug}/projets`}
                     aria-current={l.slug === lab.slug ? "true" : undefined}
-                    className="inline-flex h-7 items-center rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-card aria-[current=true]:font-medium aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
+                    className="inline-flex h-7 min-w-0 max-w-[10rem] items-center truncate rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground aria-[current=true]:bg-card aria-[current=true]:font-medium aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
                   >
                     {l.name}
                   </Link>
                 ))}
               </nav>
             ) : null}
-            <span className="text-muted-foreground">{userName}</span>
+            <span
+              title={userName}
+              className="sr-only min-w-0 max-w-[12rem] truncate text-muted-foreground lg:not-sr-only"
+            >
+              {userName}
+            </span>
             <form action={signOutAction}>
-              <Button type="submit" variant="outline" size="sm">
+              <Button type="submit" variant="outline" size="sm" className="shrink-0 whitespace-nowrap">
                 Se déconnecter
               </Button>
             </form>
