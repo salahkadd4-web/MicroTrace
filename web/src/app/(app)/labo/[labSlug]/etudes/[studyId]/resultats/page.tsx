@@ -1,3 +1,4 @@
+import { ChartColumnBig } from "lucide-react";
 import Link from "next/link";
 import { EmptyState } from "@/components/app/EmptyState";
 import { formatEngineNumberFr, formatPercentFr, NumberFr } from "@/components/app/NumberFr";
@@ -187,7 +188,7 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
   const frequencyGroups = groupFrequencies(summary);
   const groups = groupResults(summary);
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {data.mixedRulesVersions ? (
         <Alert variant="warning">
           <AlertDescription>
@@ -208,48 +209,48 @@ function Results({ data }: { data: Extract<StudyResults, { empty: false }> }) {
 
       <Section title="Fréquences de quantification">
         <div className="space-y-8">
-        {frequencyGroups.map((fg) => {
-          const name = matrixName(fg.matrix, fg.matrixDetail);
-          return (
-            <div key={fg.key} className="space-y-3">
-              <h3 className="text-base font-medium">
-                Fréquence de quantification par polymère — {name}
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Part des échantillons quantifiés pour chaque polymère, dans la matrice « {name} ».
-              </p>
-              <FrequencyChart
-                bars={fg.rows.map((r) => ({ label: polymerLabel(r.polymer), fraction: r.fraction }))}
-                ariaLabel={`Fréquence de quantification par polymère — ${name}`}
-              />
-              <Table>
-                <TableCaption className="sr-only">Fréquences de quantification — {name}</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Polymère</TableHead>
-                    <TableHead>Matrice</TableHead>
-                    <TableHead className="text-right">Quantifiés / échantillons</TableHead>
-                    <TableHead className="text-right">Fréquence</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {fg.rows.map((r) => (
-                    <TableRow key={r.polymer}>
-                      <TableCell>{polymerLabel(r.polymer)}</TableCell>
-                      <TableCell>{name}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatEngineNumberFr(r.n_quantified)}/{formatEngineNumberFr(r.n_samples)}
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {formatPercentFr(r.fraction)}
-                      </TableCell>
+          {frequencyGroups.map((fg) => {
+            const name = matrixName(fg.matrix, fg.matrixDetail);
+            return (
+              <div key={fg.key} className="space-y-3">
+                <h3 className="text-base font-medium">
+                  Fréquence de quantification par polymère — {name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Part des échantillons quantifiés pour chaque polymère, dans la matrice « {name} ».
+                </p>
+                <FrequencyChart
+                  bars={fg.rows.map((r) => ({ label: polymerLabel(r.polymer), fraction: r.fraction }))}
+                  ariaLabel={`Fréquence de quantification par polymère — ${name}`}
+                />
+                <Table>
+                  <TableCaption className="sr-only">Fréquences de quantification — {name}</TableCaption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Polymère</TableHead>
+                      <TableHead>Matrice</TableHead>
+                      <TableHead className="text-right">Quantifiés / échantillons</TableHead>
+                      <TableHead className="text-right">Fréquence</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          );
-        })}
+                  </TableHeader>
+                  <TableBody>
+                    {fg.rows.map((r) => (
+                      <TableRow key={r.polymer}>
+                        <TableCell>{polymerLabel(r.polymer)}</TableCell>
+                        <TableCell>{name}</TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatEngineNumberFr(r.n_quantified)}/{formatEngineNumberFr(r.n_samples)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {formatPercentFr(r.fraction)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            );
+          })}
         </div>
       </Section>
 
@@ -296,12 +297,13 @@ export default async function ResultatsPage({
     const canImport = canWrite(ctx.role) && study.archivedAt === null;
     return (
       <EmptyState
+        icon={ChartColumnBig}
         title={NO_SAMPLE_MEASUREMENTS}
         action={
           canImport ? (
             <Link
               href={`/labo/${labSlug}/etudes/${study.id}/imports`}
-              className="text-sm font-medium underline underline-offset-4"
+              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
             >
               Aller aux imports
             </Link>

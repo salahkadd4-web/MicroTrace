@@ -51,9 +51,11 @@ export default async function JournalPage({
                   <TableCell>
                     <DateTimeFr value={e.createdAt} />
                   </TableCell>
-                  <TableCell>{e.actorName ?? "—"}</TableCell>
+                  <TableCell className="min-w-32 whitespace-normal">{e.actorName ?? "—"}</TableCell>
                   <TableCell>{label}</TableCell>
-                  <TableCell>{auditObjectName(e, labels) ?? entityTypeLabel(e.entityType)}</TableCell>
+                  <TableCell className="min-w-32 whitespace-normal">
+                    {auditObjectName(e, labels) ?? entityTypeLabel(e.entityType)}
+                  </TableCell>
                   <TableCell className="text-right">
                     <AuditDetails title={label} changes={diffChanges(e.before, e.after, labels)} />
                   </TableCell>

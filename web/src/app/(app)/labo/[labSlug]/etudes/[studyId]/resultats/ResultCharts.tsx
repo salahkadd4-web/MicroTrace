@@ -22,9 +22,11 @@ const TOOLTIP_STYLE = {
   color: "var(--popover-foreground)",
 } as const;
 const CURSOR = { fill: "var(--muted)" } as const;
-/** Au-delà de 6 polymères, les libellés de l'axe x sont inclinés pour rester lisibles. */
+/** Au-delà de 5 polymères, les libellés de l'axe x sont inclinés pour rester lisibles. */
 const crowdedAxis = (n: number) =>
-  n > 6 ? ({ interval: 0, angle: -30, textAnchor: "end", height: 56 } as const) : {};
+  n > 5
+    ? ({ interval: 0, angle: -30, textAnchor: "end", height: 56 } as const)
+    : ({ interval: 0 } as const);
 const SERIES_COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",

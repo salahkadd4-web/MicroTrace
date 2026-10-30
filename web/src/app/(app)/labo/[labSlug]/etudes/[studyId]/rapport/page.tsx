@@ -67,7 +67,7 @@ export default async function RapportPage({
   const base = `/labo/${labSlug}/etudes/${study.id}/rapport`;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <Section
         title="Contenu du rapport"
         description="Le rapport porte sur les imports actifs de l'étude. Il est produit par le moteur d'analyse au moment du téléchargement ; rien n'est conservé."

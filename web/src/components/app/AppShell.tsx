@@ -78,11 +78,10 @@ export function AppShell({
                 ))}
               </nav>
             ) : null}
-            <span
-              title={userName}
-              className="sr-only min-w-0 max-w-[12rem] truncate text-muted-foreground lg:not-sr-only"
-            >
-              {userName}
+            <span className="sr-only min-w-0 lg:not-sr-only">
+              <span title={userName} className="block max-w-[12rem] truncate text-muted-foreground">
+                {userName}
+              </span>
             </span>
             <form action={signOutAction}>
               <Button type="submit" variant="outline" size="sm" className="shrink-0 whitespace-nowrap">

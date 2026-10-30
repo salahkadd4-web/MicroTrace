@@ -84,7 +84,7 @@ export default async function ImportsPage({
                 <TableHead className="text-right">Erreurs</TableHead>
                 <TableHead className="text-right">Avertissements</TableHead>
                 <TableHead>Statut</TableHead>
-                <TableHead>
+                <TableHead className="sticky right-0 bg-muted">
                   <span className="sr-only">Actions</span>
                 </TableHead>
               </TableRow>
@@ -96,7 +96,7 @@ export default async function ImportsPage({
                   <TableCell>
                     <DateTimeFr value={r.createdAt} />
                   </TableCell>
-                  <TableCell>{r.createdByName ?? "—"}</TableCell>
+                  <TableCell className="min-w-32 whitespace-normal">{r.createdByName ?? "—"}</TableCell>
                   <TableCell className="text-right">
                     {r.nRows === null ? "—" : <NumberFr value={r.nRows} />}
                   </TableCell>
@@ -127,7 +127,7 @@ export default async function ImportsPage({
                       </div>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="sticky right-0 bg-card shadow-[inset_1px_0_0_var(--border)]">
                     <div className="flex justify-end gap-2">
                       <ImportIssues labSlug={labSlug} importRunId={r.id} fileName={r.fileName} />
                       {writable && r.status === "active" ? (
