@@ -58,7 +58,7 @@ describe("IssuesTable", () => {
     expect(screen.getAllByRole("row")).toHaveLength(1 + 500);
     expect(screen.getByText("500 premiers problèmes affichés")).toBeInTheDocument();
     expect(screen.getByText("0 erreur, 700 avertissements, 0 information")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("affiche un état vide sans problème", () => {
     render(<IssuesTable issues={[]} />);

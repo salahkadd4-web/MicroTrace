@@ -63,7 +63,7 @@ describe("ActionForm", () => {
     expect(await screen.findByRole("button", { name: "Envoi…" })).toBeDisabled();
   });
 
-  it("range les champs sur deux colonnes à la demande, sans y mettre les champs cachés", () => {
+  it("range les champs sur deux colonnes à la demande ; un champ caché n'occupe pas de case", () => {
     const action = vi.fn(async () => ({ ok: true as const }));
     const { container } = render(
       <ActionForm action={action} submitLabel="Envoyer" pendingLabel="Envoi…" columns={2}>
@@ -84,6 +84,10 @@ describe("ActionForm", () => {
     const grid = form.querySelector(":scope > div.grid")!;
     expect(grid).toHaveClass("sm:grid-cols-2");
     expect(grid.querySelector("#a")).not.toBeNull();
+    // Un input hidden est en display:none : il n'est pas un élément de la grille.
+    const hidden = grid.querySelector('input[type="hidden"]') as HTMLElement;
+    expect(hidden).not.toBeVisible();
+    expect(getComputedStyle(hidden).display).toBe("none");
     expect(form).toHaveClass("max-w-3xl");
     expect(screen.getByLabelText("B").parentElement).toHaveClass("sm:col-span-2");
   });

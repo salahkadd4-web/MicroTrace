@@ -8,6 +8,8 @@ type LogoProps = {
   /** Hauteur de la goutte en px. */
   size?: number;
   className?: string;
+  /** Taille du mot-symbole (« MicroTrace » ; « Studio » en dérive). Défaut : 18 px pour une goutte de 28 px. */
+  wordmarkClassName?: string;
 };
 
 const TONES = {
@@ -20,7 +22,7 @@ const TONES = {
 } as const;
 
 /** « Goutte tracée » : contour de goutte, trace de signal, éclats de particules. Couleurs par jetons. */
-export function Logo({ variant = "mark", tone = "light", size = 28, className }: LogoProps) {
+export function Logo({ variant = "mark", tone = "light", size = 28, className, wordmarkClassName }: LogoProps) {
   const colours = TONES[tone];
   const small = size < 24;
   const mark = (
@@ -62,13 +64,20 @@ export function Logo({ variant = "mark", tone = "light", size = 28, className }:
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       {mark}
-      <span className="inline-flex items-baseline">
-        <span className="font-display text-lg leading-none tracking-tight">
+      <span className={cn("inline-flex items-baseline text-lg", wordmarkClassName)}>
+        <span className="font-display leading-none tracking-tight">
           <span className={cn("font-medium", dark && "text-brand-ground")}>Micro</span>
           <span className={cn("font-bold", dark ? "text-brand-teal-bright" : "text-primary")}>Trace</span>
         </span>
         {" "}
-        <span className="ml-1.5 text-sm font-normal text-muted-foreground">Studio</span>
+        <span
+          className={cn(
+            "ml-1.5 text-[0.78em] font-normal",
+            dark ? "text-brand-ground/70" : "text-muted-foreground",
+          )}
+        >
+          Studio
+        </span>
       </span>
     </span>
   );
