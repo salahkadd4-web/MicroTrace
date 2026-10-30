@@ -26,3 +26,13 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Le commit intermédiaire `19fda05` contient une faille inter-laboratoires corrigée au commit suivant : ne jamais déployer ce commit seul.
 - En production, l'écran d'erreur d'un laboratoire suspendu affiche un texte générique (« Recharger ») : Next.js masque le message de l'erreur.
 - Prisma est figé en 7.10.1 ; embedded-postgres 17.10 est en version bêta (tests seulement).
+
+## C3 — points reportés (clos le 2026-10-30)
+
+- Aucun verrou entre le contrôle et l'enregistrement : l'enregistrement relance lui-même le contrôle, et le plafond d'étude est vérifié sous verrou de la ligne d'étude, mais un import actif ajouté entre-temps peut faire apparaître de nouveaux doublons au moment d'enregistrer.
+- Les fichiers orphelins du magasin `files/` sont tolérés (un fichier est écrit avant la transaction ; un échec ou un doublon le laisse en place). Une commande de maintenance qui les liste puis les supprime reste à écrire.
+- Les mesures du moteur transitent deux fois par Node (contrôle puis enregistrement). Un mode du moteur qui ne renvoie que les comptes (« contrôle seul ») allégerait le contrôle.
+- Le tableau des problèmes (IssuesTable) n'est pas paginé côté serveur : sous charge, ou avec des dizaines de milliers de problèmes, la réponse du contrôle peut dépasser le délai.
+- Le plafond d'étude (100 000 mesures actives) et le plafond par import (100 000) sont des constantes de code, pas des réglages par laboratoire.
+- Le dépôt est effacé au clic sur « Changer de fichier » ; fermer l'onglet laisse le dépôt jusqu'à la purge (24 h, déclenchée à chaque dépôt ou lecture).
+- Les imports créés avant cette version n'ont pas de nombre de lignes (colonne « Lignes » affichée avec un tiret).
