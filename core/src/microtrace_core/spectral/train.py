@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import platform
 import sys
 from collections import Counter
@@ -344,20 +345,35 @@ def predicted_status(p: LoloPrediction, t: Thresholds,
     return st, (Abstention.LOW_SCORE if st == Status.NOT_IDENTIFIED else None)
 
 
-def nested_precision(preds: Sequence[LoloPrediction]) -> dict[str, float]:
-    """Precision of 'identified' per library, thresholds chosen without that library."""
-    out: dict[str, float] = {}
+def _nested(preds: Sequence[LoloPrediction], t_other: Thresholds | None
+            ) -> tuple[dict[str, float | None], dict[str, str]]:
+    """Per library: precision of 'identified' under thresholds chosen without that library.
+
+    'Identified' follows the deployed rule, technique guard included. A library whose
+    estimate cannot be made is reported with None and a reason.
+    """
+    out: dict[str, float | None] = {}
+    reasons: dict[str, str] = {}
     for lib in sorted({p.library for p in preds}):
         rest = [p for p in preds if p.library != lib]
         try:
             t = choose_thresholds(rest)
         except NoThresholds:
+            out[lib], reasons[lib] = None, "no_thresholds"
             continue
         ident = [p for p in preds if p.library == lib and p.in_library
-                 and th._is_identified(p, t.identified_min_score, t.identified_min_margin)]
+                 and predicted_status(p, t, t_other)[0] is Status.IDENTIFIED]
         if ident:
             out[lib] = sum(p.top[0] == p.true for p in ident) / len(ident)
-    return out
+        else:
+            out[lib], reasons[lib] = None, "no_identified"
+    return out, reasons
+
+
+def nested_precision(preds: Sequence[LoloPrediction],
+                     t_other: Thresholds | None = None) -> dict[str, float | None]:
+    """Nested precision of 'identified' per library (None when it cannot be estimated)."""
+    return _nested(preds, t_other)[0]
 
 
 def _share(num: int, den: int) -> float | None:
@@ -409,7 +425,7 @@ def _recall_by_polymer(preds: Sequence[LoloPrediction]) -> dict[str, float]:
 def _technique_metrics(preds: list[LoloPrediction], wrong: list[LoloPrediction],
                        t: Thresholds, t_other: Thresholds | None) -> dict:
     libs = sorted({p.library for p in preds})
-    nested = nested_precision(preds)
+    nested, nested_reasons = _nested(preds, t_other)
     per_lib = {}
     for lib in libs:
         b = _block([p for p in preds if p.library == lib], t, t_other)
@@ -420,6 +436,7 @@ def _technique_metrics(preds: list[LoloPrediction], wrong: list[LoloPrediction],
     return {
         "global": glob, "per_library": per_lib,
         "nested_identified_precision": nested,
+        "nested_unavailable": nested_reasons,
         "recall_by_polymer": _recall_by_polymer(preds),
         "wrong_technique": _status_shares(wrong_rows),
     }
@@ -475,6 +492,7 @@ def train(df: pd.DataFrame, baseline: Mapping) -> tuple[SpectralModel, dict]:
     models = {t: fit_technique(frames[t], t, thresholds[t], verify=True) for t in techniques}
     summary = {t: {"global": metrics[t]["global"],
                    "nested_identified_precision": metrics[t]["nested_identified_precision"],
+                   "nested_unavailable": metrics[t]["nested_unavailable"],
                    "wrong_technique": metrics[t]["wrong_technique"]} for t in techniques}
     meta = {"params": _params(), "metrics": summary}
     model = SpectralModel(name=SPECTRAL_MODEL_NAME, version=SPECTRAL_MODEL_VERSION,
@@ -561,10 +579,29 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def _write_json(path: Path, obj: Mapping) -> None:
+def _atomic_write(path: Path, data: bytes) -> None:
+    """Write through a temporary file in the same folder, then replace."""
+    path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
-                    encoding="utf-8", newline="\n")
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_bytes(data)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+def _json_bytes(obj: Mapping) -> bytes:
+    return (json.dumps(obj, indent=2, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+
+
+def _display_path(path: Path) -> str:
+    """Path relative to the working directory when possible (no absolute path in the manifest)."""
+    p = Path(path).resolve()
+    try:
+        return p.relative_to(Path.cwd().resolve()).as_posix()
+    except ValueError:
+        return Path(path).as_posix()
 
 
 def run_training(*, catalog: Path, baseline: Path, models_dir: Path, manifest: Path,
@@ -591,14 +628,15 @@ def run_training(*, catalog: Path, baseline: Path, models_dir: Path, manifest: P
         recorded = json.loads(Path(manifest).read_text(encoding="utf-8"))["model"]["sha256"]
         return 0 if recorded == sha else 4
 
-    models_dir = Path(models_dir)
-    models_dir.mkdir(parents=True, exist_ok=True)
-    (models_dir / MODEL_FILE).write_bytes(data)
+    # Everything is computed before the first write: a bad card must not leave a partial output.
+    card_text = None
+    if card is not None:
+        raw = Path(card).read_bytes().decode("utf-8")
+        card_text = replace_metrics_block(raw, render_card_metrics(body)).encode("utf-8")
 
     kept = pd.concat([training_frame(df, t) for t in TECHNIQUES])
     lines = sorted({f"{r.file_sha256}  {r.file}" for r in kept.itertuples()})
-    Path(data_list).parent.mkdir(parents=True, exist_ok=True)
-    Path(data_list).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+    list_bytes = ("\n".join(lines) + "\n").encode("utf-8")
 
     cmeta: dict = {}
     try:
@@ -616,14 +654,17 @@ def run_training(*, catalog: Path, baseline: Path, models_dir: Path, manifest: P
         "catalog_sha256": _sha256_file(catalog),
         "catalog_built_at": cmeta.get("built_at"),
         "catalog_git_commit": cmeta.get("git_commit"),
-        "data_list": {"path": Path(data_list).as_posix(), "sha256": _sha256_file(data_list),
-                      "files": len(lines)},
+        "data_list": {"path": _display_path(data_list),
+                      "sha256": hashlib.sha256(list_bytes).hexdigest(), "files": len(lines)},
         "n_by_technique": dict(Counter(kept["technique"])),
     })
-    _write_json(Path(manifest), body)
-    _write_json(Path(lock), {"name": SPECTRAL_MODEL_NAME, "version": SPECTRAL_MODEL_VERSION,
-                             "file": MODEL_FILE, "sha256": sha})
-    if card is not None:
-        raw = Path(card).read_bytes().decode("utf-8")
-        Path(card).write_bytes(replace_metrics_block(raw, render_card_metrics(body)).encode("utf-8"))
+    lock_obj = {"name": SPECTRAL_MODEL_NAME, "version": SPECTRAL_MODEL_VERSION,
+                "file": MODEL_FILE, "sha256": sha}
+
+    _atomic_write(Path(models_dir) / MODEL_FILE, data)
+    _atomic_write(Path(data_list), list_bytes)
+    _atomic_write(Path(manifest), _json_bytes(body))
+    _atomic_write(Path(lock), _json_bytes(lock_obj))
+    if card_text is not None:
+        _atomic_write(Path(card), card_text)
     return 0

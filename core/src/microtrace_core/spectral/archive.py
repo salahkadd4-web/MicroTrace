@@ -128,6 +128,18 @@ def model_from_arrays(a: Mapping[str, np.ndarray]) -> SpectralModel:
                 raise _invalid(f"{t}: wrong SVM shape")
             if int(g["svm_n_support"].sum()) != len(g["svm_support_vectors"]):
                 raise _invalid(f"{t}: wrong SVM support count")
+            k = len(g["svm_classes"])
+            n_sv = len(g["svm_support_vectors"])
+            if g["plot_x"].shape != (g["plot"].shape[1],):
+                raise _invalid(f"{t}: wrong plot_x shape")
+            if len(g["svm_n_support"]) != k or k < 1:
+                raise _invalid(f"{t}: wrong SVM class count")
+            if k > 1 and (g["svm_dual_coef"].shape != (k - 1, n_sv)
+                          or g["svm_intercept"].shape != (k * (k - 1) // 2,)):
+                raise _invalid(f"{t}: wrong SVM coefficient shape")
+            gamma = float(g["svm_gamma"])
+            if not (np.isfinite(gamma) and gamma > 0):
+                raise _invalid(f"{t}: invalid SVM gamma")
             th = meta["thresholds"][t]
             techniques[t] = TechniqueModel(
                 technique=t, refs=g["refs"], plot=g["plot"], plot_x=g["plot_x"],

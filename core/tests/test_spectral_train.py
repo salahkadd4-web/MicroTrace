@@ -9,7 +9,13 @@ from spectral_fixtures import make_catalog
 
 from microtrace_core import cli
 from microtrace_core.spectral import train as tr
-from microtrace_core.spectral.thresholds import NoThresholds, choose_thresholds
+from microtrace_core.spectral.model import pca_transform, window_mask
+from microtrace_core.spectral.thresholds import (
+    LoloPrediction,
+    NoThresholds,
+    Thresholds,
+    choose_thresholds,
+)
 
 
 @pytest.fixture(scope="module")
@@ -214,3 +220,75 @@ def test_baseline_helper_does_not_mutate_input(df):
     before = copy.deepcopy(baseline_for(df))
     tr.reproduce_baseline(df, before)
     assert before == baseline_for(df)
+
+
+def test_leakage_spy_covers_wrong_technique_predictions(df, monkeypatch):
+    f = frames(df)
+    fits, guards = [], []
+    real_fit, real_guard = tr.fit_technique, tr.guard_reference
+
+    def spy_fit(df_t, technique, thresholds, **kw):
+        fits.append((technique, set(df_t["source"])))
+        return real_fit(df_t, technique, thresholds, **kw)
+
+    def spy_guard(other, held):
+        out = real_guard(other, held)
+        guards.append((held, set(out["source"])))
+        return out
+
+    monkeypatch.setattr(tr, "fit_technique", spy_fit)
+    monkeypatch.setattr(tr, "guard_reference", spy_guard)
+    preds = tr.wrong_technique_predictions(f["raman"], "raman", f["ftir_atr"])
+    assert preds and {p.library for p in preds} == {"mpx", "slopp"}
+    # raman queries are read as ftir: the ftir fold never holds the query's library (mpx is in both)
+    assert sorted(held for held, _ in guards) == ["mpx", "slopp"] * 2 or len(guards) >= 4
+    for held, sources in guards:
+        assert held not in sources
+    assert len(fits) == 2 and all(t == "ftir_atr" for t, _ in fits)
+    assert {frozenset(src) for _, src in fits} == {frozenset({"flopp"}), frozenset({"flopp", "mpx"})}
+
+
+def test_gamma_scale_equals_sklearn_on_fold_data(df):
+    from sklearn.svm import SVC
+
+    d = tr.training_frame(df, "raman")
+    d = d[d["source"] != "slopp"].reset_index(drop=True)  # a fold's training data
+    tm = tr.fit_technique(d, "raman", None)
+    Z = pca_transform(tm.pca_mean, tm.pca_components, tm.refs)
+    ref = SVC(kernel="rbf", gamma="scale").fit(Z, tm.labels)
+    assert tm.svm.gamma == pytest.approx(ref._gamma, rel=1e-12)
+    assert tm.refs.shape[1] == int(window_mask("raman").sum())
+
+
+def _lp(lib, top, other_score=None):
+    return LoloPrediction(lib, "X", True, tuple(top), (0.90, 0.80), top[0], 1.0,
+                          other_score, None if other_score is None else 1.0)
+
+
+def test_nested_precision_applies_the_technique_guard_and_reports_gaps():
+    preds = [_lp("a", ["X", "Y"]) for _ in range(50)]
+    preds += [_lp("b", ["X", "Y"]) for _ in range(50)]
+    preds += [_lp("b", ["Y", "X"], other_score=1.0) for _ in range(3)]  # wrong, guard fires
+    t_other = Thresholds(0.5, 0.7, 0.05)
+    guarded = tr.nested_precision(preds, t_other)
+    unguarded = tr.nested_precision(preds)
+    assert guarded["b"] == 1.0 and unguarded["b"] < 1.0
+    # library a: thresholds cannot be chosen on b alone (precision 50/53): reported, not dropped
+    assert "a" in guarded and guarded["a"] is None
+
+
+def test_card_without_markers_fails_before_any_write(tmp_path, df):
+    card = tmp_path / "card.md"
+    card.write_text("no markers here", encoding="utf-8")
+    with pytest.raises(ValueError):
+        run(tmp_path, df, card=card)
+    assert not (tmp_path / "run").exists()
+    assert card.read_text(encoding="utf-8") == "no markers here"
+
+
+def test_manifest_paths_are_not_absolute(tmp_path, df, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    a, code = run(tmp_path, df)
+    assert code == 0
+    path = json.loads(a["manifest"].read_text())["data"]["data_list"]["path"]
+    assert path == "run/data.sha256"

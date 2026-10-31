@@ -108,7 +108,7 @@ Conséquence : **pas de classe non plastique dans cette version**. Le modèle s'
 1. **Lecture** du fichier texte à deux colonnes (§7.3), puis construction d'un `Spectrum` (technique, unité de l'axe, unité de l'ordonnée, laser).
 2. **Prétraitement** : `preprocess` du chantier A, **inchangé** (conversion nm → cm⁻¹ par le laser, transmittance → absorbance, tri, rééchantillonnage sur la grille de la technique, ligne de base ALS, min-max). La requête et les références passent par exactement la même fonction.
 3. **Couverture** de la fenêtre diagnostique (`diagnostic_coverage`) : < 0,8 → abstention `low_coverage`.
-4. **Corrélation de Pearson sur la fenêtre diagnostique** (Raman 400–1 800 cm⁻¹, 351 points ; FTIR 600–1 800 cm⁻¹, 301 points) avec chaque spectre de référence, sur les points finis communs, recouvrement minimal 0,5 de la fenêtre (`correlation_matrix`, extraite de `CorrelationMatcher`).
+4. **Corrélation de Pearson sur la fenêtre diagnostique** (Raman 400–1 800 cm⁻¹, 350 points, soit 402 à 1 798 cm⁻¹ sur la grille de 4 cm⁻¹ ; FTIR 600–1 800 cm⁻¹, 301 points) avec chaque spectre de référence, sur les points finis communs, recouvrement minimal 0,5 de la fenêtre (`correlation_matrix`, extraite de `CorrelationMatcher`).
 5. **Score par polymère** = meilleure corrélation parmi ses références. Top-3 des polymères ; marge = score n° 1 − score n° 2.
 6. **5 références les plus proches** = les 5 meilleures corrélations individuelles (tous polymères).
 7. **Second avis** : PCA (30 composantes, `svd_solver="full"`) puis SVM RBF équilibré, appris sur la fenêtre diagnostique (NaN → 0). Il donne un polymère, sans score.

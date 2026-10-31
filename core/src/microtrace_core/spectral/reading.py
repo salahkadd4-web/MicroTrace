@@ -62,7 +62,7 @@ def _candidates(line: str) -> list[tuple[list[str], bool]]:
     if ";" in line:
         return [(line.split(";"), True)]
     if "," in line:
-        return [(line.split(","), False), (line.split(), True)]
+        return [(line.split(","), False), (line.rstrip(",; ").split(), True)]
     return [(line.split(), True)]
 
 

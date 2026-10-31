@@ -10,6 +10,7 @@ from spectral_fixtures import clean_curve, make_model
 from microtrace_core.spectral.archive import (
     FIXED_DATE,
     load_model_bytes,
+    model_from_arrays,
     model_to_arrays,
     read_archive,
     write_archive,
@@ -68,3 +69,18 @@ def test_invalid_archive(tmp_path):
     np.savez(buf, a=np.array([{"x": 1}], dtype=object), allow_pickle=True)
     with pytest.raises(ValueError, match="^invalid model archive"):
         load_model_bytes(buf.getvalue())
+
+
+@pytest.mark.parametrize("key,bad", [
+    ("ftir_atr/svm_dual_coef", lambda a: a[:, :-1]),
+    ("ftir_atr/svm_intercept", lambda a: a[:-1]),
+    ("ftir_atr/svm_n_support", lambda a: a[:-1]),
+    ("ftir_atr/plot_x", lambda a: a[:-1]),
+    ("ftir_atr/svm_gamma", lambda a: np.asarray(float("nan"))),
+    ("ftir_atr/svm_gamma", lambda a: np.asarray(0.0)),
+])
+def test_inconsistent_archive_is_invalid(key, bad):
+    arrays = model_to_arrays(make_model())
+    arrays[key] = bad(arrays[key])
+    with pytest.raises(ValueError, match="^invalid model archive"):
+        model_from_arrays(arrays)

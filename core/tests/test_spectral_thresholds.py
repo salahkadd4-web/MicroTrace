@@ -36,14 +36,24 @@ def test_choose_thresholds_prefers_most_conservative_tie():
     assert choose_thresholds(two_libraries()) == Thresholds(0.50, 0.90, 0.10)
 
 
+def _floor_case(b_right, b_wrong):
+    preds = [pred("a", "X", ["X", "Y"], [0.90, 0.80]) for _ in range(500)]
+    preds += [pred("b", "X", ["X", "Y"], [0.90, 0.80]) for _ in range(b_right)]
+    preds += [pred("b", "X", ["Y", "X"], [0.90, 0.80]) for _ in range(b_wrong)]
+    return preds
+
+
 def test_choose_thresholds_library_floor():
-    preds = [p for p in two_libraries() if p.library == "a"]
-    # library b: wrong answers sit at the same score as the right ones, so precision
-    # stays under 0.90 whatever the threshold
-    preds += [pred("b", "X", ["X", "Y"], [0.90, 0.80]) for _ in range(30)]
-    preds += [pred("b", "X", ["Y", "X"], [0.90, 0.80]) for _ in range(30)]
+    # global precision 518/521 = 0.994 passes; library b (18/21 = 85.7 %) is under 0.90
     with pytest.raises(NoThresholds):
-        choose_thresholds(preds)
+        choose_thresholds(_floor_case(18, 3))
+
+
+def test_library_floor_needs_twenty_answers():
+    with pytest.raises(NoThresholds):  # 20 answers, 85 %: the floor applies
+        choose_thresholds(_floor_case(17, 3))
+    # 19 answers, 84 %: too few answers for the floor to apply
+    assert choose_thresholds(_floor_case(16, 3)).identified_min_score == 0.90
 
 
 def test_choose_thresholds_out_of_library_cap():
@@ -85,3 +95,16 @@ T = Thresholds(0.5, 0.7, 0.05)
 def test_status_boundaries(s1, s2, agree, expected):
     classifier = "PE" if agree else "PP"
     assert status_of(s1, s2, "PE", classifier, T) is expected
+
+
+def test_technique_mismatch_conditions():
+    from microtrace_core.spectral.model import technique_mismatch
+
+    other_t = Thresholds(0.5, 0.7, 0.05)
+    assert technique_mismatch(0.80, 0.90, 0.9, other_t)  # margin exactly 0.10 (rounded)
+    assert not technique_mismatch(0.80, 0.8999999999, 0.9, other_t)  # margin just under
+    assert not technique_mismatch(0.80, 0.90, 0.79, other_t)  # other coverage too low
+    assert not technique_mismatch(0.50, 0.90, 0.9, Thresholds(0.95, 0.95, 0.1))  # < T_unc(other)
+    assert technique_mismatch(0.50, 0.90, 0.9, Thresholds(0.90, 0.95, 0.1))  # == T_unc(other)
+    assert not technique_mismatch(0.80, None, 0.9, other_t)
+    assert not technique_mismatch(None, 0.9, 0.9, other_t)

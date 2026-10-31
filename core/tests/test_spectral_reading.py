@@ -128,3 +128,9 @@ def test_library_licences_follow_sources_md():
         if "À compléter" in licence_cell:
             assert LIBRARIES[code].curve_allowed is False, code
         assert (LIBRARIES[code].licence is None) == ("À compléter" in licence_cell), code
+
+
+def test_parse_whitespace_with_trailing_separator():
+    body = "".join(f"{1000 + i} 0.5,\n" for i in range(12)).encode()
+    x, y = parse_two_columns(body)
+    assert len(x) == 12 and y[0] == 0.5
