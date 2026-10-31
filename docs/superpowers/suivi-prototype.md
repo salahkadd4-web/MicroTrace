@@ -61,3 +61,17 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Pages hors périmètre restées à l'ancien style : `aucun-laboratoire`, avis de laboratoire suspendu, `app/not-found.tsx` (état vide sans icône, liens simplement soulignés).
 - Images de revue : attente fixe de 500 ms au lieu de `document.fonts.ready` ; le champ fichier natif s'affiche en anglais selon la langue de Chromium.
 - Imports : la colonne d'actions est collée à droite (`sticky`) pour rester visible sur tablette ; le tableau des statistiques de Résultats défile dans son cadre (exception acceptée).
+
+## C7 — points reportés (clos le 2026-10-31)
+
+- Les signaux de qualité n'apparaissent pas dans le rapport téléchargeable.
+- Seuils fixes (version q1) : pas de réglage par laboratoire ; pas de notification.
+- Les résumés de contrôle qualité n'ont pas de méthode : un blanc s'applique à toutes les méthodes du même polymère. Les blancs de terrain et les blancs mesurés importés (`qc_records`) ne sont pas encore utilisés.
+- Pas de pagination des signaux : au-delà de 200 signaux par règle, les suivants ne sont pas affichés, et la réponse du moteur n'est pas plafonnée.
+- Au plus 5 000 décisions lues par étude.
+- Règle d (taux de < LOD par lot ou par date) : pas de correction pour comparaisons multiples (seuil strict p < 0,01 à la place).
+- Pas de règle pour une paire « une aliquote quantifiée, l'autre < LOD ».
+- Valeur atypique : quand les valeurs d'un groupe sont très resserrées (MAD faible), un échantillon modérément écarté peut être signalé (cas de l'échantillon 4 PE de l'exemple fictif) ; c'est documenté dans la fiche des règles.
+- L'avertissement de versions de règles différentes sur l'onglet Qualité ne liste pas les versions (le service ne les expose pas).
+- L'onglet cite la fiche des règles par son chemin dans le dépôt (`docs/models/c7-qualite.md`) : à remplacer par une page de documentation accessible aux laboratoires.
+- Une note de décision qui n'est pas une chaîne est traitée comme absente.
