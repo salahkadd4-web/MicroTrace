@@ -64,3 +64,25 @@ def test_card_figures_come_from_the_manifest():
     assert "199 sur 200" in prose  # explained as another protocol, not a sample
     assert "échantillon aléatoire" not in text
     assert "axe en nm" in prose and "ne le couvre pas" in prose
+
+
+def test_card_block_uses_decimal_commas_and_names_unevaluated_polymers():
+    man = _manifest()
+    block = render_card_metrics(man)
+    assert "Seuils : incertain dès 0,5, identifié dès 0,7, sans écart minimal exigé." in block
+    assert "incertain dès 0,85, identifié dès 0,85 avec une marge d'au moins 0,1." in block
+    assert "0.85" not in block and "marge d'au moins 0," in block
+    for t, m in man["metrics"].items():
+        counts = man["data"]["counts"][t]["by_polymer"]
+        absent = sorted(set(counts) - set(m["recall_by_polymer"]))
+        assert absent  # the real manifest has some
+        for code in absent:
+            assert f"{code} ({counts[code]})" in block
+    assert "présents dans une seule bibliothèque" in block
+
+
+def test_card_prose_does_not_call_single_library_polymers_absent_from_training():
+    text = CARD.read_text(encoding="utf-8")
+    assert "absents de l'apprentissage" not in text
+    assert "Polymère absent de l'apprentissage" not in text
+    assert "absents des validations" in text or "absents des tours de validation" in text

@@ -110,6 +110,8 @@ class SpectralModelStore:
             model = self._loader(data)
         except Exception:  # noqa: BLE001 - any unreadable archive is "invalid"; never logged
             return ModelState.INVALID, None, digest
+        if (model.name, model.version) != (self._lock.name, self._lock.version):
+            return ModelState.INVALID, None, digest  # the archive and the lock must agree
         return ModelState.OK, model, digest
 
 
@@ -171,6 +173,15 @@ def _options(codes) -> list[PolymerOptionModel]:
     return [PolymerOptionModel(code=c, label=text.polymer_label(c)) for c in codes]
 
 
+def unevaluated_codes(tm) -> set[str]:
+    """Polymers held in a single reference library. The leave-one-library-out validation always
+    treats them as out-of-library, so no in-library performance was ever measured for them."""
+    libraries: dict[str, set[str]] = {}
+    for label, source in zip(tm.labels, tm.sources, strict=True):
+        libraries.setdefault(str(label), set()).add(str(source))
+    return {c for c, libs in libraries.items() if len(libs) < 2 and c != OTHER}
+
+
 def vocabulary() -> list[PolymerOptionModel]:
     return [PolymerOptionModel(code=c, label=label) for c, label in text.correction_vocabulary()]
 
@@ -188,12 +199,15 @@ def to_response(model: SpectralModel, sha256: str, ident: Identification, *, par
     lo, hi = DIAGNOSTIC_WINDOWS[technique]
     th = ident.thresholds
     candidates = [(c.polymer, c.score) for c in ident.candidates]
+    tm = model.techniques.get(technique)  # type: ignore[call-overload]
+    unevaluated = bool(candidates) and tm is not None and candidates[0][0] in unevaluated_codes(tm)
     explanation = text.explanation(
         status=ident.status.value, abstention=ident.abstention.value if ident.abstention else None,
         technique=technique, coverage=ident.coverage, candidates=candidates,
         margin=ident.margin, classifier=ident.classifier, uncertain_min=th.uncertain_min_score,
         identified_min=th.identified_min_score, margin_min=th.identified_min_margin,
-        other_technique=ident.other_technique, other_score=ident.other_technique_score)
+        other_technique=ident.other_technique, other_score=ident.other_technique_score,
+        unevaluated=unevaluated)
     references = []
     for rank, ref in enumerate(ident.references, start=1):
         lib = LIBRARIES.get(ref.library)
@@ -266,9 +280,13 @@ def to_model_info(store: SpectralModelStore) -> SpectralModelInfo:
             sources, n = np.unique(tm.sources, return_counts=True)
             counts[t] = {str(s): int(c) for s, c in zip(sources, n, strict=True)}
             codes = sorted({str(c) for c in tm.labels} - {OTHER})
+            single = unevaluated_codes(tm)
             techniques.append(SpectralTechniqueInfo(
                 technique=t, label=text.technique_label(t), n_references=len(tm.labels),  # type: ignore[arg-type]
-                polymers=sorted(_options(codes), key=lambda o: o.label),
+                polymers=sorted(_options([c for c in codes if c not in single]),
+                                key=lambda o: o.label),
+                unevaluated_polymers=sorted(_options([c for c in codes if c in single]),
+                                            key=lambda o: o.label),
                 window_min=float(lo), window_max=float(hi), thresholds=_thresholds(tm.thresholds),
                 metrics=_metrics(model, t)))
     libraries = []

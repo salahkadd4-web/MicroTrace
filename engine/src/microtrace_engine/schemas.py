@@ -512,6 +512,7 @@ class SpectralTechniqueInfo(_Model):
     label: str
     n_references: int
     polymers: list[PolymerOptionModel]
+    unevaluated_polymers: list[PolymerOptionModel]
     window_min: Number
     window_max: Number
     thresholds: SpectralThresholdsModel

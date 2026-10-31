@@ -60,6 +60,10 @@ POLYMER_LABELS: dict[str, str] = {
     "NOT_PLASTIC": "Non plastique",
 }
 
+UNEVALUATED = ("Aucune mesure de performance pour ce polymère : il n'est présent que dans une "
+               "seule bibliothèque de référence, donc jamais évalué en laissant une bibliothèque "
+               "de côté.")
+
 TECHNIQUE_LABELS = {"raman": "Raman", "ftir_atr": "FTIR (ATR)"}
 _SHORT = {"raman": "Raman", "ftir_atr": "FTIR"}
 
@@ -178,7 +182,7 @@ def explanation(*, status: str, abstention: str | None, technique: str, coverage
                 candidates: list[tuple[str, float]], margin: float | None,
                 classifier: str | None, uncertain_min: float, identified_min: float,
                 margin_min: float, other_technique: str | None,
-                other_score: float | None) -> str:
+                other_score: float | None, unevaluated: bool = False) -> str:
     """The sentence under the status. Numbers shown never contradict the status decision."""
     top = candidates[0] if candidates else None
     if abstention == "low_coverage":
@@ -211,7 +215,8 @@ def explanation(*, status: str, abstention: str | None, technique: str, coverage
             text += f", écart de {score_text(margin)} avec {second}"
         if classifier_text:
             text += f" ; le classifieur PCA+SVM propose aussi {classifier_text}"
-        return f"{text}. {VALIDATE}"
+        extra = f" {UNEVALUATED}" if unevaluated else ""
+        return f"{text}.{extra} {VALIDATE}"
     reasons: list[str] = []
     if classifier_text and classifier != top[0]:
         reasons.append(f"le classifieur PCA+SVM propose {classifier_text}")
@@ -226,5 +231,6 @@ def explanation(*, status: str, abstention: str | None, technique: str, coverage
                else "les critères d'identification ne sont pas tous réunis")
     shown = (_below(s1, identified_min) if s1 < identified_min
              else score_text(s1))
+    extra = f" {UNEVALUATED}" if unevaluated else ""
     return (f"Proposition incertaine : {label} en tête (corrélation {shown}), mais {because}. "
-            "Le bon polymère figure le plus souvent parmi les 3 propositions.")
+            f"Le bon polymère figure le plus souvent parmi les 3 propositions.{extra}")

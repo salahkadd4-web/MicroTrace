@@ -524,6 +524,18 @@ def _pct(v: float | None) -> str:
     return "n/d" if v is None else f"{100 * v:.1f} %".replace(".", ",")
 
 
+def _fr(v: float) -> str:
+    return f"{v:g}".replace(".", ",")
+
+
+def _threshold_sentence(thr: Mapping) -> str:
+    base = f"Seuils : incertain dès {_fr(thr['uncertain_min_score'])}, identifié dès "            f"{_fr(thr['identified_min_score'])}"
+    margin = thr["identified_min_margin"]
+    if not margin:
+        return f"{base}, sans écart minimal exigé."
+    return f"{base} avec une marge d'au moins {_fr(margin)}."
+
+
 def render_card_metrics(manifest: Mapping) -> str:
     """Markdown metrics block for the model card (content between the markers)."""
     L: list[str] = []
@@ -538,9 +550,7 @@ def render_card_metrics(manifest: Mapping) -> str:
         thr = manifest["thresholds"][t]
         g = m["global"]
         L += [f"### {t}", "",
-              f"Seuils : incertain dès {thr['uncertain_min_score']:g}, identifié dès "
-              f"{thr['identified_min_score']:g} avec une marge d'au moins "
-              f"{thr['identified_min_margin']:g}.", "",
+              _threshold_sentence(thr), "",
               "| Bibliothèque tenue à part | Dans | Hors | Top-1 | Top-3 | SVM | Identifié "
               "| Incertain | Non identifié | Précision « identifié » | Précision imbriquée |",
               "|---|---|---|---|---|---|---|---|---|---|---|"]
@@ -576,6 +586,13 @@ def render_card_metrics(manifest: Mapping) -> str:
         L += ["| Polymère | Rappel top-1 |", "|---|---|"]
         L += [f"| {k} | {_pct(v)} |" for k, v in m["recall_by_polymer"].items()]
         L.append("")
+        by_polymer = (counts or {}).get("by_polymer", {})
+        single = [f"{k} ({by_polymer[k]})" for k in sorted(by_polymer)
+                  if k not in m["recall_by_polymer"]]
+        if single:
+            L += ["Polymères présents dans une seule bibliothèque (non évalués : la validation "
+                  "les traite toujours comme hors bibliothèque, leur rappel n'a jamais été "
+                  f"mesuré) : {', '.join(single)}.", ""]
     return "\n".join(L)
 
 

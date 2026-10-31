@@ -65,7 +65,7 @@ Constantes : graine 0 ; recouvrement minimal 0,5 ; 3 candidats ; 5 références 
 
 ### ftir_atr
 
-Seuils : incertain dès 0.85, identifié dès 0.85 avec une marge d'au moins 0.1.
+Seuils : incertain dès 0,85, identifié dès 0,85 avec une marge d'au moins 0,1.
 
 | Bibliothèque tenue à part | Dans | Hors | Top-1 | Top-3 | SVM | Identifié | Incertain | Non identifié | Précision « identifié » | Précision imbriquée |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -97,9 +97,11 @@ Part de MicroPlastiX dans les références : 91,0 % (4210 spectres).
 | PU | 63,2 % |
 | PVC | 83,3 % |
 
+Polymères présents dans une seule bibliothèque (non évalués : la validation les traite toujours comme hors bibliothèque, leur rappel n'a jamais été mesuré) : ACRYLIC (6), CA (2), PMMA (2), RUBBER (15).
+
 ### raman
 
-Seuils : incertain dès 0.5, identifié dès 0.7 avec une marge d'au moins 0.
+Seuils : incertain dès 0,5, identifié dès 0,7, sans écart minimal exigé.
 
 | Bibliothèque tenue à part | Dans | Hors | Top-1 | Top-3 | SVM | Identifié | Incertain | Non identifié | Précision « identifié » | Précision imbriquée |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -133,15 +135,17 @@ Part de MicroPlastiX dans les références : 70,8 % (2792 spectres).
 | PS | 88,2 % |
 | PU | 45,2 % |
 | PVC | 85,0 % |
+
+Polymères présents dans une seule bibliothèque (non évalués : la validation les traite toujours comme hors bibliothèque, leur rappel n'a jamais été mesuré) : EVA (5), NC (1), PLA (218), POM (21), PTFE (41), RUBBER (4), SILICONE (25).
 <!-- END:metrics -->
 
-Lecture. En FTIR l'abstention est nettement plus fréquente qu'en Raman : les polymères absents de l'apprentissage (caoutchouc, acrylique) ressemblent fortement au PE, et seul un seuil haut les écarte. Un spectre de la bibliothèque déposé tel quel se retrouve lui-même (corrélation 1).
+Lecture. En FTIR l'abstention est nettement plus fréquente qu'en Raman : le caoutchouc et l'acrylique, présents dans une seule bibliothèque, sont absents des tours de validation (la validation les traite comme hors bibliothèque, voir la liste des polymères non évalués ci-dessus) mais présents dans les références du modèle livré ; ils ressemblent fortement au PE, et seul un seuil haut les écarte. Un spectre de la bibliothèque déposé tel quel se retrouve lui-même (corrélation 1).
 
 ## 7. Conditions d'échec connues
 
 - Particules extraites de sang : jamais vues à l'entraînement.
 - Matériaux non plastiques (protéines, minéraux, fond) : pas de classe dédiée.
-- Polymère absent de l'apprentissage : en FTIR, le caoutchouc et l'acrylique ressemblent au PE.
+- Polymère présent dans une seule bibliothèque (caoutchouc, acrylique, CA et PMMA en FTIR ; PLA, PTFE, silicone, POM, EVA, caoutchouc et NC en Raman) : aucune mesure de performance n'existe pour lui, car il est absent des tours de validation ; le modèle livré peut pourtant le proposer. En FTIR, le caoutchouc et l'acrylique ressemblent au PE.
 - Mélange de polymères ou particule pigmentée.
 - Vieillissement et biofilm au-delà de ceux des bibliothèques.
 - Mauvaise technique déclarée : la garde en signale la majorité, mais pas la totalité ; les parts exactes (non identifié, incertain, identifié, signalé par la garde) sont dans la section 6. Un « incertain » est montré comme tel au chercheur. La conception avait mesuré un taux de signalement plus haut (199 sur 200 en FTIR déclaré Raman) avec un autre protocole (échantillon, référence identique exclue) ; seul le chiffre de la section 6 fait foi. Les faux signalements sur des spectres bien déclarés donnent une abstention prudente ; leur taux mesuré est en section 6.

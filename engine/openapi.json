@@ -4079,6 +4079,13 @@
             "type": "array",
             "title": "Polymers"
           },
+          "unevaluated_polymers": {
+            "items": {
+              "$ref": "#/components/schemas/PolymerOptionModel"
+            },
+            "type": "array",
+            "title": "Unevaluated Polymers"
+          },
           "window_min": {
             "type": "number",
             "title": "Window Min"
@@ -4108,6 +4115,7 @@
           "label",
           "n_references",
           "polymers",
+          "unevaluated_polymers",
           "window_min",
           "window_max",
           "thresholds",

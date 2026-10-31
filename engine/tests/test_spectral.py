@@ -80,6 +80,7 @@ def test_model_info_available(client, auth_headers, spectral_models_dir):
     t = body["techniques"][0]
     assert t["n_references"] == 120 and t["metrics"] is None  # the synthetic model has none
     assert [p["code"] for p in t["polymers"]] == ["A", "B", "C"]
+    assert t["unevaluated_polymers"] == []
 
 
 def test_model_missing(tmp_path, auth_headers):
@@ -296,3 +297,84 @@ def test_parse_too_large_413(client, auth_headers):
 def test_parse_route_is_protected(client):
     assert ("/ai/spectral/parse", "POST") in _protected_routes()
     assert client.post("/ai/spectral/parse", files={"file": ("s.csv", b"1,2")}).status_code == 401
+
+
+# --- polymers that were never evaluated (I4) -----------------------------------------------------
+
+def _single_library_model():
+    """The synthetic model, with polymer C kept in one library (mpx) only, in FTIR."""
+    from microtrace_core.spectral.model import SpectralModel
+    from microtrace_core.spectral.thresholds import Thresholds
+    from microtrace_core.spectral.train import fit_technique, training_frame
+
+    fx = _fx()
+    df = fx.make_catalog()
+    drop = (df.technique == "ftir_atr") & (df.polymer == "C") & (df.source == "flopp")
+    df = df[~drop]
+    techniques = {t: fit_technique(training_frame(df, t), t, Thresholds(0.5, 0.7, 0.05))
+                  for t in ("ftir_atr", "raman")}
+    return SpectralModel("c5-spectral", "s1", techniques, {})
+
+
+def test_model_info_splits_evaluated_and_single_library_polymers(tmp_path, auth_headers):
+    model = _single_library_model()
+    (tmp_path / "c5-spectral-s1.npz").write_bytes(b"x")
+    lock = ModelLock("c5-spectral", "s1", "c5-spectral-s1.npz", hashlib.sha256(b"x").hexdigest())
+    store = SpectralModelStore(tmp_path, lock, loader=lambda raw: model)
+    from microtrace_engine.spectral import to_model_info
+
+    info = to_model_info(store)
+    by_t = {t.technique: t for t in info.techniques}
+    assert [p.code for p in by_t["ftir_atr"].polymers] == ["A", "B"]
+    assert [p.code for p in by_t["ftir_atr"].unevaluated_polymers] == ["C"]
+    assert [p.code for p in by_t["raman"].polymers] == ["A", "B", "C"]
+    assert by_t["raman"].unevaluated_polymers == []
+
+
+def test_unevaluated_top_candidate_gets_one_more_sentence():
+    from microtrace_engine import spectral_text as text
+
+    kw = dict(status="identified", abstention=None, technique="ftir_atr", coverage=1.0,
+              candidates=[("C", 0.95), ("A", 0.2)], margin=0.75, classifier="C",
+              uncertain_min=0.5, identified_min=0.7, margin_min=0.05, other_technique=None,
+              other_score=None)
+    plain = text.explanation(**kw)
+    flagged = text.explanation(**kw, unevaluated=True)
+    assert flagged.startswith(plain.removesuffix(text.VALIDATE).rstrip())
+    assert "aucune mesure de performance pour ce polymère" in flagged.lower()
+    assert "aucune mesure de performance" not in plain.lower()
+    kw["status"] = "uncertain"
+    assert "aucune mesure de performance" in text.explanation(**kw, unevaluated=True).lower()
+
+
+@pytest.mark.data
+def test_real_model_evaluated_polymers_match_the_manifest():
+    weights = ROOT / "models" / "c5-spectral-s1.npz"
+    if not weights.exists():
+        pytest.skip("models/c5-spectral-s1.npz not found")
+    from microtrace_engine.spectral import to_model_info
+
+    manifest = json.loads(
+        (ROOT / "docs" / "models" / "c5-spectral-manifest.json").read_text(encoding="utf-8"))
+    info = to_model_info(SpectralModelStore(weights.parent, read_lock()))
+    assert info.available
+    for t in info.techniques:
+        recalled = set(manifest["metrics"][t.technique]["recall_by_polymer"])
+        assert {p.code for p in t.polymers} == recalled
+        assert {p.code for p in t.polymers} | {p.code for p in t.unevaluated_polymers} == set(
+            manifest["data"]["counts"][t.technique]["by_polymer"])
+        assert t.metrics is not None
+        assert t.metrics.n_in_library < t.metrics.n and t.metrics.n_out_of_library > 0
+
+
+def test_archive_version_differing_from_the_lock_is_invalid(tmp_path):
+    from microtrace_core.spectral.model import SpectralModel
+
+    base = _fx().make_model()
+    other = SpectralModel(base.name, "s9", base.techniques, {})
+    (tmp_path / "c5-spectral-s1.npz").write_bytes(b"x")
+    lock = ModelLock("c5-spectral", "s1", "c5-spectral-s1.npz", hashlib.sha256(b"x").hexdigest())
+    state, model, _ = SpectralModelStore(tmp_path, lock, loader=lambda raw: other).get()
+    assert state is ModelState.INVALID and model is None
+    state, model, _ = SpectralModelStore(tmp_path, lock, loader=lambda raw: base).get()
+    assert state is ModelState.OK and model is base
