@@ -34,6 +34,12 @@ from microtrace_core.results import (
 )
 from microtrace_core.results.contact import header_label
 from microtrace_core.results.tables import MAX_BYTES, RawTable, TableReadError, read_table
+from microtrace_core.spectral.model import SpectralQuery, identify
+from microtrace_core.spectral.reading import (
+    MAX_SPECTRUM_BYTES,
+    SpectrumReadError,
+    parse_two_columns,
+)
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic.json_schema import models_json_schema
 from starlette.datastructures import Headers
@@ -68,12 +74,24 @@ from .schemas import (
     ReportRequest,
     ReportResponse,
     StudyContextModel,
+    SpectralIdentifyResponse,
+    SpectralModelInfo,
     SummaryRequest,
     SummaryResponse,
     TableReadResponse,
     ValidateResponse,
 )
 from .settings import Settings
+from .spectral import (
+    ModelLock,
+    ModelState,
+    SpectralModelStore,
+    read_lock,
+    to_model_info,
+    to_response,
+    validate_params,
+)
+from .spectral_text import UNAVAILABLE, read_error_message
 from .uploads import TooLarge, read_upload, sha256_hex, sheet_names
 
 PREVIEW_ROWS = 20
@@ -236,7 +254,7 @@ def _register_part_models(schema: dict[str, Any]) -> None:
         components.setdefault(name, definition)
 
 
-def create_app(settings: Settings) -> FastAPI:
+def create_app(settings: Settings, spectral_lock: ModelLock | None = None) -> FastAPI:
     app = FastAPI(
         title="MicroTrace engine",
         version=version("microtrace-engine"),
@@ -259,6 +277,9 @@ def create_app(settings: Settings) -> FastAPI:
 
     require_secret = make_require_secret(settings)
     app.state.require_secret = require_secret
+    # the weights are read lazily, on the first spectral request: the engine always starts
+    spectral_store = SpectralModelStore(settings.models_dir, spectral_lock or read_lock())
+    app.state.spectral_store = spectral_store
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -473,6 +494,54 @@ def create_app(settings: Settings) -> FastAPI:
             context=context_to_model(leslie_2022_context()),
             mapping=mapping_to_model(leslie_2022_mapping()),
         )
+
+    @app.get(
+        "/ai/spectral/model",
+        response_model=SpectralModelInfo,
+        dependencies=[Depends(require_secret)],
+    )
+    def spectral_model() -> SpectralModelInfo:
+        # sync route: the first call reads and verifies the weights in the threadpool
+        return to_model_info(spectral_store)
+
+    @app.post(
+        "/ai/spectral/identify",
+        response_model=SpectralIdentifyResponse,
+        dependencies=[Depends(require_secret)],
+        responses={503: {"model": ErrorModel, "description": "Modèle spectral indisponible"}},
+    )
+    async def spectral_identify(
+        file: UploadFile = File(..., description="Spectre : texte à deux colonnes (2 Mo au plus)"),
+        technique: str = Form(...),
+        x_unit: str = Form("cm-1"),
+        y_unit: str = Form(...),
+        laser_nm: str | None = Form(None),
+    ) -> SpectralIdentifyResponse:
+        params, problem = validate_params(technique, x_unit, y_unit, laser_nm)
+        if params is None:
+            raise HTTPException(status_code=422, detail=problem)
+        state, model, digest = await run_in_threadpool(spectral_store.get)
+        if state is not ModelState.OK or model is None or digest is None:
+            raise HTTPException(status_code=503, detail=UNAVAILABLE[state.value])
+        try:
+            data = await read_upload(file, MAX_SPECTRUM_BYTES)
+        except TooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from None
+
+        def run() -> SpectralIdentifyResponse:
+            try:
+                x, y = parse_two_columns(data)
+            except SpectrumReadError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=read_error_message(exc.issue, exc.line, exc.count)) from None
+            ident = identify(model, SpectralQuery(
+                x=x, y=y, technique=params.technique, x_unit=params.x_unit,  # type: ignore[arg-type]
+                y_unit=params.y_unit, laser_nm=params.laser_nm))  # type: ignore[arg-type]
+            return to_response(model, digest, ident, params=params,
+                               data_sha256=sha256_hex(data), size=len(data), x=x)
+
+        return await run_in_threadpool(run)
 
     return app
 

@@ -17,6 +17,8 @@ export type QualityResponse = S["QualityResponse"];
 export type QualitySignal = S["QualitySignalModel"];
 export type Dictionary = S["DictionaryResponse"];
 export type Example = S["ExampleResponse"];
+export type SpectralIdentifyResponse = S["SpectralIdentifyResponse"];
+export type SpectralModelInfo = S["SpectralModelInfo"];
 
 export const ENGINE_TIMEOUT_MS = 120_000;
 /** La validation d'un contexte est rapide : délai court, car elle tient une transaction ouverte. */
@@ -169,6 +171,21 @@ export function createEngineClient(options: ClientOptions = {}) {
     quality: (req: QualityRequest) => call<QualityResponse>("POST", "/quality", { json: req }),
     report: (req: ReportRequest) => call<ReportResponse>("POST", "/report", { json: req }),
     dictionary: () => call<Dictionary>("GET", "/dictionary"),
+    spectralModel: () => call<SpectralModelInfo>("GET", "/ai/spectral/model"),
+    identifySpectrum: (args: {
+      file: UploadInput;
+      technique: string;
+      xUnit: string;
+      yUnit: string;
+      laserNm: string | null;
+    }) => {
+      const form = fileForm(args.file);
+      form.append("technique", args.technique);
+      form.append("x_unit", args.xUnit);
+      form.append("y_unit", args.yUnit);
+      if (args.laserNm !== null) form.append("laser_nm", args.laserNm);
+      return call<SpectralIdentifyResponse>("POST", "/ai/spectral/identify", { form });
+    },
   };
 }
 

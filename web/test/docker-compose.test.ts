@@ -33,6 +33,11 @@ describe("docker-compose.yml", () => {
     expect(compose.networks.internal.internal).toBe(true);
   });
 
+  it("monte les poids du modèle spectral en lecture seule dans le moteur", () => {
+    expect(compose.services.engine.volumes).toEqual(["./models:/app/models:ro"]);
+    expect(compose.services.engine.environment?.ENGINE_MODELS_DIR).toBe("/app/models");
+  });
+
   it("épingle les images (jamais latest, tag exact)", () => {
     for (const [, s] of services) {
       if (!s.image || s.build) continue;

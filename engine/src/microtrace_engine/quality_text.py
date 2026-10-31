@@ -8,7 +8,6 @@ done here on the exact numbers that ``core`` exposes, never on a recomputed quan
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 
 from microtrace_core.results import UNITS
 from microtrace_core.results.issues import fmt_fr
@@ -30,6 +29,7 @@ from microtrace_core.results.units import parse_unit
 from microtrace_core.results.vocab import label_fr
 
 from .labels import polymer_label
+from .numbers import _plain, _vs_threshold
 
 
 @dataclass(frozen=True)
@@ -134,27 +134,6 @@ def _unit(code: str) -> str:
 
 def _fig(s: Signal) -> dict[str, float]:
     return dict(s.figures)
-
-
-def _plain(x: float) -> str:
-    """A rounded number as plain French text (decimal comma, no exponent)."""
-    text = format(Decimal(repr(x)), "f")
-    if "." in text:
-        text = text.rstrip("0").rstrip(".")
-    return text.replace(".", ",")
-
-
-def _vs_threshold(x: float, digits: int, threshold: float, *, above: bool,
-                  significant: bool = False) -> str:
-    """Display ``x`` with ``digits`` decimals (or significant digits), then add digits until
-    the shown number is strictly on the triggering side of the threshold (above: > threshold,
-    otherwise < threshold), so the text never contradicts the decision made on the exact number.
-    """
-    for d in range(digits, 13):
-        shown = float(f"{x:.{d}g}") if significant else round(x, d)
-        if (shown > threshold) if above else (shown < threshold):
-            return _plain(shown)
-    return _plain(x)
 
 
 def _z(z: float, threshold: float) -> str:

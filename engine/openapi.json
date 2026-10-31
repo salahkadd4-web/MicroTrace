@@ -893,6 +893,178 @@
           }
         }
       }
+    },
+    "/ai/spectral/model": {
+      "get": {
+        "summary": "Spectral Model",
+        "operationId": "spectral_model",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectralModelInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/spectral/identify": {
+      "post": {
+        "summary": "Spectral Identify",
+        "operationId": "spectral_identify",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_spectral_identify"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectralIdentifyResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Modèle spectral indisponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -981,6 +1153,47 @@
           "file"
         ],
         "title": "Body_mapping_suggest"
+      },
+      "Body_spectral_identify": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Spectre : texte à deux colonnes (2 Mo au plus)"
+          },
+          "technique": {
+            "type": "string",
+            "title": "Technique"
+          },
+          "x_unit": {
+            "type": "string",
+            "title": "X Unit",
+            "default": "cm-1"
+          },
+          "y_unit": {
+            "type": "string",
+            "title": "Y Unit"
+          },
+          "laser_nm": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Laser Nm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "technique",
+          "y_unit"
+        ],
+        "title": "Body_spectral_identify"
       },
       "Body_tables_read": {
         "properties": {
@@ -1767,6 +1980,25 @@
           "technique"
         ],
         "title": "MethodSpecModel"
+      },
+      "PolymerOptionModel": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "PolymerOptionModel"
       },
       "PolymerStatsModel": {
         "properties": {
@@ -3023,6 +3255,766 @@
           "n_quantified"
         ],
         "title": "SampleResultModel"
+      },
+      "SpectralCandidateModel": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "score_text": {
+            "type": "string",
+            "title": "Score Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rank",
+          "polymer",
+          "label",
+          "score",
+          "score_text"
+        ],
+        "title": "SpectralCandidateModel"
+      },
+      "SpectralCurveModel": {
+        "properties": {
+          "x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "SpectralCurveModel"
+      },
+      "SpectralIdentifyResponse": {
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/SpectralModelRef"
+          },
+          "trial_label": {
+            "type": "string",
+            "title": "Trial Label"
+          },
+          "trial_sentence": {
+            "type": "string",
+            "title": "Trial Sentence"
+          },
+          "input": {
+            "$ref": "#/components/schemas/SpectralInputModel"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "identified",
+              "uncertain",
+              "not_identified"
+            ],
+            "title": "Status"
+          },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label"
+          },
+          "abstention": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "low_score",
+                  "low_coverage",
+                  "technique_mismatch",
+                  "no_overlap"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abstention"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/SpectralCandidateModel"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "margin": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin"
+          },
+          "classifier_polymer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classifier Polymer"
+          },
+          "classifier_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classifier Label"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/SpectralReferenceModel"
+            },
+            "type": "array",
+            "title": "References"
+          },
+          "query_curve": {
+            "$ref": "#/components/schemas/SpectralCurveModel"
+          },
+          "x_label": {
+            "type": "string",
+            "title": "X Label"
+          },
+          "y_label": {
+            "type": "string",
+            "title": "Y Label"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/SpectralThresholdsModel"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "correction_vocabulary": {
+            "items": {
+              "$ref": "#/components/schemas/PolymerOptionModel"
+            },
+            "type": "array",
+            "title": "Correction Vocabulary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model",
+          "trial_label",
+          "trial_sentence",
+          "input",
+          "status",
+          "status_label",
+          "abstention",
+          "explanation",
+          "candidates",
+          "margin",
+          "classifier_polymer",
+          "classifier_label",
+          "references",
+          "query_curve",
+          "x_label",
+          "y_label",
+          "thresholds",
+          "limits",
+          "correction_vocabulary"
+        ],
+        "title": "SpectralIdentifyResponse"
+      },
+      "SpectralInputModel": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "n_points": {
+            "type": "integer",
+            "title": "N Points"
+          },
+          "x_min": {
+            "type": "number",
+            "title": "X Min"
+          },
+          "x_max": {
+            "type": "number",
+            "title": "X Max"
+          },
+          "technique": {
+            "type": "string",
+            "enum": [
+              "raman",
+              "ftir_atr"
+            ],
+            "title": "Technique"
+          },
+          "technique_label": {
+            "type": "string",
+            "title": "Technique Label"
+          },
+          "x_unit": {
+            "type": "string",
+            "enum": [
+              "cm-1",
+              "nm"
+            ],
+            "title": "X Unit"
+          },
+          "y_unit": {
+            "type": "string",
+            "enum": [
+              "intensity",
+              "absorbance",
+              "transmittance_pct"
+            ],
+            "title": "Y Unit"
+          },
+          "laser_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Laser Nm"
+          },
+          "diagnostic_coverage": {
+            "type": "number",
+            "title": "Diagnostic Coverage"
+          },
+          "window_min": {
+            "type": "number",
+            "title": "Window Min"
+          },
+          "window_max": {
+            "type": "number",
+            "title": "Window Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sha256",
+          "size",
+          "n_points",
+          "x_min",
+          "x_max",
+          "technique",
+          "technique_label",
+          "x_unit",
+          "y_unit",
+          "laser_nm",
+          "diagnostic_coverage",
+          "window_min",
+          "window_max"
+        ],
+        "title": "SpectralInputModel"
+      },
+      "SpectralLibraryModel": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          },
+          "licence_text": {
+            "type": "string",
+            "title": "Licence Text"
+          },
+          "curve_allowed": {
+            "type": "boolean",
+            "title": "Curve Allowed"
+          },
+          "n_ftir_atr": {
+            "type": "integer",
+            "title": "N Ftir Atr"
+          },
+          "n_raman": {
+            "type": "integer",
+            "title": "N Raman"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "citation",
+          "licence_text",
+          "curve_allowed",
+          "n_ftir_atr",
+          "n_raman"
+        ],
+        "title": "SpectralLibraryModel"
+      },
+      "SpectralMetricsModel": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "n_in_library": {
+            "type": "integer",
+            "title": "N In Library"
+          },
+          "n_out_of_library": {
+            "type": "integer",
+            "title": "N Out Of Library"
+          },
+          "top1": {
+            "type": "number",
+            "title": "Top1"
+          },
+          "top3": {
+            "type": "number",
+            "title": "Top3"
+          },
+          "status_in_library": {
+            "$ref": "#/components/schemas/SpectralStatusShares"
+          },
+          "status_out_of_library": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpectralStatusShares"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nested_identified_precision_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nested Identified Precision Min"
+          },
+          "nested_identified_precision_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nested Identified Precision Max"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "n",
+          "n_in_library",
+          "n_out_of_library",
+          "top1",
+          "top3",
+          "status_in_library",
+          "status_out_of_library",
+          "nested_identified_precision_min",
+          "nested_identified_precision_max"
+        ],
+        "title": "SpectralMetricsModel"
+      },
+      "SpectralModelInfo": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "missing",
+                  "sha_mismatch",
+                  "invalid"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "expected_sha256": {
+            "type": "string",
+            "title": "Expected Sha256"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "trial_label": {
+            "type": "string",
+            "title": "Trial Label"
+          },
+          "trial_sentence": {
+            "type": "string",
+            "title": "Trial Sentence"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "card_path": {
+            "type": "string",
+            "title": "Card Path"
+          },
+          "max_bytes": {
+            "type": "integer",
+            "title": "Max Bytes"
+          },
+          "max_points": {
+            "type": "integer",
+            "title": "Max Points"
+          },
+          "techniques": {
+            "items": {
+              "$ref": "#/components/schemas/SpectralTechniqueInfo"
+            },
+            "type": "array",
+            "title": "Techniques"
+          },
+          "libraries": {
+            "items": {
+              "$ref": "#/components/schemas/SpectralLibraryModel"
+            },
+            "type": "array",
+            "title": "Libraries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "available",
+          "reason",
+          "message",
+          "name",
+          "version",
+          "expected_sha256",
+          "sha256",
+          "trial_label",
+          "trial_sentence",
+          "limits",
+          "card_path",
+          "max_bytes",
+          "max_points",
+          "techniques",
+          "libraries"
+        ],
+        "title": "SpectralModelInfo"
+      },
+      "SpectralModelRef": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "sha256"
+        ],
+        "title": "SpectralModelRef"
+      },
+      "SpectralReferenceModel": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "spectrum_id": {
+            "type": "string",
+            "title": "Spectrum Id"
+          },
+          "library": {
+            "type": "string",
+            "title": "Library"
+          },
+          "library_name": {
+            "type": "string",
+            "title": "Library Name"
+          },
+          "citation": {
+            "type": "string",
+            "title": "Citation"
+          },
+          "licence_text": {
+            "type": "string",
+            "title": "Licence Text"
+          },
+          "polymer": {
+            "type": "string",
+            "title": "Polymer"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "score_text": {
+            "type": "string",
+            "title": "Score Text"
+          },
+          "curve": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpectralCurveModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "curve_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Curve Note"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rank",
+          "spectrum_id",
+          "library",
+          "library_name",
+          "citation",
+          "licence_text",
+          "polymer",
+          "label",
+          "score",
+          "score_text",
+          "curve",
+          "curve_note"
+        ],
+        "title": "SpectralReferenceModel"
+      },
+      "SpectralStatusShares": {
+        "properties": {
+          "identified": {
+            "type": "number",
+            "title": "Identified"
+          },
+          "uncertain": {
+            "type": "number",
+            "title": "Uncertain"
+          },
+          "not_identified": {
+            "type": "number",
+            "title": "Not Identified"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identified",
+          "uncertain",
+          "not_identified"
+        ],
+        "title": "SpectralStatusShares"
+      },
+      "SpectralTechniqueInfo": {
+        "properties": {
+          "technique": {
+            "type": "string",
+            "enum": [
+              "raman",
+              "ftir_atr"
+            ],
+            "title": "Technique"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "n_references": {
+            "type": "integer",
+            "title": "N References"
+          },
+          "polymers": {
+            "items": {
+              "$ref": "#/components/schemas/PolymerOptionModel"
+            },
+            "type": "array",
+            "title": "Polymers"
+          },
+          "window_min": {
+            "type": "number",
+            "title": "Window Min"
+          },
+          "window_max": {
+            "type": "number",
+            "title": "Window Max"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/SpectralThresholdsModel"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpectralMetricsModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "technique",
+          "label",
+          "n_references",
+          "polymers",
+          "window_min",
+          "window_max",
+          "thresholds",
+          "metrics"
+        ],
+        "title": "SpectralTechniqueInfo"
+      },
+      "SpectralThresholdsModel": {
+        "properties": {
+          "uncertain_min_score": {
+            "type": "number",
+            "title": "Uncertain Min Score"
+          },
+          "identified_min_score": {
+            "type": "number",
+            "title": "Identified Min Score"
+          },
+          "identified_min_margin": {
+            "type": "number",
+            "title": "Identified Min Margin"
+          },
+          "classifier_agreement_required": {
+            "type": "boolean",
+            "title": "Classifier Agreement Required"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "uncertain_min_score",
+          "identified_min_score",
+          "identified_min_margin",
+          "classifier_agreement_required"
+        ],
+        "title": "SpectralThresholdsModel"
       },
       "StudyContextModel": {
         "properties": {

@@ -101,6 +101,27 @@ def test_constraints_pin_the_tested_runtime_tree():
     assert pins == _runtime_tree()
 
 
+def test_spectral_logs_hold_no_file_name_nor_values(spectral_models_dir, auth_headers, caplog):
+    from .conftest import spectral_client
+
+    client = spectral_client(spectral_models_dir.path, spectral_models_dir.lock)
+    rows = [f"{400 + 10 * i},{i * i + 1}" for i in range(40)]
+    rows[5] = "450,123456.789"
+    good = "\n".join(rows).encode()
+    bad = good + b"\n500,abc DONOR-SECRET\n"
+    caplog.set_level(logging.DEBUG)
+    for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
+        logging.getLogger(name).setLevel(logging.DEBUG)
+    form = {"technique": "raman", "x_unit": "cm-1", "y_unit": "intensity", "laser_nm": "532"}
+    ok = client.post("/ai/spectral/identify", headers=auth_headers,
+                     files={"file": ("DONOR-SECRET.csv", good)}, data=form)
+    ko = client.post("/ai/spectral/identify", headers=auth_headers,
+                     files={"file": ("DONOR-SECRET.csv", bad)}, data=form)
+    assert ok.status_code == 200 and ko.status_code == 422
+    assert "DONOR-SECRET" not in caplog.text and "123456.789" not in caplog.text
+    assert "DONOR-SECRET" not in ok.text and "DONOR-SECRET" not in ko.text
+
+
 def test_quality_logs_hold_no_sample_id_nor_control_source(client, auth_headers, caplog):
     from microtrace_core.results import run_import
     from microtrace_core.results.examples import leslie_like_wide_table

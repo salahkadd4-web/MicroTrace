@@ -198,6 +198,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/spectral/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Spectral Model */
+        get: operations["spectral_model"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/spectral/identify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Spectral Identify */
+        post: operations["spectral_identify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -236,6 +270,25 @@ export interface components {
             file: string;
             /** Sheet */
             sheet?: string | null;
+        };
+        /** Body_spectral_identify */
+        Body_spectral_identify: {
+            /**
+             * File
+             * @description Spectre : texte à deux colonnes (2 Mo au plus)
+             */
+            file: string;
+            /** Technique */
+            technique: string;
+            /**
+             * X Unit
+             * @default cm-1
+             */
+            x_unit: string;
+            /** Y Unit */
+            y_unit: string;
+            /** Laser Nm */
+            laser_nm?: string | null;
         };
         /** Body_tables_read */
         Body_tables_read: {
@@ -497,6 +550,13 @@ export interface components {
              * @enum {string}
              */
             technique: "py_gc_ms" | "ted_gc_ms" | "micro_ftir" | "micro_raman" | "other";
+        };
+        /** PolymerOptionModel */
+        PolymerOptionModel: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
         };
         /** PolymerStatsModel */
         PolymerStatsModel: {
@@ -925,6 +985,248 @@ export interface components {
             n_aliquots: number;
             /** N Quantified */
             n_quantified: number;
+        };
+        /** SpectralCandidateModel */
+        SpectralCandidateModel: {
+            /** Rank */
+            rank: number;
+            /** Polymer */
+            polymer: string;
+            /** Label */
+            label: string;
+            /** Score */
+            score: number;
+            /** Score Text */
+            score_text: string;
+        };
+        /** SpectralCurveModel */
+        SpectralCurveModel: {
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
+        };
+        /** SpectralIdentifyResponse */
+        SpectralIdentifyResponse: {
+            model: components["schemas"]["SpectralModelRef"];
+            /** Trial Label */
+            trial_label: string;
+            /** Trial Sentence */
+            trial_sentence: string;
+            input: components["schemas"]["SpectralInputModel"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "identified" | "uncertain" | "not_identified";
+            /** Status Label */
+            status_label: string;
+            /** Abstention */
+            abstention: ("low_score" | "low_coverage" | "technique_mismatch" | "no_overlap") | null;
+            /** Explanation */
+            explanation: string;
+            /** Candidates */
+            candidates: components["schemas"]["SpectralCandidateModel"][];
+            /** Margin */
+            margin: number | null;
+            /** Classifier Polymer */
+            classifier_polymer: string | null;
+            /** Classifier Label */
+            classifier_label: string | null;
+            /** References */
+            references: components["schemas"]["SpectralReferenceModel"][];
+            query_curve: components["schemas"]["SpectralCurveModel"];
+            /** X Label */
+            x_label: string;
+            /** Y Label */
+            y_label: string;
+            thresholds: components["schemas"]["SpectralThresholdsModel"];
+            /** Limits */
+            limits: string[];
+            /** Correction Vocabulary */
+            correction_vocabulary: components["schemas"]["PolymerOptionModel"][];
+        };
+        /** SpectralInputModel */
+        SpectralInputModel: {
+            /** Sha256 */
+            sha256: string;
+            /** Size */
+            size: number;
+            /** N Points */
+            n_points: number;
+            /** X Min */
+            x_min: number;
+            /** X Max */
+            x_max: number;
+            /**
+             * Technique
+             * @enum {string}
+             */
+            technique: "raman" | "ftir_atr";
+            /** Technique Label */
+            technique_label: string;
+            /**
+             * X Unit
+             * @enum {string}
+             */
+            x_unit: "cm-1" | "nm";
+            /**
+             * Y Unit
+             * @enum {string}
+             */
+            y_unit: "intensity" | "absorbance" | "transmittance_pct";
+            /** Laser Nm */
+            laser_nm: number | null;
+            /** Diagnostic Coverage */
+            diagnostic_coverage: number;
+            /** Window Min */
+            window_min: number;
+            /** Window Max */
+            window_max: number;
+        };
+        /** SpectralLibraryModel */
+        SpectralLibraryModel: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
+            /** Citation */
+            citation: string;
+            /** Licence Text */
+            licence_text: string;
+            /** Curve Allowed */
+            curve_allowed: boolean;
+            /** N Ftir Atr */
+            n_ftir_atr: number;
+            /** N Raman */
+            n_raman: number;
+        };
+        /** SpectralMetricsModel */
+        SpectralMetricsModel: {
+            /** N */
+            n: number;
+            /** N In Library */
+            n_in_library: number;
+            /** N Out Of Library */
+            n_out_of_library: number;
+            /** Top1 */
+            top1: number;
+            /** Top3 */
+            top3: number;
+            status_in_library: components["schemas"]["SpectralStatusShares"];
+            status_out_of_library: components["schemas"]["SpectralStatusShares"] | null;
+            /** Nested Identified Precision Min */
+            nested_identified_precision_min: number | null;
+            /** Nested Identified Precision Max */
+            nested_identified_precision_max: number | null;
+        };
+        /** SpectralModelInfo */
+        SpectralModelInfo: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: ("missing" | "sha_mismatch" | "invalid") | null;
+            /** Message */
+            message: string | null;
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Expected Sha256 */
+            expected_sha256: string;
+            /** Sha256 */
+            sha256: string | null;
+            /** Trial Label */
+            trial_label: string;
+            /** Trial Sentence */
+            trial_sentence: string;
+            /** Limits */
+            limits: string[];
+            /** Card Path */
+            card_path: string;
+            /** Max Bytes */
+            max_bytes: number;
+            /** Max Points */
+            max_points: number;
+            /** Techniques */
+            techniques: components["schemas"]["SpectralTechniqueInfo"][];
+            /** Libraries */
+            libraries: components["schemas"]["SpectralLibraryModel"][];
+        };
+        /** SpectralModelRef */
+        SpectralModelRef: {
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** SpectralReferenceModel */
+        SpectralReferenceModel: {
+            /** Rank */
+            rank: number;
+            /** Spectrum Id */
+            spectrum_id: string;
+            /** Library */
+            library: string;
+            /** Library Name */
+            library_name: string;
+            /** Citation */
+            citation: string;
+            /** Licence Text */
+            licence_text: string;
+            /** Polymer */
+            polymer: string;
+            /** Label */
+            label: string;
+            /** Score */
+            score: number;
+            /** Score Text */
+            score_text: string;
+            curve: components["schemas"]["SpectralCurveModel"] | null;
+            /** Curve Note */
+            curve_note: string | null;
+        };
+        /** SpectralStatusShares */
+        SpectralStatusShares: {
+            /** Identified */
+            identified: number;
+            /** Uncertain */
+            uncertain: number;
+            /** Not Identified */
+            not_identified: number;
+        };
+        /** SpectralTechniqueInfo */
+        SpectralTechniqueInfo: {
+            /**
+             * Technique
+             * @enum {string}
+             */
+            technique: "raman" | "ftir_atr";
+            /** Label */
+            label: string;
+            /** N References */
+            n_references: number;
+            /** Polymers */
+            polymers: components["schemas"]["PolymerOptionModel"][];
+            /** Window Min */
+            window_min: number;
+            /** Window Max */
+            window_max: number;
+            thresholds: components["schemas"]["SpectralThresholdsModel"];
+            metrics: components["schemas"]["SpectralMetricsModel"] | null;
+        };
+        /** SpectralThresholdsModel */
+        SpectralThresholdsModel: {
+            /** Uncertain Min Score */
+            uncertain_min_score: number;
+            /** Identified Min Score */
+            identified_min_score: number;
+            /** Identified Min Margin */
+            identified_min_margin: number;
+            /** Classifier Agreement Required */
+            classifier_agreement_required: boolean;
         };
         /** StudyContextModel */
         StudyContextModel: {
@@ -1691,6 +1993,135 @@ export interface operations {
             };
             /** @description Erreur interne du moteur */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    spectral_model: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpectralModelInfo"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    spectral_identify: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_spectral_identify"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpectralIdentifyResponse"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Modèle spectral indisponible */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

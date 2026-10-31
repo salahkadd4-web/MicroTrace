@@ -19,3 +19,6 @@ dev = ["pytest>=8", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+microtrace_engine = ["spectral_model.lock.json"]

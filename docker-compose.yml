@@ -30,6 +30,10 @@ services:
     restart: unless-stopped
     environment:
       ENGINE_SECRET: "${ENGINE_SECRET:?Exécutez d’abord node scripts/generate-secrets.mjs}"
+      ENGINE_MODELS_DIR: /app/models
+    # Poids du modèle spectral (C5) : dossier models/ du dépôt, en lecture seule ; jamais dans l'image.
+    volumes:
+      - ./models:/app/models:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=3).status == 200 else 1)"]
       interval: 10s

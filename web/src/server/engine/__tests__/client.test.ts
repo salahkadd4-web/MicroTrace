@@ -83,6 +83,47 @@ describe("engineClient", () => {
     expect(form.has("sheet")).toBe(false);
   });
 
+  it("lit la fiche du modèle spectral avec le secret", async () => {
+    const { fetch, client } = setup(() => json(200, { available: false }));
+    await client.spectralModel();
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("http://engine.test/ai/spectral/model");
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>)["X-Engine-Secret"]).toBe("s".repeat(40));
+  });
+
+  it("envoie le spectre et ses paramètres en multipart", async () => {
+    const { fetch, client } = setup(() => json(200, { status: "identified" }));
+    await client.identifySpectrum({
+      file: { data: new TextEncoder().encode("400,1\n401,2"), filename: "s.csv" },
+      technique: "raman",
+      xUnit: "cm-1",
+      yUnit: "intensity",
+      laserNm: "532",
+    });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("http://engine.test/ai/spectral/identify");
+    expect(init.method).toBe("POST");
+    const form = init.body as FormData;
+    expect((form.get("file") as File).name).toBe("s.csv");
+    expect(form.get("technique")).toBe("raman");
+    expect(form.get("x_unit")).toBe("cm-1");
+    expect(form.get("y_unit")).toBe("intensity");
+    expect(form.get("laser_nm")).toBe("532");
+  });
+
+  it("n'envoie pas laser_nm quand il est nul (FTIR)", async () => {
+    const { fetch, client } = setup(() => json(200, {}));
+    await client.identifySpectrum({
+      file: { data: new Blob(["x"]), filename: "s.csv" },
+      technique: "ftir_atr",
+      xUnit: "cm-1",
+      yUnit: "absorbance",
+      laserNm: null,
+    });
+    expect((fetch.mock.calls[0][1].body as FormData).has("laser_nm")).toBe(false);
+  });
+
   it("omet existing quand il est absent", async () => {
     const { fetch, client } = setup(() => json(200, {}));
     await client.checkImport({

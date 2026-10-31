@@ -389,3 +389,152 @@ class QualityResponse(_Model):
     signals: list[QualitySignalModel]
     notes: list[QualityNoteModel]
     rules: list[QualityRuleModel]
+
+
+# --- C5: spectral identification aid ---------------------------------------------------------
+
+SpectralTechniqueName = Literal["raman", "ftir_atr"]
+SpectralStatusName = Literal["identified", "uncertain", "not_identified"]
+SpectralAbstentionName = Literal["low_score", "low_coverage", "technique_mismatch", "no_overlap"]
+SpectralReasonName = Literal["missing", "sha_mismatch", "invalid"]
+
+
+class SpectralModelRef(_Model):
+    name: str
+    version: str
+    sha256: str
+
+
+class SpectralThresholdsModel(_Model):
+    uncertain_min_score: Number
+    identified_min_score: Number
+    identified_min_margin: Number
+    classifier_agreement_required: bool
+
+
+class SpectralInputModel(_Model):
+    sha256: str
+    size: int
+    n_points: int
+    x_min: Number
+    x_max: Number
+    technique: SpectralTechniqueName
+    technique_label: str
+    x_unit: Literal["cm-1", "nm"]
+    y_unit: Literal["intensity", "absorbance", "transmittance_pct"]
+    laser_nm: Number | None
+    diagnostic_coverage: Number
+    window_min: Number
+    window_max: Number
+
+
+class SpectralCandidateModel(_Model):
+    rank: int
+    polymer: str
+    label: str
+    score: Number
+    score_text: str
+
+
+class SpectralCurveModel(_Model):
+    x: list[Number]
+    y: list[Number]
+
+
+class SpectralReferenceModel(_Model):
+    rank: int
+    spectrum_id: str
+    library: str
+    library_name: str
+    citation: str
+    licence_text: str
+    polymer: str
+    label: str
+    score: Number
+    score_text: str
+    curve: SpectralCurveModel | None
+    curve_note: str | None
+
+
+class PolymerOptionModel(_Model):
+    code: str
+    label: str
+
+
+class SpectralIdentifyResponse(_Model):
+    model: SpectralModelRef
+    trial_label: str
+    trial_sentence: str
+    input: SpectralInputModel
+    status: SpectralStatusName
+    status_label: str
+    abstention: SpectralAbstentionName | None
+    explanation: str
+    candidates: list[SpectralCandidateModel]
+    margin: Number | None
+    classifier_polymer: str | None
+    classifier_label: str | None
+    references: list[SpectralReferenceModel]
+    query_curve: SpectralCurveModel
+    x_label: str
+    y_label: str
+    thresholds: SpectralThresholdsModel
+    limits: list[str]
+    correction_vocabulary: list[PolymerOptionModel]
+
+
+class SpectralStatusShares(_Model):
+    identified: Number
+    uncertain: Number
+    not_identified: Number
+
+
+class SpectralMetricsModel(_Model):
+    n: int
+    n_in_library: int
+    n_out_of_library: int
+    top1: Number
+    top3: Number
+    status_in_library: SpectralStatusShares
+    status_out_of_library: SpectralStatusShares | None
+    nested_identified_precision_min: Number | None
+    nested_identified_precision_max: Number | None
+
+
+class SpectralTechniqueInfo(_Model):
+    technique: SpectralTechniqueName
+    label: str
+    n_references: int
+    polymers: list[PolymerOptionModel]
+    window_min: Number
+    window_max: Number
+    thresholds: SpectralThresholdsModel
+    metrics: SpectralMetricsModel | None
+
+
+class SpectralLibraryModel(_Model):
+    code: str
+    name: str
+    citation: str
+    licence_text: str
+    curve_allowed: bool
+    n_ftir_atr: int
+    n_raman: int
+
+
+class SpectralModelInfo(_Model):
+    available: bool
+    reason: SpectralReasonName | None
+    message: str | None
+    name: str
+    version: str
+    expected_sha256: str
+    sha256: str | None
+    trial_label: str
+    trial_sentence: str
+    limits: list[str]
+    card_path: str
+    max_bytes: int
+    max_points: int
+    techniques: list[SpectralTechniqueInfo]
+    libraries: list[SpectralLibraryModel]
