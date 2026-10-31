@@ -151,6 +151,7 @@ describe("page Qualité", () => {
       "Imports",
       "Résultats",
       "Qualité",
+      "Spectres",
       "Rapport",
       "Journal",
     ]);
