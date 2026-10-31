@@ -43,6 +43,10 @@ describe("noms de fichiers", () => {
 });
 
 describe("csvCell", () => {
+  it("séparateur virgule : cite aussi la virgule", () => {
+    expect(csvCell("a,b", ",")).toBe('"a,b"');
+    expect(csvCell("a,b")).toBe("a,b");
+  });
   it("null et undefined donnent une cellule vide", () => {
     expect(csvCell(null)).toBe("");
     expect(csvCell(undefined)).toBe("");

@@ -1,12 +1,15 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/engine/client", async (orig) => {
   const actual = await orig<typeof import("@/server/engine/client")>();
-  return { ...actual, engineClient: { validateContext: vi.fn(async () => ({})) } };
+  return {
+    ...actual,
+    engineClient: { validateContext: vi.fn(async () => ({})), parseSpectrum: vi.fn() },
+  };
 });
 
 const dir = mkdtempSync(path.join(tmpdir(), "mt-consent-"));
@@ -15,10 +18,11 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
 import { EXPORT_COLUMNS } from "@/lib/training-consent";
 import { prisma } from "@/server/db";
+import { EngineError, engineClient } from "@/server/engine/client";
 import { storeFile } from "@/server/file-store";
 import type { LabContext } from "@/server/lab-context";
 import { createProject } from "@/server/projects";
-import { archiveStudy, createStudy } from "@/server/studies";
+import { archiveStudy, createStudy, declarePseudonymisation } from "@/server/studies";
 import {
   buildTrainingExport,
   getTrainingConsent,
@@ -41,10 +45,40 @@ let adminB: LabContext;
 let studyA1: string;
 let studyA2: string;
 let studyB: string;
+let studySim: string;
+let studyUndeclared: string;
+const parse = vi.mocked(engineClient.parseSpectrum);
 
-async function newStudy(c: LabContext, title: string) {
+/** Simulacre du moteur : les deux colonnes numériques du fichier, sans le reste du texte. */
+function fakeParse(file: { data: Blob | Uint8Array }) {
+  const text = new TextDecoder().decode(file.data as Uint8Array);
+  const x: number[] = [];
+  const y: number[] = [];
+  for (const line of text.split("\n")) {
+    const m = /^(\d+) (\d+)$/.exec(line);
+    if (m) {
+      x.push(Number(m[1]));
+      y.push(Number(m[2]));
+    }
+  }
+  return { x, y };
+}
+
+async function newStudy(
+  c: LabContext,
+  title: string,
+  opts: { nature?: "laboratory" | "simulated"; declared?: boolean } = {},
+) {
   const p = await createProject(c, { title: `P ${title}` });
-  return (await createStudy(c, p.id, { title, nature: "laboratory", blankCorrected: "unknown" })).id;
+  const id = (
+    await createStudy(c, p.id, {
+      title,
+      nature: opts.nature ?? "laboratory",
+      blankCorrected: "unknown",
+    })
+  ).id;
+  if (opts.declared !== false) await declarePseudonymisation(c, id);
+  return id;
 }
 
 const analysisData = (studyId: string, digest: string, size: number, tag: string) => ({
@@ -121,7 +155,12 @@ async function seedDecisions() {
   await decide(studyA1, a6.id, "corrected", "PS", 8);
   await decide(studyA2, a7.id, "accepted", "PE", 6);
   await decide(studyB, b1.id, "accepted", "PE", 11);
-  return { a1, a2, a3, a4, a5, a6, a7, b1 };
+  // Exclues : étude simulée, étude sans déclaration de pseudonymisation.
+  const sim = await analysis(studySim, "sim");
+  await decide(studySim, sim.id, "accepted", "PE", 12);
+  const undeclared = await analysis(studyUndeclared, "undeclared");
+  await decide(studyUndeclared, undeclared.id, "accepted", "PE", 13);
+  return { a1, a2, a3, a4, a5, a6, a7, b1, sim, undeclared };
 }
 
 beforeEach(async () => {
@@ -135,6 +174,10 @@ beforeEach(async () => {
   studyA1 = await newStudy(admin, "A1");
   studyA2 = await newStudy(admin, "A2");
   studyB = await newStudy(adminB, "B1");
+  studySim = await newStudy(admin, "Sim", { nature: "simulated" });
+  studyUndeclared = await newStudy(admin, "NonPseudo", { declared: false });
+  parse.mockReset();
+  parse.mockImplementation(async (file) => fakeParse(file) as never);
 });
 
 const events = (action: string) =>
@@ -240,12 +283,16 @@ describe("buildTrainingExport", () => {
     });
     expect(doc.notice).toContain("loi 18-07");
     expect(doc.prerequisites).toContain("résultats validés");
+    expect(doc.notice).toContain("études simulées");
+    expect(doc.notice).toContain("pseudonymisation");
+    expect(doc).toMatchObject({ total_rows: 4, truncated: false });
     const rows = doc.rows as Record<string, unknown>[];
     expect(rows.map((r) => r.analysis_id)).toEqual([s.a1.id, s.a2.id, s.a6.id, s.a7.id]);
     expect(rows.map((r) => r.label)).toEqual(["PE", "PP", "PS", "PE"]);
     expect(rows.map((r) => r.decision)).toEqual(["accepted", "corrected", "corrected", "accepted"]);
     for (const r of rows) {
-      expect(Object.keys(r).sort()).toEqual([...EXPORT_COLUMNS, "file_base64"].sort());
+      expect(Object.keys(r).sort()).toEqual([...EXPORT_COLUMNS, "spectrum"].sort());
+      expect(r).not.toHaveProperty("file_base64");
       expect(r).not.toHaveProperty("file_name");
       expect(r).not.toHaveProperty("note");
       expect(r).not.toHaveProperty("title");
@@ -264,22 +311,107 @@ describe("buildTrainingExport", () => {
       proposed_status: "identified",
       score: 0.9,
     });
-    expect(Buffer.from(rows[0].file_base64 as string, "base64")).toEqual(Buffer.from(s.a1.bytes));
+    // Seulement les colonnes numériques lues par le moteur : jamais les octets ni le texte du fichier.
+    expect(rows[0].spectrum).toEqual({ x: [100, 200], y: [1, 2] });
+    expect(file.body).not.toContain("# a1");
+    expect(file.body).not.toContain(s.sim.id);
+    expect(file.body).not.toContain(s.undeclared.id);
     expect(file.body).not.toContain("nom-secret");
     expect(file.body).not.toContain("note-secrete");
     expect(file.body).not.toContain(s.b1.id);
     const [ev] = await events("lab.training_export");
-    expect(ev.after).toEqual({ format: "json", rows: 4, consentVersion: "c1" });
+    expect(ev.after).toEqual({
+      format: "json",
+      rows: 4,
+      consentVersion: "c1",
+      truncated: false,
+      bodySha256: sha(new TextEncoder().encode(file.body)),
+    });
     expect(ev).toMatchObject({ entityType: "Laboratory", laboratoryId: admin.laboratoryId });
   });
 
-  it("fichier retiré du magasin : file_base64 nul et file_missing", async () => {
+  it("études simulées et études sans pseudonymisation déclarée : jamais exportées (JSON et CSV)", async () => {
+    const s = await seedDecisions();
+    await setTrainingConsent(admin, true);
+    for (const format of ["json", "csv"] as const) {
+      const body = (await buildTrainingExport(admin, format)).body;
+      expect(body).not.toContain(s.sim.id);
+      expect(body).not.toContain(s.undeclared.id);
+      expect(body).not.toContain("simulated");
+    }
+    const logged = await events("lab.training_export");
+    expect(logged.map((e) => (e.after as { rows: number }).rows)).toEqual([4, 4]);
+  });
+
+  it("l'octet brut ne sort jamais : l'export ne porte que les nombres lus par le moteur", async () => {
+    await seedDecisions();
+    await setTrainingConsent(admin, true);
+    const body = (await buildTrainingExport(admin, "json")).body;
+    expect(parse).toHaveBeenCalledTimes(4);
+    expect(body).not.toMatch(/file_base64|nom-secret|# a/);
+  });
+
+  it("fichier illisible pour le moteur : spectrum nul et spectrum_unreadable", async () => {
+    const a = await analysis(studyA1, "bad");
+    await decide(studyA1, a.id, "accepted", "PE", 1);
+    await setTrainingConsent(admin, true);
+    parse.mockRejectedValue(new EngineError(422, "Fichier vide."));
+    const doc = JSON.parse((await buildTrainingExport(admin, "json")).body);
+    expect(doc.rows[0]).toMatchObject({ spectrum: null, spectrum_unreadable: true });
+  });
+
+  it("fichier du magasin altéré : spectrum nul et file_corrupt", async () => {
+    const a = await analysis(studyA1, "tampered");
+    await decide(studyA1, a.id, "accepted", "PE", 1);
+    const row = await prisma.modelPrediction.findUniqueOrThrow({ where: { id: a.id } });
+    writeFileSync(path.join(dir, "files", row.inputFileSha256!), "autre contenu");
+    await setTrainingConsent(admin, true);
+    const doc = JSON.parse((await buildTrainingExport(admin, "json")).body);
+    expect(doc.rows[0]).toMatchObject({ spectrum: null, file_corrupt: true });
+    expect(doc.rows[0]).not.toHaveProperty("file_missing");
+  });
+
+  it("export trop volumineux : refusé avec le message, aucun audit", async () => {
+    await seedDecisions();
+    await setTrainingConsent(admin, true);
+    await expect(buildTrainingExport(admin, "json", { maxFilesBytes: 10 })).rejects.toThrow(
+      "Export trop volumineux (50 Mo maximum) : contactez l'équipe MicroTrace.",
+    );
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("retrait du consentement pendant l'export : refusé, ni fichier ni audit", async () => {
+    await seedDecisions();
+    await setTrainingConsent(admin, true);
+    parse.mockImplementationOnce(async (file) => {
+      await setTrainingConsent(admin, false);
+      return fakeParse(file) as never;
+    });
+    await expect(buildTrainingExport(admin, "json")).rejects.toThrow(NO_EXPORT);
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("texte du consentement changé (version différente) : à renouveler, aucun audit", async () => {
+    await seedDecisions();
+    await setTrainingConsent(admin, true);
+    await prisma.laboratory.update({
+      where: { id: admin.laboratoryId },
+      data: { trainingConsentVersion: "c0" },
+    });
+    await expect(buildTrainingExport(admin, "json")).rejects.toThrow(
+      "Le texte du consentement a changé : renouvelez le consentement avant d'exporter.",
+    );
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("fichier retiré du magasin : spectrum nul et file_missing", async () => {
     const a = await analysis(studyA1, "gone", { store: false });
     await decide(studyA1, a.id, "accepted", "PE", 1);
     await setTrainingConsent(admin, true);
     const doc = JSON.parse((await buildTrainingExport(admin, "json")).body);
     expect(doc.rows).toHaveLength(1);
-    expect(doc.rows[0]).toMatchObject({ file_base64: null, file_missing: true });
+    expect(doc.rows[0]).toMatchObject({ spectrum: null, file_missing: true });
+    expect(parse).not.toHaveBeenCalled();
   });
 
   it("CSV : en-tête des colonnes, une ligne par décision retenue", async () => {
@@ -291,10 +423,10 @@ describe("buildTrainingExport", () => {
     const lines = file.body.split(/\r?\n/).filter((l) => l !== "");
     expect(lines[0]).toBe(EXPORT_COLUMNS.join(","));
     expect(lines).toHaveLength(5);
-    expect(file.body).not.toContain("file_base64");
+    expect(file.body).not.toContain("spectrum");
     expect(file.body).not.toContain("nom-secret");
     const [ev] = await events("lab.training_export");
-    expect(ev.after).toEqual({ format: "csv", rows: 4, consentVersion: "c1" });
+    expect(ev.after).toMatchObject({ format: "csv", rows: 4, consentVersion: "c1" });
   });
 
   it("retrait puis export : refusé", async () => {
@@ -328,5 +460,24 @@ describe("buildTrainingExport", () => {
     expect(lines).toHaveLength(1001);
     expect(lines[1]).toContain("an1000");
     expect(lines.join("\n")).not.toContain("an0,");
+  });
+
+  it("au-delà de 1 000 lignes, le JSON annonce total_rows et truncated", async () => {
+    const digest = sha(BYTES("many2"));
+    await prisma.modelPrediction.createMany({
+      data: Array.from({ length: 1001 }, (_, i) => ({
+        ...analysisData(studyA1, digest, 5, `m${i}`),
+        id: `bn${i}`,
+      })),
+    });
+    await prisma.modelPrediction.createMany({
+      data: Array.from({ length: 1001 }, (_, i) =>
+        decisionData(studyA1, `bn${i}`, "accepted", "PE", i),
+      ),
+    });
+    await setTrainingConsent(admin, true);
+    const doc = JSON.parse((await buildTrainingExport(admin, "json")).body);
+    expect(doc).toMatchObject({ total_rows: 1001, truncated: true });
+    expect(doc.rows).toHaveLength(1000);
   });
 });

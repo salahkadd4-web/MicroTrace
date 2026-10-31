@@ -169,6 +169,12 @@ describe("page Spectres", () => {
     expect(screen.queryByRole("button", { name: /consentement/i })).not.toBeInTheDocument();
   });
 
+  it("moteur injoignable : la ligne du consentement reste affichée", async () => {
+    vi.mocked(getSpectralModel).mockResolvedValue({ kind: "engine_down" });
+    await renderPage();
+    expect(screen.getByText(/améliorer les modèles : désactivée\./)).toBeInTheDocument();
+  });
+
   it("un chercheur voit le formulaire de dépôt", async () => {
     await renderPage();
     expect(screen.getByLabelText("Fichier du spectre")).toBeInTheDocument();

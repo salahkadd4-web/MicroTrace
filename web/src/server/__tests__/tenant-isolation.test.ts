@@ -24,6 +24,7 @@ vi.mock("@/server/engine/client", async (orig) => {
       dictionary: vi.fn(),
       spectralModel: vi.fn(),
       identifySpectrum: vi.fn(),
+      parseSpectrum: vi.fn(),
     },
   };
 });
@@ -1106,6 +1107,7 @@ describe("consentement du laboratoire", () => {
   });
 
   it("la dernière décision acceptée de B n'apparaît jamais dans l'export de A", async () => {
+    await declarePseudonymisation(ctxB, idsB.study);
     const analysisB = await analyzeSpectrum(ctxB, idsB.study, SPECTRUM_INPUT);
     await recordSpectralDecision(ctxB, idsB.study, analysisB.id, { decision: "accepted" });
     await setTrainingConsent(ctxB, true);

@@ -232,6 +232,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/spectral/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Spectral Parse
+         * @description The two numeric columns of a spectrum file (training export): numbers only.
+         */
+        post: operations["spectral_parse"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -289,6 +309,14 @@ export interface components {
             y_unit: string;
             /** Laser Nm */
             laser_nm?: string | null;
+        };
+        /** Body_spectral_parse */
+        Body_spectral_parse: {
+            /**
+             * File
+             * @description Spectre : texte à deux colonnes (2 Mo au plus)
+             */
+            file: string;
         };
         /** Body_tables_read */
         Body_tables_read: {
@@ -1161,6 +1189,16 @@ export interface components {
             version: string;
             /** Sha256 */
             sha256: string;
+        };
+        /**
+         * SpectralParsedModel
+         * @description The numeric spectrum as read from the file: no header, no file text.
+         */
+        SpectralParsedModel: {
+            /** X */
+            x: number[];
+            /** Y */
+            y: number[];
         };
         /** SpectralReferenceModel */
         SpectralReferenceModel: {
@@ -2122,6 +2160,68 @@ export interface operations {
             };
             /** @description Modèle spectral indisponible */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    spectral_parse: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_spectral_parse"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpectralParsedModel"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,4 +1,4 @@
-import { NO_CONSENT_EXPORT } from "@/lib/training-consent";
+import { CONSENT_RENEW, EXPORT_TOO_LARGE, NO_CONSENT_EXPORT } from "@/lib/training-consent";
 import {
   attachment,
   authenticate,
@@ -27,8 +27,11 @@ export async function GET(
   try {
     return attachment(await buildTrainingExport(auth.ctx, format));
   } catch (e) {
-    if (e instanceof DomainError && e.message === NO_CONSENT_EXPORT) {
-      return plain(NO_CONSENT_EXPORT, 403);
+    if (e instanceof DomainError && (e.message === NO_CONSENT_EXPORT || e.message === CONSENT_RENEW)) {
+      return plain(e.message, 403);
+    }
+    if (e instanceof DomainError && e.message === EXPORT_TOO_LARGE) {
+      return plain(EXPORT_TOO_LARGE, 413);
     }
     return failure(e, "membres/export-entrainement", "Le fichier n'a pas pu être produit.");
   }

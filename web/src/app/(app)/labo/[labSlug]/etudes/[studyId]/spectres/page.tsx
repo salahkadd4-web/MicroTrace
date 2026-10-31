@@ -37,13 +37,7 @@ function consentSentence(consent: { granted: boolean; grantedAt: Date | null }):
   return `${base} activée depuis le ${formatDateTimeFr(consent.grantedAt) ?? "—"} (réglage du responsable du laboratoire).`;
 }
 
-function TrialAlert({
-  info,
-  consent,
-}: {
-  info: SpectralModelInfo;
-  consent: { granted: boolean; grantedAt: Date | null };
-}) {
+function TrialAlert({ info }: { info: SpectralModelInfo }) {
   return (
     <Alert variant="info">
       <AlertDescription>
@@ -60,7 +54,6 @@ function TrialAlert({
             ))}
           </ul>
           <p>{NO_TRAINING_SENTENCE}</p>
-          <p>{consentSentence(consent)}</p>
         </div>
       </AlertDescription>
     </Alert>
@@ -157,7 +150,7 @@ export default async function SpectresPage({
   return (
     <div className="space-y-6">
       {model.kind === "ok" ? (
-        <TrialAlert info={model.info} consent={consent} />
+        <TrialAlert info={model.info} />
       ) : (
         <Alert variant="destructive">
           <AlertDescription>
@@ -165,6 +158,7 @@ export default async function SpectresPage({
           </AlertDescription>
         </Alert>
       )}
+      <p className="text-sm text-muted-foreground">{consentSentence(consent)}</p>
       {archived ? (
         <Alert variant="info">
           <AlertDescription>

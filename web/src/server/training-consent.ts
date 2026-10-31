@@ -1,6 +1,8 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import {
   CONSENT_ALREADY_GIVEN,
+  CONSENT_RENEW,
   CONSENT_NOT_GIVEN,
   EXPORT_COLUMNS,
   EXPORT_FORMAT,
@@ -12,6 +14,7 @@ import {
 } from "@/lib/training-consent";
 import { recordAudit } from "@/server/audit";
 import { prisma } from "@/server/db";
+import { EngineError, engineClient } from "@/server/engine/client";
 import { DomainError } from "@/server/errors";
 import { readStoredFile } from "@/server/file-store";
 import type { LabContext } from "@/server/lab-context";
@@ -22,8 +25,10 @@ import { lockLaboratory } from "@/server/tx-lock";
 
 /** Au plus ce nombre de lignes par export (les plus récentes). */
 const MAX_ROWS = 1000;
-/** Total des fichiers joints (octets bruts) au-delà duquel l'export est refusé. */
+/** Total des fichiers lus (octets bruts, jamais exportés tels quels) au-delà duquel l'export est refusé. */
 const MAX_FILES_BYTES = 50 * 1024 * 1024;
+/** Appels simultanés au moteur pour lire les spectres. */
+const PARSE_BATCH = 8;
 const HISTORY_LIMIT = 20;
 const CONSENT_ACTIONS = [
   "lab.training_consent.grant",
@@ -136,18 +141,28 @@ const rec = (v: unknown): Stored =>
 const text = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
 
+/**
+ * Études exportables : celles du laboratoire, ni simulées (données fictives) ni sans pseudonymisation
+ * déclarée (les fichiers déposés peuvent porter des données personnelles).
+ */
+const ELIGIBLE_STUDY = (ctx: LabContext) => ({
+  laboratoryId: ctx.laboratoryId,
+  nature: { not: "simulated" as const },
+  pseudonymDeclaredAt: { not: null },
+});
+
 type ExportRow = Record<(typeof EXPORT_COLUMNS)[number], string | number | null>;
 
 /**
  * Lignes d'export : la dernière décision de chaque analyse spectrale des études du laboratoire, si elle
  * est acceptée ou corrigée, les plus récentes d'abord. Rien d'une autre étude ni d'un autre laboratoire.
  */
-async function consentedRows(ctx: LabContext): Promise<ExportRow[]> {
+async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; total: number }> {
   const decisions = await prisma.modelPrediction.findMany({
     where: {
       kind: "spectral",
       status: { not: "proposed" },
-      study: { laboratoryId: ctx.laboratoryId },
+      study: ELIGIBLE_STUDY(ctx),
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     select: {
@@ -165,21 +180,21 @@ async function consentedRows(ctx: LabContext): Promise<ExportRow[]> {
     const analysisId = text(rec(d.input).analysisId);
     if (analysisId !== null && !latest.has(analysisId)) latest.set(analysisId, d);
   }
-  const kept = [...latest.entries()]
+  const accepted = [...latest.entries()]
     .filter(([, d]) => d.status === "accepted" || d.status === "corrected")
     .sort(
       ([, a], [, b]) =>
         (b.decidedAt ?? b.createdAt).getTime() - (a.decidedAt ?? a.createdAt).getTime() ||
         (a.id < b.id ? 1 : -1),
-    )
-    .slice(0, MAX_ROWS);
-  if (kept.length === 0) return [];
+    );
+  const kept = accepted.slice(0, MAX_ROWS);
+  if (kept.length === 0) return { rows: [], total: 0 };
   const analyses = await prisma.modelPrediction.findMany({
     where: {
       id: { in: kept.map(([id]) => id) },
       kind: "spectral",
       status: "proposed",
-      study: { laboratoryId: ctx.laboratoryId },
+      study: ELIGIBLE_STUDY(ctx),
     },
     include: { study: { select: { nature: true } } },
   });
@@ -213,7 +228,7 @@ async function consentedRows(ctx: LabContext): Promise<ExportRow[]> {
       model_sha256: a.modelSha256,
     });
   }
-  return rows;
+  return { rows, total: accepted.length };
 }
 
 /**
@@ -223,6 +238,7 @@ async function consentedRows(ctx: LabContext): Promise<ExportRow[]> {
 export async function buildTrainingExport(
   ctx: LabContext,
   format: "json" | "csv",
+  opts: { maxFilesBytes?: number } = {},
 ): Promise<DownloadFile> {
   assertRole(ctx, "lab_admin");
   const lab = await prisma.laboratory.findUnique({
@@ -232,58 +248,120 @@ export async function buildTrainingExport(
   if (!lab || !lab.trainingConsentAt || !lab.trainingConsentVersion) {
     throw new DomainError(NO_CONSENT_EXPORT);
   }
-  const rows = await consentedRows(ctx);
+  if (lab.trainingConsentVersion !== TRAINING_CONSENT_VERSION) throw new DomainError(CONSENT_RENEW);
+  const consentAt = lab.trainingConsentAt;
+  const consentVersion = lab.trainingConsentVersion;
+  const { rows, total } = await consentedRows(ctx);
+  const truncated = total > rows.length;
   const generatedAt = new Date();
   const fileName = `microtrace-${lab.slug}-entrainement-spectral-${parisDay(generatedAt)}.${format}`;
+  const maxBytes = opts.maxFilesBytes ?? MAX_FILES_BYTES;
 
   let body: string;
   if (format === "json") {
-    let total = 0;
-    const withFiles: Record<string, unknown>[] = [];
-    for (const row of rows) {
-      let bytes: Buffer | null = null;
-      try {
-        bytes = row.file_sha256 ? await readStoredFile(String(row.file_sha256)) : null;
-      } catch {
-        bytes = null; // fichier du magasin altéré : jamais exporté
-      }
-      if (bytes) {
-        total += bytes.length;
-        if (total > MAX_FILES_BYTES) throw new DomainError(EXPORT_TOO_LARGE);
-      }
-      withFiles.push(
-        bytes
-          ? { ...row, file_base64: bytes.toString("base64") }
-          : { ...row, file_base64: null, file_missing: true },
+    let totalBytes = 0;
+    const withSpectra: Record<string, unknown>[] = [];
+    for (let i = 0; i < rows.length; i += PARSE_BATCH) {
+      const batch = rows.slice(i, i + PARSE_BATCH);
+      // Lecture des fichiers (octets vérifiés) puis, par le moteur, des seules colonnes numériques.
+      const files = await Promise.all(
+        batch.map(async (row) => {
+          try {
+            return {
+              bytes: row.file_sha256 ? await readStoredFile(String(row.file_sha256)) : null,
+              corrupt: false,
+            };
+          } catch (e) {
+            if (e instanceof Error && e.message === "Fichier du magasin corrompu.") {
+              return { bytes: null, corrupt: true };
+            }
+            throw e;
+          }
+        }),
       );
+      for (const f of files) {
+        totalBytes += f.bytes?.length ?? 0;
+        if (totalBytes > maxBytes) throw new DomainError(EXPORT_TOO_LARGE);
+      }
+      const parsed = await Promise.all(
+        files.map(async (f) => {
+          if (!f.bytes) return null;
+          try {
+            return await engineClient.parseSpectrum({
+              data: new Uint8Array(f.bytes),
+              filename: "spectre",
+            });
+          } catch (e) {
+            if (e instanceof EngineError && (e.status === 422 || e.status === 413)) {
+              return "unreadable" as const;
+            }
+            throw e;
+          }
+        }),
+      );
+      batch.forEach((row, j) => {
+        const f = files[j];
+        const p = parsed[j];
+        if (p && p !== "unreadable") {
+          withSpectra.push({ ...row, spectrum: { x: p.x, y: p.y } });
+        } else if (p === "unreadable") {
+          withSpectra.push({ ...row, spectrum: null, spectrum_unreadable: true });
+        } else if (f.corrupt) {
+          withSpectra.push({ ...row, spectrum: null, file_corrupt: true });
+        } else {
+          withSpectra.push({ ...row, spectrum: null, file_missing: true });
+        }
+      });
     }
     body = JSON.stringify({
       format: EXPORT_FORMAT,
       version: 1,
       exported_at: generatedAt.toISOString(),
       laboratory: { slug: lab.slug, name: lab.name },
-      consent: { granted_at: lab.trainingConsentAt.toISOString(), version: lab.trainingConsentVersion },
+      consent: { granted_at: consentAt.toISOString(), version: consentVersion },
       notice: EXPORT_NOTICE,
       prerequisites: EXPORT_PREREQUISITES,
-      rows: withFiles,
+      total_rows: total,
+      truncated,
+      rows: withSpectra,
     });
   } else {
     const lines = [EXPORT_COLUMNS, ...rows.map((r) => EXPORT_COLUMNS.map((c) => r[c]))].map((r) =>
-      r.map((v) => csvCell(v as string | number | null)).join(","),
+      r.map((v) => csvCell(v as string | number | null, ",")).join(","),
     );
     body = `${lines.join("\r\n")}\r\n`;
   }
 
-  await prisma.$transaction((tx) =>
-    recordAudit(tx, {
+  // L'audit est écrit sous le verrou du laboratoire, après relecture du consentement : un retrait
+  // validé pendant la construction du fichier l'emporte (ni fichier, ni événement d'export).
+  await prisma.$transaction(async (tx) => {
+    await lockLaboratory(tx, ctx.laboratoryId);
+    const now = await tx.laboratory.findUnique({
+      where: { id: ctx.laboratoryId },
+      select: { trainingConsentAt: true, trainingConsentVersion: true },
+    });
+    if (
+      !now?.trainingConsentAt ||
+      now.trainingConsentAt.getTime() !== consentAt.getTime() ||
+      now.trainingConsentVersion !== consentVersion
+    ) {
+      throw new DomainError(NO_CONSENT_EXPORT);
+    }
+    await recordAudit(tx, {
       actorId: ctx.userId,
       action: "lab.training_export",
       entityType: "Laboratory",
       entityId: ctx.laboratoryId,
       laboratoryId: ctx.laboratoryId,
-      after: { format, rows: rows.length, consentVersion: lab.trainingConsentVersion },
-    }),
-  );
+      after: {
+        format,
+        rows: rows.length,
+        consentVersion,
+        truncated,
+        bodySha256: createHash("sha256").update(body, "utf8").digest("hex"),
+      },
+    });
+  });
   return {
     body,
     contentType: format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8",

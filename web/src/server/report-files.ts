@@ -56,18 +56,23 @@ const FORMULA_START = /^[=+\-@\t\r]/;
  * n'est pas un nombre reçoit une apostrophe en tête (injection de formule des tableurs). Les valeurs
  * ne sont pas modifiées autrement ; null donne une cellule vide.
  */
-export function csvCell(value: string | number | boolean | null | undefined): string {
+export function csvCell(
+  value: string | number | boolean | null | undefined,
+  separator: ";" | "," = ";",
+): string {
   if (value === null || value === undefined) return "";
   let text = String(value);
   if (FORMULA_START.test(text) && !NUMBER.test(text)) text = `'${text}`;
-  return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return (separator === "," ? /[,;"\r\n]/ : /[;"\r\n]/).test(text)
+    ? `"${text.replace(/"/g, '""')}"`
+    : text;
 }
 
 export type CsvValue = string | number | boolean | null | undefined;
 
 /** CSV Excel : BOM UTF-8, « ; », fins de ligne CRLF. */
 export function toCsv(header: string[], rows: CsvValue[][]): string {
-  const lines = [header, ...rows].map((r) => r.map(csvCell).join(";"));
+  const lines = [header, ...rows].map((r) => r.map((v) => csvCell(v)).join(";"));
   return `﻿${lines.join("\r\n")}\r\n`;
 }
 

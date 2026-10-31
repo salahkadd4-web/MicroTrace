@@ -172,7 +172,7 @@ export default async function MembresPage({
             <EmptyState icon={History} title="Aucun événement de consentement ou d'export." />
           ) : (
             <Table>
-              <TableCaption>Historique</TableCaption>
+              <TableCaption className="sr-only">Historique</TableCaption>
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>

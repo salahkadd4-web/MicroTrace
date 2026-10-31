@@ -507,6 +507,10 @@ describe("consentement du laboratoire (C5)", () => {
   });
 
   it("aucune dérive entre migrations et schéma", () => {
+    // Base embarquée seulement : jamais le service PostgreSQL local (5432).
+    const target = new URL(process.env.DATABASE_URL!);
+    expect(target.hostname).toBe("127.0.0.1");
+    expect(target.port).not.toBe("5432");
     const out = execFileSync(
       process.execPath,
       [

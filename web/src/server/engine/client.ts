@@ -19,6 +19,7 @@ export type Dictionary = S["DictionaryResponse"];
 export type Example = S["ExampleResponse"];
 export type SpectralIdentifyResponse = S["SpectralIdentifyResponse"];
 export type SpectralModelInfo = S["SpectralModelInfo"];
+export type SpectralParsed = S["SpectralParsedModel"];
 
 export const ENGINE_TIMEOUT_MS = 120_000;
 /** La validation d'un contexte est rapide : délai court, car elle tient une transaction ouverte. */
@@ -186,6 +187,9 @@ export function createEngineClient(options: ClientOptions = {}) {
       if (args.laserNm !== null) form.append("laser_nm", args.laserNm);
       return call<SpectralIdentifyResponse>("POST", "/ai/spectral/identify", { form });
     },
+    /** Les deux colonnes numériques d'un fichier de spectre, lues par le moteur (export d'entraînement). */
+    parseSpectrum: (file: UploadInput) =>
+      call<SpectralParsed>("POST", "/ai/spectral/parse", { form: fileForm(file) }),
   };
 }
 
