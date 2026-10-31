@@ -1,1 +1,3 @@
 engine/openapi.json text eol=lf
+docs/models/* text eol=lf
+engine/src/microtrace_engine/spectral_model.lock.json text eol=lf
