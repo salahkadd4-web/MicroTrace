@@ -270,6 +270,30 @@ describe("getStudyQuality", () => {
   });
 });
 
+
+/** Lance `run`, la laisse attendre le verrou de l'étude, archive l'étude sous ce verrou, puis rend l'erreur. */
+async function archiveWhileWaiting(sid: string, run: () => Promise<unknown>) {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let locked!: () => void;
+  const lockedP = new Promise<void>((r) => (locked = r));
+  const holder = prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${sid} FOR UPDATE`;
+    locked();
+    await gate;
+    await tx.study.update({ where: { id: sid }, data: { archivedAt: new Date() } });
+  });
+  await lockedP;
+  const attempt = run().then(
+    () => null,
+    (e: unknown) => e,
+  );
+  await new Promise((r) => setTimeout(r, 600));
+  release();
+  await holder;
+  return attempt;
+}
+
 describe("recordQualityDecision", () => {
   it.each([
     ["justified", "rejected", "raison"],
@@ -370,6 +394,15 @@ describe("recordQualityDecision", () => {
       quality.mockClear();
       await refused(() => decide(K1), "Étude archivée : lecture seule.");
       expect(quality).not.toHaveBeenCalled();
+    });
+
+    it("étude archivée pendant l'attente du verrou : refus, aucune écriture", async () => {
+      await addImport();
+      const before = await prisma.modelPrediction.count();
+      const error = await archiveWhileWaiting(studyId, () => decide(K1));
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe("Étude archivée : lecture seule.");
+      expect(await prisma.modelPrediction.count()).toBe(before);
     });
 
     it("viewer", async () => {

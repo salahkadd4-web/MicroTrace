@@ -26,9 +26,10 @@ import { storeFile } from "@/server/file-store";
 import type { LabContext } from "@/server/lab-context";
 import { assertRole } from "@/server/lab-role";
 import { assertWritable, loadWritable } from "@/server/studies";
+import { lockWritableStudy } from "@/server/study-lock";
 
 /** Au plus ce nombre d'analyses est lu par étude (le reste est compté dans `hidden`). */
-const MAX_ANALYSES = 200;
+const MAX_ANALYSES = 500;
 /** Au plus ce nombre de décisions est lu par étude (reporté au suivi : pagination). */
 const MAX_DECISIONS = 5000;
 const LASER_PATTERN = /^\d{1,4}(?:[.,]\d{1,3})?$/;
@@ -363,17 +364,17 @@ export async function analyzeSpectrum(
       );
     });
   };
+  // Magasin adressé par contenu, hors transaction : un orphelin est toléré (comme pour les imports).
+  // Idempotent : un nouvel envoi restaure aussi un fichier disparu du magasin (octets vérifiés).
+  const storagePath = await storeFile(sha256, input.bytes);
   const known = await findExisting(prisma);
   if (known) return { id: known.id, existing: true };
-
-  // Magasin adressé par contenu, hors transaction : un orphelin est toléré (comme pour les imports).
-  const storagePath = await storeFile(sha256, input.bytes);
   const top = topProposal(response);
 
   return prisma.$transaction(async (tx) => {
     await loadWritable(tx, ctx, studyId);
     // Verrou sur l'étude : deux dépôts simultanés du même spectre ne créent qu'une analyse.
-    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${studyId} FOR UPDATE`;
+    await lockWritableStudy(tx, ctx, studyId);
     const raced = await findExisting(tx as unknown as typeof prisma);
     if (raced) return { id: raced.id, existing: true };
     const row = await tx.modelPrediction.create({
@@ -482,7 +483,7 @@ export async function recordSpectralDecision(
   return prisma.$transaction(async (tx) => {
     await loadWritable(tx, ctx, studyId);
     // Verrou sur l'étude : l'ordre des décisions est strictement croissant, même avec plusieurs serveurs.
-    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${studyId} FOR UPDATE`;
+    await lockWritableStudy(tx, ctx, studyId);
     const latest = await tx.modelPrediction.findFirst({
       where: {
         studyId,

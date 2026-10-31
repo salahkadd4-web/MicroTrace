@@ -187,7 +187,8 @@ export function diffChanges(before: unknown, after: unknown, ctx: AuditContext =
     const from = format(f, b[f], ctx);
     const to = format(f, a[f], ctx);
     if (from === null || to === null || from === to) continue;
-    changes.push({ field: FIELD_LABELS[f] ?? f, before: from, after: to });
+    const field = spectral && f === "modelVersion" ? "Version du modèle" : (FIELD_LABELS[f] ?? f);
+    changes.push({ field, before: from, after: to });
   }
   return changes;
 }

@@ -18,6 +18,7 @@ import type { LabContext } from "@/server/lab-context";
 import { assertRole } from "@/server/lab-role";
 import { loadActiveResultsInput } from "@/server/results";
 import { assertWritable, loadWritable } from "@/server/studies";
+import { lockWritableStudy } from "@/server/study-lock";
 
 /** Au plus ce nombre de décisions est lu par étude (reporté au suivi : pagination). */
 const MAX_DECISIONS = 5000;
@@ -192,7 +193,7 @@ export async function recordQualityDecision(
     await loadWritable(tx, ctx, studyId);
     // Verrou sur l'étude : l'ordre des décisions est strictement croissant par étude, même avec
     // plusieurs serveurs web (createdAt = max(maintenant, dernière décision + 1 ms)).
-    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${studyId} FOR UPDATE`;
+    await lockWritableStudy(tx, ctx, studyId);
     const latest = await tx.modelPrediction.findFirst({
       where: { studyId, kind: "quality" },
       orderBy: { createdAt: "desc" },

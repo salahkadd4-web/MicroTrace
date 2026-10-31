@@ -536,3 +536,69 @@ describe("getSpectralModel", () => {
     expect(await getSpectralModel(viewer)).toEqual({ kind: "engine_down" });
   });
 });
+
+/** Lance `run`, la laisse attendre le verrou de l'étude, archive l'étude sous ce verrou, puis rend l'erreur. */
+async function archiveWhileWaiting(sid: string, run: () => Promise<unknown>) {
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  let locked!: () => void;
+  const lockedP = new Promise<void>((r) => (locked = r));
+  const holder = prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Study" WHERE id = ${sid} FOR UPDATE`;
+    locked();
+    await gate;
+    await tx.study.update({ where: { id: sid }, data: { archivedAt: new Date() } });
+  });
+  await lockedP;
+  const attempt = run().then(
+    () => null,
+    (e: unknown) => e,
+  );
+  await new Promise((r) => setTimeout(r, 600));
+  release();
+  await holder;
+  return attempt;
+}
+
+describe("cas limites", () => {
+  it("analyse : étude archivée pendant l'attente du verrou, aucune écriture", async () => {
+    const before = await prisma.modelPrediction.count();
+    const error = await archiveWhileWaiting(studyId, () => analyzeSpectrum(researcher, studyId, input()));
+    expect((error as Error).message).toBe("Étude archivée : lecture seule.");
+    expect(await prisma.modelPrediction.count()).toBe(before);
+    expect(await prisma.auditEvent.count({ where: { action: "spectral.analysis" } })).toBe(0);
+  });
+
+  it("décision : étude archivée pendant l'attente du verrou, aucune écriture", async () => {
+    const a = (await analyzeSpectrum(researcher, studyId, input())).id;
+    const before = await prisma.modelPrediction.count();
+    const error = await archiveWhileWaiting(studyId, () =>
+      recordSpectralDecision(researcher, studyId, a, { decision: "accepted" }),
+    );
+    expect((error as Error).message).toBe("Étude archivée : lecture seule.");
+    expect(await prisma.modelPrediction.count()).toBe(before);
+  });
+
+  it("un nouvel envoi identique restaure le fichier absent du magasin", async () => {
+    const first = await analyzeSpectrum(researcher, studyId, input());
+    rmSync(path.join(dir, "files"), { recursive: true, force: true });
+    const second = await analyzeSpectrum(researcher, studyId, input());
+    expect(second).toEqual({ id: first.id, existing: true });
+    expect(existsSync(path.join(dir, "files", sha(BYTES)))).toBe(true);
+  });
+
+  it("invariant : chaque analyse a exactement un événement spectral.analysis, au même acteur", async () => {
+    await analyzeSpectrum(researcher, studyId, input());
+    await analyzeSpectrum(researcher, studyId, input({ laserNm: "785" }));
+    await analyzeSpectrum(researcher, studyId, input());
+    const analyses = await prisma.modelPrediction.findMany({ where: { kind: "spectral", status: "proposed" } });
+    expect(analyses).toHaveLength(2);
+    for (const a of analyses) {
+      const events = await prisma.auditEvent.findMany({
+        where: { action: "spectral.analysis", entityType: "ModelPrediction", entityId: a.id },
+      });
+      expect(events).toHaveLength(1);
+      expect(events[0].actorId).toBe(researcher.userId);
+    }
+  });
+});

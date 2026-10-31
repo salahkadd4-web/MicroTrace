@@ -14,6 +14,7 @@ import { redirect } from "next/navigation";
 import { POST } from "@/app/(app)/labo/[labSlug]/etudes/[studyId]/spectres/analyser/route";
 import { prisma } from "@/server/db";
 import {
+  EngineError,
   EngineUnavailableError,
   engineClient,
   type SpectralIdentifyResponse,
@@ -163,5 +164,98 @@ describe("POST spectres/analyser", () => {
     const res = await call(req());
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "Le moteur d'analyse est indisponible." });
+  });
+});
+
+describe("refus et correspondances", () => {
+  it("laboratoire suspendu : 403", async () => {
+    await setup("researcher");
+    await prisma.laboratory.update({ where: { slug: "labo-a" }, data: { suspendedAt: new Date() } });
+    const res = await call(req());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "Laboratoire suspendu." });
+    expect(identify).not.toHaveBeenCalled();
+  });
+
+  it("modèle indisponible (503 du moteur) : 503 et message fixe", async () => {
+    await setup("researcher");
+    identify.mockRejectedValue(new EngineError(503, "détail"));
+    const res = await call(req());
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      error: "Le modèle spectral est indisponible : aucune analyse n'est possible pour l'instant.",
+    });
+  });
+
+  it("422 du moteur : transmis tel quel", async () => {
+    await setup("researcher");
+    identify.mockRejectedValue(new EngineError(422, "Ligne 7 : valeurs non numériques."));
+    const res = await call(req());
+    expect(res.status).toBe(422);
+    expect(await res.json()).toEqual({ error: "Ligne 7 : valeurs non numériques." });
+  });
+
+  it("413 du moteur : 413", async () => {
+    await setup("researcher");
+    identify.mockRejectedValue(new EngineError(413, "Fichier trop volumineux (limite : 2 Mo)."));
+    const res = await call(req());
+    expect(res.status).toBe(413);
+  });
+
+  it("deux envois identiques simultanés : une seule analyse", async () => {
+    await setup("researcher");
+    const [a, b] = await Promise.all([call(req()), call(req())]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect((await a.json()).id).toBe((await b.json()).id);
+    expect(await prisma.modelPrediction.count({ where: { kind: "spectral" } })).toBe(1);
+    expect(await prisma.auditEvent.count({ where: { action: "spectral.analysis" } })).toBe(1);
+  });
+});
+
+/** Corps en flux dont on compte les tirages : prouve que rien n'est lu avant l'autorisation. */
+function countedRequest() {
+  const state = { pulled: 0 };
+  const chunk = new Uint8Array(64 * 1024);
+  const stream = new ReadableStream<Uint8Array>({
+    pull(c) {
+      state.pulled++;
+      c.enqueue(chunk);
+    },
+  });
+  const request = new Request("http://localhost/x", {
+    method: "POST",
+    headers: { "content-type": "multipart/form-data; boundary=x" },
+    body: stream,
+    duplex: "half",
+  } as RequestInit);
+  return { request, state };
+}
+
+describe("autorisation avant lecture du corps", () => {
+  async function expectRefusedUnread(status: number, slug = "labo-a", id = studyId) {
+    const { request, state } = countedRequest();
+    const res = await call(request, slug, id);
+    expect(res.status).toBe(status);
+    expect(state.pulled).toBeLessThanOrEqual(1);
+    expect(identify).not.toHaveBeenCalled();
+  }
+  it("401 sans session", async () => {
+    await setup("researcher");
+    sessionUser.mockImplementation(async () => redirect("/connexion"));
+    await expectRefusedUnread(401);
+  });
+  it("404 non-membre", async () => {
+    await setup("researcher");
+    await makeLab("Labo B", "labo-b");
+    await expectRefusedUnread(404, "labo-b");
+  });
+  it("403 viewer", async () => {
+    await setup("viewer");
+    await expectRefusedUnread(403);
+  });
+  it("409 étude archivée", async () => {
+    await setup("researcher");
+    await expectRefusedUnread(409, "labo-a", archivedId);
   });
 });

@@ -34,6 +34,7 @@ function digestOf(e: unknown): string {
 /** Statut HTTP d'un refus métier (le message, en français, est renvoyé tel quel). */
 function statusOf(message: string): number {
   if (message === ARCHIVED) return 409;
+  if (message.startsWith("Fichier trop volumineux")) return 413;
   if (message === "Étude introuvable.") return 404;
   if (message === SPECTRAL_MODEL_UNAVAILABLE) return 503;
   if (ROLE_REFUSALS.has(message)) return 403;

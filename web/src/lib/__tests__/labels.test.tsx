@@ -143,6 +143,12 @@ describe("audit-labels", () => {
     const fields = diffChanges(null, { ...analysis, analysisId: "x" }).map((c) => c.field);
     expect(fields).not.toContain("Type");
     expect(fields).not.toContain("Empreinte (SHA-256)");
+    expect(diffChanges(null, { kind: "spectral", modelVersion: "s1" })).toEqual([
+      { field: "Version du modèle", before: "—", after: "s1" },
+    ]);
+    expect(diffChanges(null, { modelVersion: "q1" })).toEqual([
+      { field: "Version des règles", before: "—", after: "q1" },
+    ]);
     expect(diffChanges(null, { kind: "spectral", technique: "ftir_atr", status: "uncertain" })).toEqual([
       { field: "Technique", before: "—", after: "FTIR (ATR)" },
       { field: "Statut", before: "—", after: "Incertain" },
