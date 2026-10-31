@@ -261,3 +261,38 @@ def test_spectral_routes_need_the_secret(client):
 def test_app_starts_without_weights(tmp_path):
     # create_app never reads the weights: a missing file only shows up on the spectral routes
     spectral_client(tmp_path, ModelLock("c5-spectral", "s1", "nope.npz", "0" * 64))
+
+
+# --- POST /ai/spectral/parse: the numeric spectrum only, no file text -------------------------------
+
+def _parse(client, headers, data, name="s.csv"):
+    return client.post("/ai/spectral/parse", headers=headers, files={"file": (name, data)})
+
+
+def test_parse_returns_only_the_numbers(client, auth_headers):
+    data = b"# Operateur: DONOR-SECRET\nnm,Intensity\n" + "".join(
+        f"{400 + i},{i * 1.5}\n" for i in range(12)).encode()
+    r = _parse(client, auth_headers, data, "DONOR-SECRET.csv")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) == {"x", "y"}
+    assert body["x"] == [400.0 + i for i in range(12)]
+    assert body["y"] == [i * 1.5 for i in range(12)]
+    assert "DONOR-SECRET" not in r.text
+
+
+def test_parse_read_errors_422(client, auth_headers):
+    r = _parse(client, auth_headers, (_ROWS + "12,abc\n" + "500,1\n" * 5).encode())
+    assert r.status_code == 422 and r.json()["detail"] == "Ligne 7 : valeurs non numériques."
+    r = _parse(client, auth_headers, b"   \n")
+    assert r.status_code == 422 and r.json()["detail"] == "Fichier vide."
+
+
+def test_parse_too_large_413(client, auth_headers):
+    r = _parse(client, auth_headers, b"1,2\n" * (2 * 1024 * 1024 // 4) + b"x")
+    assert r.status_code == 413
+
+
+def test_parse_route_is_protected(client):
+    assert ("/ai/spectral/parse", "POST") in _protected_routes()
+    assert client.post("/ai/spectral/parse", files={"file": ("s.csv", b"1,2")}).status_code == 401

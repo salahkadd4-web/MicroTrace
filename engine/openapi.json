@@ -1065,6 +1065,93 @@
           }
         }
       }
+    },
+    "/ai/spectral/parse": {
+      "post": {
+        "summary": "Spectral Parse",
+        "description": "The two numeric columns of a spectrum file (training export): numbers only.",
+        "operationId": "spectral_parse",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_spectral_parse"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpectralParsedModel"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1194,6 +1281,21 @@
           "y_unit"
         ],
         "title": "Body_spectral_identify"
+      },
+      "Body_spectral_parse": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Spectre : texte à deux colonnes (2 Mo au plus)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_spectral_parse"
       },
       "Body_tables_read": {
         "properties": {
@@ -3819,6 +3921,32 @@
           "sha256"
         ],
         "title": "SpectralModelRef"
+      },
+      "SpectralParsedModel": {
+        "properties": {
+          "x": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "X"
+          },
+          "y": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Y"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "x",
+          "y"
+        ],
+        "title": "SpectralParsedModel",
+        "description": "The numeric spectrum as read from the file: no header, no file text."
       },
       "SpectralReferenceModel": {
         "properties": {

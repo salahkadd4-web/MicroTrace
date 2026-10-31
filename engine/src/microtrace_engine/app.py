@@ -76,6 +76,7 @@ from .schemas import (
     StudyContextModel,
     SpectralIdentifyResponse,
     SpectralModelInfo,
+    SpectralParsedModel,
     SummaryRequest,
     SummaryResponse,
     TableReadResponse,
@@ -540,6 +541,31 @@ def create_app(settings: Settings, spectral_lock: ModelLock | None = None) -> Fa
                 y_unit=params.y_unit, laser_nm=params.laser_nm))  # type: ignore[arg-type]
             return to_response(model, digest, ident, params=params,
                                data_sha256=sha256_hex(data), size=len(data), x=x)
+
+        return await run_in_threadpool(run)
+
+    @app.post(
+        "/ai/spectral/parse",
+        response_model=SpectralParsedModel,
+        dependencies=[Depends(require_secret)],
+    )
+    async def spectral_parse(
+        file: UploadFile = File(..., description="Spectre : texte à deux colonnes (2 Mo au plus)"),
+    ) -> SpectralParsedModel:
+        """The two numeric columns of a spectrum file (training export): numbers only."""
+        try:
+            data = await read_upload(file, MAX_SPECTRUM_BYTES)
+        except TooLarge as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from None
+
+        def run() -> SpectralParsedModel:
+            try:
+                x, y = parse_two_columns(data)
+            except SpectrumReadError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=read_error_message(exc.issue, exc.line, exc.count)) from None
+            return SpectralParsedModel(x=[float(v) for v in x], y=[float(v) for v in y])
 
         return await run_in_threadpool(run)
 

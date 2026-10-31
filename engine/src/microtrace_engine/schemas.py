@@ -441,6 +441,12 @@ class SpectralCurveModel(_Model):
     y: list[Number]
 
 
+class SpectralParsedModel(_Model):
+    """The numeric spectrum as read from the file: no header, no file text."""
+    x: list[Number]
+    y: list[Number]
+
+
 class SpectralReferenceModel(_Model):
     rank: int
     spectrum_id: str
