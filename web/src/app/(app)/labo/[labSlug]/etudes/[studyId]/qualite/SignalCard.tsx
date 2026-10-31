@@ -17,6 +17,7 @@ import { unitLabel } from "@/lib/units";
 import type { QualitySignal } from "@/server/engine/client";
 import type { QualityDecisionView } from "@/server/quality";
 import { DecisionForm } from "./DecisionForm";
+import { EntryErrorNotice } from "./EntryErrorNotice";
 
 /** Au plus ce nombre de mesures concernées est listé par signal. */
 const MAX_RECORDS = 200;
@@ -27,7 +28,13 @@ export function groupLabel(g: QualitySignal["group"]): string {
 }
 
 /** Décision enregistrée (badge, note, auteur, date), ou « Non examiné ». */
-function DecisionSummary({ decision }: { decision: QualityDecisionView | null }) {
+function DecisionSummary({
+  decision,
+  importsHref,
+}: {
+  decision: QualityDecisionView | null;
+  importsHref: string | null;
+}) {
   if (!decision) return <Badge variant="neutral">Non examiné</Badge>;
   const { label, badge } = decisionOfStatus(decision.status);
   return (
@@ -42,6 +49,7 @@ function DecisionSummary({ decision }: { decision: QualityDecisionView | null })
         ) : null}
       </div>
       {decision.note ? <p className="whitespace-pre-line text-sm">{decision.note}</p> : null}
+      {decision.status === "accepted" ? <EntryErrorNotice importsHref={importsHref} /> : null}
     </div>
   );
 }
@@ -132,7 +140,10 @@ export function SignalCard({
         ) : null}
       </details>
 
-      <DecisionSummary decision={decision} />
+      <DecisionSummary
+        decision={decision}
+        importsHref={canDecide ? `/labo/${labSlug}/etudes/${studyId}/imports` : null}
+      />
 
       {canDecide ? (
         <details>

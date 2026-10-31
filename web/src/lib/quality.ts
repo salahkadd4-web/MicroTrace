@@ -24,6 +24,10 @@ export const QUALITY_DECISIONS: readonly {
   },
 ];
 
+/** Phrase fixe (R-C7-4) : la décision « erreur de saisie » ne modifie aucun résultat. */
+export const ENTRY_ERROR_NOTICE =
+  "Cette décision ne modifie pas les résultats : la valeur reste dans Résultats et dans le rapport. Pour la corriger, retirez l'import puis importez le fichier corrigé.";
+
 export const NOTE_MAX_LENGTH = 1000;
 
 /** Libellé et badge d'un statut de prédiction lu en base. */

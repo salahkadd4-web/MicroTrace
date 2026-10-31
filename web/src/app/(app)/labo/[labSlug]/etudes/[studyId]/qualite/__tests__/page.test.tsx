@@ -205,6 +205,37 @@ describe("page Qualité", () => {
     expect(screen.getByText("Non examiné")).toBeInTheDocument();
   });
 
+  it("décision « erreur de saisie » : phrase fixe et lien vers les imports pour un chercheur", async () => {
+    vi.mocked(getStudyQuality).mockResolvedValue(
+      quality({
+        signals: [{ signal: signal1, decision: decisionView({ decision: "entry_error", status: "accepted" }) }],
+      }),
+    );
+    await renderPage();
+    expect(screen.getByText(/Cette décision ne modifie pas les résultats/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Aller aux imports" })).toHaveAttribute(
+      "href",
+      "/labo/labo/etudes/s1/imports",
+    );
+  });
+
+  it("décision « erreur de saisie » : phrase sans lien pour un lecteur ; absente pour les autres décisions", async () => {
+    vi.mocked(requireLab).mockResolvedValue(asRole("viewer"));
+    vi.mocked(getStudyQuality).mockResolvedValue(
+      quality({
+        signals: [{ signal: signal1, decision: decisionView({ decision: "entry_error", status: "accepted" }) }],
+      }),
+    );
+    await renderPage();
+    expect(screen.getByText(/Cette décision ne modifie pas les résultats/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Aller aux imports" })).not.toBeInTheDocument();
+  });
+
+  it("décision « justifié » : aucune phrase sur les résultats", async () => {
+    await renderPage();
+    expect(screen.queryByText(/ne modifie pas les résultats/)).not.toBeInTheDocument();
+  });
+
   it("indique le nombre de décisions quand il y en a plusieurs", async () => {
     vi.mocked(getStudyQuality).mockResolvedValue(
       quality({ signals: [{ signal: signal1, decision: decisionView({ count: 3 }) }] }),

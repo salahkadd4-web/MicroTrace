@@ -6,8 +6,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NOTE_MAX_LENGTH, QUALITY_DECISIONS, type QualityDecision } from "@/lib/quality";
 import { recordQualityDecisionAction } from "./actions";
+import { EntryErrorNotice } from "./EntryErrorNotice";
 
-function Fields({ studyId, signalKey, uid }: { studyId: string; signalKey: string; uid: string }) {
+function Fields({
+  labSlug,
+  studyId,
+  signalKey,
+  uid,
+}: {
+  labSlug: string;
+  studyId: string;
+  signalKey: string;
+  uid: string;
+}) {
   const [decision, setDecision] = useState<QualityDecision | null>(null);
   const chosen = QUALITY_DECISIONS.find((d) => d.code === decision);
   const noteId = `${uid}-note`;
@@ -49,6 +60,9 @@ function Fields({ studyId, signalKey, uid }: { studyId: string; signalKey: strin
             : "Note requise pour « Examiné — justifié » et « Erreur de saisie confirmée »."}
         </p>
       </div>
+      {decision === "entry_error" ? (
+        <EntryErrorNotice importsHref={`/labo/${labSlug}/etudes/${studyId}/imports`} />
+      ) : null}
     </>
   );
 }
@@ -69,7 +83,7 @@ export function DecisionForm({
       submitLabel="Enregistrer la décision"
       pendingLabel="Enregistrement…"
     >
-      {() => <Fields studyId={studyId} signalKey={signalKey} uid={signalKey.slice(0, 12)} />}
+      {() => <Fields labSlug={labSlug} studyId={studyId} signalKey={signalKey} uid={signalKey.slice(0, 12)} />}
     </ActionForm>
   );
 }

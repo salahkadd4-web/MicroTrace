@@ -34,6 +34,22 @@ describe("DecisionForm", () => {
     expect(note).toBeRequired();
   });
 
+  it("« Erreur de saisie confirmée » annonce qu'elle ne modifie pas les résultats, avec un lien vers les imports", async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(screen.queryByText(/ne modifie pas les résultats/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "Erreur de saisie confirmée" }));
+    expect(screen.getByText(/Cette décision ne modifie pas les résultats/)).toHaveTextContent(
+      "retirez l'import puis importez le fichier corrigé",
+    );
+    expect(screen.getByRole("link", { name: "Aller aux imports" })).toHaveAttribute(
+      "href",
+      "/labo/labo/etudes/s1/imports",
+    );
+    await user.click(screen.getByRole("radio", { name: "À vérifier" }));
+    expect(screen.queryByText(/ne modifie pas les résultats/)).not.toBeInTheDocument();
+  });
+
   it("envoie studyId, signalKey, décision et note", async () => {
     const user = userEvent.setup();
     setup();
