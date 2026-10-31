@@ -143,20 +143,32 @@ npm run e2e
 
 Il faut que l'environnement Python du dépôt (`.venv`) existe, avec le moteur installé. Comptez environ trois minutes (l'application est compilée dans un dossier séparé, `.next-e2e`, supprimé à la fin).
 
-## Entraîner le modèle spectral (une fois)
+## Installer le modèle spectral
 
-L'onglet Spectres a besoin des poids du modèle, qui ne sont **jamais dans Git** (dossier `models/`, ignoré). Il faut les générer une fois, depuis la racine du dépôt (les jeux de données doivent être présents dans `datasets/`) :
+L'onglet Spectres a besoin des poids du modèle, qui ne sont **jamais dans Git** (dossier `models/`, ignoré). L'empreinte attendue est dans le dépôt (`engine/src/microtrace_engine/spectral_model.lock.json`) : le moteur refuse tout fichier dont le sha256 ne correspond pas.
+
+**Chemin recommandé : copier les poids.** Prenez le fichier `models/c5-spectral-s1.npz` de la machine de référence, copiez-le dans le dossier `models/` de cette machine, puis vérifiez son empreinte :
 
 ```powershell
+Get-FileHash models/c5-spectral-s1.npz -Algorithm SHA256   # doit afficher le sha256 du fichier .lock.json
 .venv/Scripts/python -m microtrace_core train-spectral --catalog data/processed/spectra_catalog.parquet `
   --baseline reports/baseline/metrics.json --models models --manifest docs/models/c5-spectral-manifest.json `
   --data-list docs/models/c5-spectral-s1-data.sha256 --lock engine/src/microtrace_engine/spectral_model.lock.json `
-  --card docs/models/c5-spectral.md
+  --card docs/models/c5-spectral.md --check
 ```
 
-L'entraînement dure environ une minute et demie quand le catalogue existe déjà (il est plus long s'il faut le reconstruire). Pour seulement vérifier que les fichiers produits sont cohérents, sans rien écrire, relancez la même commande avec `--check` en plus : le code de sortie doit être 0.
+Le code de sortie de `--check` doit être 0 (voir plus bas ce qu'il demande). Redémarrez ensuite le moteur : il ne recharge pas les poids à chaud.
 
-Après un réentraînement, **redémarrez le moteur** (il ne recharge pas les poids à chaud).
+**Réentraîner (seulement si c'est voulu).** Il faut les jeux de données dans `datasets/`, l'extra d'entraînement (scikit-learn) et le catalogue, qui est ignoré par Git et que l'entraînement ne reconstruit pas :
+
+```powershell
+.venv/Scripts/python -m pip install -e "core[train]"
+.venv/Scripts/python -m microtrace_core build-catalog --datasets datasets --out data/processed/spectra_catalog.parquet
+```
+
+Lancez d'abord la commande de vérification ci-dessus (avec `--check`) : elle réentraîne en mémoire (environ une minute et demie) et compare l'empreinte aux fichiers versionnés, sans rien écrire. Sur une autre machine, l'empreinte peut différer (calcul numérique dépendant de la plateforme) ; dans ce cas, préférez copier les poids de la machine de référence.
+
+**Attention : sans `--check`, la même commande écrit les poids et réécrit les fichiers versionnés** (verrou, manifeste, liste des données et fiche du modèle). N'y recourez que pour un réentraînement voulu, puis relisez `git diff` et ne committez que si c'est intentionnel. Après un réentraînement, **redémarrez le moteur**.
 
 ## 12. Mise en production
 
