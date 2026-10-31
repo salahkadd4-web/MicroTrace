@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/lab-context", () => ({
@@ -48,6 +49,7 @@ vi.mock("../actions", () => ({
   addQcAction: vi.fn(async () => ({})),
   prefillAction: vi.fn(async () => ({})),
   removeLimitAction: vi.fn(async () => ({})),
+  removeQcAction: vi.fn(async () => ({})),
   declarePseudonymisationAction: vi.fn(async () => ({})),
   archiveStudyAction: vi.fn(async () => ({})),
 }));
@@ -115,6 +117,21 @@ describe("page Paramètres", () => {
     expect(row).toHaveTextContent("µg/mL");
     expect(row).toHaveTextContent("0,5");
     expect(screen.getByRole("button", { name: /Préremplir avec Leslie et al\. 2022 \(Tableau 3\)/ })).toBeEnabled();
+  });
+
+  it("un chercheur peut supprimer un contrôle qualité après confirmation destructive", async () => {
+    vi.mocked(getStudyView).mockResolvedValue(study(null) as never);
+    await renderPage();
+    const row = screen.getByRole("row", { name: /PE.*labo/ });
+    const button = within(row).getByRole("button", { name: "Supprimer" });
+    expect(button).toBeEnabled();
+    await userEvent.click(button);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Supprimer le contrôle qualité")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Supprimer" })).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Supprimer" }));
+    const { removeQcAction } = await import("../actions");
+    await waitFor(() => expect(removeQcAction).toHaveBeenCalledWith("labo", "q1"));
   });
 
   it("affiche la date et l'auteur de la pseudonymisation déclarée, sans case à cocher", async () => {

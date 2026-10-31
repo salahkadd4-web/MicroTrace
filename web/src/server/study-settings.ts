@@ -231,6 +231,42 @@ export async function addQcSummary(ctx: LabContext, studyId: string, input: QcIn
   }, ENGINE_TX_OPTIONS);
 }
 
+/**
+ * Retire un contrôle qualité résumé. Il ne fait pas partie du contexte moteur et aucun import ne le
+ * référence (le contexte figé est une copie JSON) : le retrait reste possible avec un import actif.
+ */
+export async function removeQcSummary(ctx: LabContext, id: string) {
+  assertRole(ctx, "researcher");
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.qualityControlSummary.findFirst({
+      where: { id, study: { laboratoryId: ctx.laboratoryId } },
+    });
+    if (!current) throw new DomainError("Contrôle introuvable.");
+    await loadWritable(tx, ctx, current.studyId);
+
+    await tx.qualityControlSummary.delete({ where: { id } });
+    await recordAudit(tx, {
+      actorId: ctx.userId,
+      laboratoryId: ctx.laboratoryId,
+      action: "study.qc.remove",
+      entityType: "QualityControlSummary",
+      entityId: id,
+      before: {
+        id: current.id,
+        studyId: current.studyId,
+        polymer: current.polymer,
+        kind: current.kind,
+        n: current.n,
+        mean: current.mean,
+        sd: current.sd,
+        unitCode: current.unitCode,
+        source: current.source,
+      },
+    });
+    return current;
+  }, ENGINE_TX_OPTIONS);
+}
+
 /** Préremplit méthode et limites du Tableau 3 (Leslie) depuis l'exemple du moteur, sans rien écraser. */
 export async function prefillLeslieTable3(ctx: LabContext, studyId: string) {
   assertRole(ctx, "researcher");

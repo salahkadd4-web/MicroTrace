@@ -21,6 +21,7 @@ import {
   declarePseudonymisationAction,
   prefillAction,
   removeLimitAction,
+  removeQcAction,
   updateReferenceAction,
   upsertLimitAction,
 } from "./actions";
@@ -249,6 +250,20 @@ export function RemoveLimitButton({ labSlug, limitId }: { labSlug: string; limit
       confirmVariant="destructive"
       variant="destructive"
       run={() => removeLimitAction(labSlug, limitId)}
+    />
+  );
+}
+
+export function RemoveQcButton({ labSlug, qcId }: { labSlug: string; qcId: string }) {
+  return (
+    <ConfirmActionButton
+      label="Supprimer"
+      title="Supprimer le contrôle qualité"
+      description="Ce contrôle qualité résumé sera supprimé. Les signaux de l'onglet Qualité qui s'appuient sur lui disparaîtront. L'opération est enregistrée au journal."
+      confirmLabel="Supprimer"
+      confirmVariant="destructive"
+      variant="destructive"
+      run={() => removeQcAction(labSlug, qcId)}
     />
   );
 }

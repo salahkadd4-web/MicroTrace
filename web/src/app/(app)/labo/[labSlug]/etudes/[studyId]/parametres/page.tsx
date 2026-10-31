@@ -26,6 +26,7 @@ import {
   PseudonymisationControl,
   ReferenceForm,
   RemoveLimitButton,
+  RemoveQcButton,
 } from "./forms";
 
 export default async function ParametresPage({
@@ -145,6 +146,9 @@ export default async function ParametresPage({
                   <TableHead className="text-right">Écart type</TableHead>
                   <TableHead>Unité</TableHead>
                   <TableHead>Source</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -163,6 +167,9 @@ export default async function ParametresPage({
                     </TableCell>
                     <TableCell>{unitLabel(q.unitCode)}</TableCell>
                     <TableCell>{q.source}</TableCell>
+                    <TableCell>
+                      {writable ? <RemoveQcButton labSlug={labSlug} qcId={q.id} /> : null}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

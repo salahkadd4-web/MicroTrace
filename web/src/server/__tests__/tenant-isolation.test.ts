@@ -77,6 +77,7 @@ const {
   addQcSummary,
   prefillLeslieTable3,
   removeDetectionLimit,
+  removeQcSummary,
   upsertDetectionLimit,
 } = settingsModule;
 
@@ -96,6 +97,7 @@ type Ids = {
   study: string;
   method: string;
   limit: string;
+  qc: string;
   member: string;
   invitation: string;
   importRun: string;
@@ -207,6 +209,10 @@ const CASES: Record<string, Record<string, Case>> = {
     removeDetectionLimit: {
       run: (ctx, ids) => removeDetectionLimit(ctx, ids.limit),
       outcome: { throws: "Limite introuvable." },
+    },
+    removeQcSummary: {
+      run: (ctx, ids) => removeQcSummary(ctx, ids.qc),
+      outcome: { throws: "Contrôle introuvable." },
     },
     addQcSummary: {
       run: (ctx, ids) => addQcSummary(ctx, ids.study, QC_INPUT),
@@ -418,6 +424,7 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
         ...LIMIT_INPUT,
       }),
     removeDetectionLimit: (ctx, ids) => removeDetectionLimit(ctx, ids.limit),
+    removeQcSummary: (ctx, ids) => removeQcSummary(ctx, ids.qc),
     addQcSummary: (ctx, ids) => addQcSummary(ctx, ids.study, QC_INPUT),
     prefillLeslieTable3: (ctx, ids) => prefillLeslieTable3(ctx, ids.study),
     suggestStagedMapping: (ctx, ids) =>
@@ -466,7 +473,7 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     methodId: method.id,
     ...LIMIT_INPUT,
   });
-  await addQcSummary(ctx, study.id, QC_INPUT);
+  const qc = await addQcSummary(ctx, study.id, QC_INPUT);
   // Un événement de suppression de limite, retrouvé par le journal via son `before.studyId`.
   const removed = await upsertDetectionLimit(ctx, study.id, {
     methodId: method.id,
@@ -514,6 +521,7 @@ async function seed(ctx: LabContext, tag: string): Promise<Ids> {
     study: study.id,
     method: method.id,
     limit: limit.id,
+    qc: qc.id,
     member: membership.id,
     invitation: invitation.invitation.id,
     importRun: run.id,
@@ -630,6 +638,7 @@ describe("un membre de A sur les objets de B", () => {
           study: MISSING,
           method: MISSING,
           limit: MISSING,
+          qc: MISSING,
           member: MISSING,
           invitation: MISSING,
           importRun: MISSING,
@@ -742,6 +751,12 @@ describe("création et lectures dans son propre laboratoire", () => {
       });
       expect(n).toBe(8); // projet, étude, méthode, 2 limites (upsert), qc, retrait, invitation
     }
+  });
+
+  it("retirer un contrôle qualité d'une étude archivée de A est refusé", async () => {
+    await archiveStudy(ctxA, idsA.study, "fin");
+    await expect(removeQcSummary(ctxA, idsA.qc)).rejects.toThrow("Étude archivée : lecture seule.");
+    expect(await prisma.qualityControlSummary.count({ where: { id: idsA.qc } })).toBe(1);
   });
 
   it("chaque écriture de service journalise le laboratoire de l'acteur", async () => {

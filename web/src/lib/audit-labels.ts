@@ -23,6 +23,7 @@ const ACTION_LABELS: Record<string, string> = {
   "study.limit.upsert": "Limite enregistrée",
   "study.limit.remove": "Limite supprimée",
   "study.qc.add": "Contrôle qualité ajouté",
+  "study.qc.remove": "Contrôle qualité supprimé",
   "study.prefill.leslie3": "Préremplissage Leslie 2022 (Tableau 3)",
   "import.create": "Import enregistré",
   "import.retire": "Import retiré",

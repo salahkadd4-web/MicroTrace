@@ -7,7 +7,7 @@ vi.mock("@/server/engine/client", async (orig) => {
 
 import { listAuditEvents } from "@/server/audit";
 import { createProject, getProject } from "@/server/projects";
-import { addMethod, removeDetectionLimit, upsertDetectionLimit } from "@/server/study-settings";
+import { addMethod, addQcSummary, removeDetectionLimit, removeQcSummary, upsertDetectionLimit } from "@/server/study-settings";
 import { createStudy, declarePseudonymisation, getStudyView } from "@/server/studies";
 import type { LabContext } from "@/server/lab-context";
 import { resetDb } from "../../../test/db-reset";
@@ -75,5 +75,21 @@ describe("lecture des vues", () => {
     const found = await getProject(ctx, project.id);
     expect(found?.studies.map((s) => s.title)).toEqual(["Seconde", "Première"]);
     expect(await getProject(ctx, "inconnu")).toBeNull();
+  });
+
+  it("retrouve le retrait d'un contrôle qualité après sa suppression", async () => {
+    const study = await newStudy("Étude QC");
+    const qc = await addQcSummary(ctx, study.id, {
+      polymer: "PET",
+      kind: "procedural_blank",
+      n: 3,
+      mean: 250,
+      sd: null,
+      unitCode: "ng/mL",
+      source: "Carnet",
+    });
+    await removeQcSummary(ctx, qc.id);
+    const events = await listAuditEvents(ctx, study.id);
+    expect(events.map((e) => e.action)).toEqual(["study.qc.remove", "study.qc.add", "study.create"]);
   });
 });

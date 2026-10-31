@@ -20,6 +20,7 @@ import {
   addQcSummary,
   prefillLeslieTable3,
   removeDetectionLimit,
+  removeQcSummary,
   upsertDetectionLimit,
 } from "@/server/study-settings";
 import { archiveStudy, createStudy } from "@/server/studies";
@@ -428,6 +429,76 @@ describe("addQcSummary", () => {
     const s = await newStudy();
     await archiveStudy(ctx, s.id, "fin");
     await expect(addQcSummary(ctx, s.id, QC)).rejects.toThrow("Étude archivée : lecture seule.");
+  });
+});
+
+describe("removeQcSummary", () => {
+  const QC = {
+    polymer: "PET",
+    kind: "procedural_blank",
+    n: 3,
+    mean: 250,
+    sd: 5,
+    unitCode: "ng/mL",
+    source: "Carnet",
+  };
+
+  it("supprime sans appeler le moteur et trace l'état précédent complet", async () => {
+    const s = await newStudy();
+    const q = await addQcSummary(ctx, s.id, QC);
+    validate.mockClear();
+    await removeQcSummary(ctx, q.id);
+    expect(await prisma.qualityControlSummary.count()).toBe(0);
+    expect(validate).not.toHaveBeenCalled();
+    const ev = await audits("study.qc.remove");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ entityType: "QualityControlSummary", entityId: q.id });
+    expect(ev[0].before).toMatchObject({ id: q.id, studyId: s.id, ...QC });
+    expect(ev[0].after).toBeNull();
+  });
+
+  it("contrôle introuvable", async () => {
+    await expect(removeQcSummary(ctx, "x")).rejects.toThrow("Contrôle introuvable.");
+  });
+
+  it("reste possible avec un import actif (le contexte figé est une copie JSON)", async () => {
+    const s = await newStudy();
+    const q = await addQcSummary(ctx, s.id, QC);
+    const file = await prisma.dataFile.create({
+      data: {
+        studyId: s.id,
+        originalName: "a.csv",
+        sha256: "abc",
+        sizeBytes: 1,
+        mimeType: "text/csv",
+        storagePath: "x",
+        uploadedById: ctx.userId,
+      },
+    });
+    await prisma.importRun.create({
+      data: {
+        studyId: s.id,
+        dataFileId: file.id,
+        mapping: {},
+        frozenContext: { qc: [{ id: q.id }] },
+        rulesVersion: "1",
+        engineVersion: "1",
+        issues: [],
+        createdById: ctx.userId,
+      },
+    });
+    await removeQcSummary(ctx, q.id);
+    expect(await prisma.qualityControlSummary.count()).toBe(0);
+  });
+
+  it("étude archivée refusée", async () => {
+    const s = await newStudy();
+    const q = await addQcSummary(ctx, s.id, QC);
+    await archiveStudy(ctx, s.id, "fin");
+    const before = await auditCount();
+    await expect(removeQcSummary(ctx, q.id)).rejects.toThrow("Étude archivée : lecture seule.");
+    expect(await prisma.qualityControlSummary.count()).toBe(1);
+    expect(await auditCount()).toBe(before);
   });
 });
 

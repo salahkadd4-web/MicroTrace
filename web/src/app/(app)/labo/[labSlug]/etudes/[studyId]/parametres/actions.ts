@@ -16,6 +16,7 @@ import {
   addQcSummary,
   prefillLeslieTable3,
   removeDetectionLimit,
+  removeQcSummary,
   upsertDetectionLimit,
 } from "@/server/study-settings";
 
@@ -102,6 +103,13 @@ export async function prefillAction(labSlug: string, _prev: ActionState, formDat
 export async function removeLimitAction(labSlug: string, limitId: string): Promise<ActionState> {
   return runAction(labSlug, async (ctx) => {
     const removed = await removeDetectionLimit(ctx, limitId);
+    refresh(labSlug, removed.studyId);
+  });
+}
+
+export async function removeQcAction(labSlug: string, qcId: string): Promise<ActionState> {
+  return runAction(labSlug, async (ctx) => {
+    const removed = await removeQcSummary(ctx, qcId);
     refresh(labSlug, removed.studyId);
   });
 }
