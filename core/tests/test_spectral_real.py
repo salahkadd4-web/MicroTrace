@@ -93,5 +93,9 @@ def test_real_wrong_laser_abstains(model):
 
 
 def test_real_wrong_technique_metrics(manifest):
-    for t in ("ftir_atr", "raman"):
-        assert manifest["metrics"][t]["wrong_technique"]["not_identified_rate"] >= 0.90
+    """R-C5-3: full population; a wrong "identifié" is the safety-relevant outcome."""
+    floors = {"ftir_atr": 0.80, "raman": 0.90}
+    for t, floor in floors.items():
+        w = manifest["metrics"][t]["wrong_technique"]
+        assert w["not_identified"] >= floor, t
+        assert w["identified"] <= 0.02, t
