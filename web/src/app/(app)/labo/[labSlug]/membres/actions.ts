@@ -9,6 +9,7 @@ import { text } from "@/server/form-data";
 import { createInvitation } from "@/server/invitations";
 import { changeMemberRole, removeMember, revokeInvitation } from "@/server/members";
 import { runAction } from "@/server/run-action";
+import { setTrainingConsent } from "@/server/training-consent";
 
 const page = (labSlug: string) => `/labo/${labSlug}/membres`;
 
@@ -88,6 +89,21 @@ export async function revokeInvitationAction(
     labSlug,
     async (ctx) => {
       await revokeInvitation(ctx, invitationId);
+      revalidatePath(page(labSlug));
+    },
+    "lab_admin",
+  );
+}
+
+/** Donne (`granted`) ou retire le consentement du laboratoire à l'amélioration des modèles. */
+export async function setTrainingConsentAction(
+  labSlug: string,
+  granted: boolean,
+): Promise<ActionState> {
+  return runAction(
+    labSlug,
+    async (ctx) => {
+      await setTrainingConsent(ctx, granted);
       revalidatePath(page(labSlug));
     },
     "lab_admin",

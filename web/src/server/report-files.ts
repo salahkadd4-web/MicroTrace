@@ -23,6 +23,11 @@ const DAY = new Intl.DateTimeFormat("fr-CA", {
   day: "2-digit",
 });
 
+/** Date AAAA-MM-JJ en heure de Paris (noms de fichiers). */
+export function parisDay(at: Date): string {
+  return DAY.format(at);
+}
+
 /** Un fichier d'étude simulée porte « SIMULE- » en tête de nom : jamais pris pour des données réelles. */
 export function reportFileName(
   format: DownloadFormat,

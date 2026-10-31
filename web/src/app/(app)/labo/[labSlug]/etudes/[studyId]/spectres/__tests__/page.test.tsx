@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -12,12 +12,14 @@ vi.mock("next/navigation", () => ({
   },
 }));
 vi.mock("@/server/studies", () => ({ getStudyView: vi.fn() }));
+vi.mock("@/server/training-consent", () => ({ getTrainingConsent: vi.fn() }));
 vi.mock("@/server/spectral", () => ({
   getSpectralModel: vi.fn(),
   listSpectralAnalyses: vi.fn(),
 }));
 
 import { requireLab } from "@/server/lab-context";
+import { getTrainingConsent } from "@/server/training-consent";
 import { getSpectralModel, listSpectralAnalyses } from "@/server/spectral";
 import { getStudyView } from "@/server/studies";
 import StudyLayout from "../../layout";
@@ -128,6 +130,9 @@ beforeEach(() => {
   vi.mocked(getStudyView).mockResolvedValue(study() as never);
   vi.mocked(getSpectralModel).mockResolvedValue({ kind: "ok", info: info() } as never);
   vi.mocked(listSpectralAnalyses).mockResolvedValue({ rows: [row()], hidden: 0 } as never);
+  vi.mocked(getTrainingConsent).mockResolvedValue({
+    granted: false, grantedAt: null, grantedBy: null, version: null, history: [],
+  });
 });
 
 describe("page Spectres", () => {
@@ -142,6 +147,26 @@ describe("page Spectres", () => {
     );
     expect(alert).toHaveTextContent("n'a pas vu de particules extraites de sang");
     expect(alert).toHaveTextContent("pas de classe non plastique dans cette version");
+  });
+
+  it("consentement du laboratoire en lecture seule : désactivé, puis activé avec la date", async () => {
+    await renderPage();
+    expect(
+      screen.getByText(
+        "Utilisation des données validées de ce laboratoire pour améliorer les modèles : désactivée.",
+      ),
+    ).toBeInTheDocument();
+    cleanup();
+    vi.mocked(getTrainingConsent).mockResolvedValue({
+      granted: true, grantedAt: new Date("2026-10-02T10:00:00Z"), grantedBy: "Alice", version: "c1", history: [],
+    });
+    await renderPage();
+    expect(
+      screen.getByText(
+        "Utilisation des données validées de ce laboratoire pour améliorer les modèles : activée depuis le 02/10/2026 12:00 (réglage du responsable du laboratoire).",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /consentement/i })).not.toBeInTheDocument();
   });
 
   it("un chercheur voit le formulaire de dépôt", async () => {

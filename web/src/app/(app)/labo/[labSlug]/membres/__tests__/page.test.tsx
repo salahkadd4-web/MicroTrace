@@ -39,7 +39,13 @@ vi.mock("@/server/members", () => ({
     },
   ]),
 }));
+vi.mock("@/server/training-consent", () => ({
+  getTrainingConsent: vi.fn(async () => ({
+    granted: false, grantedAt: null, grantedBy: null, version: null, history: [],
+  })),
+}));
 vi.mock("../actions", () => ({
+  setTrainingConsentAction: vi.fn(async () => ({})),
   inviteMemberAction: vi.fn(async () => ({ ok: true, link: "http://localhost:3000/invitation/abc" })),
   changeRoleAction: vi.fn(async () => ({})),
   removeMemberAction: vi.fn(async () => ({})),
@@ -47,6 +53,7 @@ vi.mock("../actions", () => ({
 }));
 
 import { requireLab } from "@/server/lab-context";
+import { getTrainingConsent } from "@/server/training-consent";
 import MembresPage from "../page";
 
 const props = { params: Promise.resolve({ labSlug: "labo" }) };
@@ -73,5 +80,45 @@ describe("page Membres", () => {
     expect(screen.getByRole("button", { name: "Créer l'invitation" })).toBeInTheDocument();
     for (const h of ["Membres du laboratoire", "Invitations en attente", "Inviter une personne"])
       expect(screen.getByRole("heading", { level: 2, name: h })).toBeInTheDocument();
+  });
+});
+
+describe("section Données et amélioration des modèles", () => {
+  it("désactivé : libellé, badge, bouton d'activation, aucun lien d'export", async () => {
+    render(await MembresPage(props));
+    const section = screen.getByRole("region", { name: "Données et amélioration des modèles" });
+    expect(section).toHaveTextContent(
+      "Autoriser l'utilisation des données validées de ce laboratoire pour améliorer les modèles",
+    );
+    expect(within(section).getByText("Désactivé")).toBeInTheDocument();
+    expect(within(section).getByRole("button", { name: "Activer le consentement" })).toBeInTheDocument();
+    expect(within(section).queryByRole("link")).toBeNull();
+  });
+
+  it("activé : date et auteur, liens d'export, historique", async () => {
+    vi.mocked(getTrainingConsent).mockResolvedValueOnce({
+      granted: true,
+      grantedAt: new Date("2026-10-02T10:00:00Z"),
+      grantedBy: "Alice Martin",
+      version: "c1",
+      history: [
+        { id: "h1", at: new Date("2026-10-03T10:00:00Z"), action: "lab.training_export", by: "Alice Martin" },
+        { id: "h2", at: new Date("2026-10-02T10:00:00Z"), action: "lab.training_consent.grant", by: "Alice Martin" },
+      ],
+    });
+    render(await MembresPage(props));
+    const section = screen.getByRole("region", { name: "Données et amélioration des modèles" });
+    expect(within(section).getByText("Activé")).toBeInTheDocument();
+    expect(section).toHaveTextContent("Depuis le 02/10/2026 12:00, par Alice Martin (texte c1)");
+    expect(within(section).getByRole("button", { name: "Retirer le consentement" })).toBeInTheDocument();
+    expect(
+      within(section).getByRole("link", { name: "Exporter les données consenties (JSON)" }),
+    ).toHaveAttribute("href", "/labo/labo/membres/export-entrainement?format=json");
+    expect(
+      within(section).getByRole("link", { name: "Exporter les données consenties (CSV)" }),
+    ).toHaveAttribute("href", "/labo/labo/membres/export-entrainement?format=csv");
+    const history = within(section).getByRole("table", { name: "Historique" });
+    expect(within(history).getByText("Export des données consenties")).toBeInTheDocument();
+    expect(within(history).getByText("Consentement donné (amélioration des modèles)")).toBeInTheDocument();
   });
 });

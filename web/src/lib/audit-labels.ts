@@ -41,6 +41,9 @@ const ACTION_LABELS: Record<string, string> = {
   "invitation.revoke": "Invitation révoquée",
   "member.role.change": "Rôle modifié",
   "member.remove": "Membre retiré",
+  "lab.training_consent.grant": "Consentement donné (amélioration des modèles)",
+  "lab.training_consent.revoke": "Consentement retiré (amélioration des modèles)",
+  "lab.training_export": "Export des données consenties",
 };
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -108,6 +111,10 @@ const FIELD_LABELS: Record<string, string> = {
   proposedPolymer: "Polymère proposé",
   proposedLabel: "Proposition",
   polymerLabel: "Polymère retenu",
+  granted: "Consentement donné",
+  at: "Date du consentement",
+  version: "Texte accepté",
+  consentVersion: "Texte accepté",
 };
 
 /** Libellé français d'un code d'action ; un code inconnu est montré tel quel. */
@@ -146,7 +153,7 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
   decision: Object.fromEntries(
     [...QUALITY_DECISIONS, ...SPECTRAL_DECISIONS].map((d) => [d.code, d.label]),
   ),
-  format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)" },
+  format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)", json: "JSON" },
 };
 
 const ABSENT = "—";
@@ -163,7 +170,7 @@ function format(field: string, value: unknown, ctx: AuditContext): string | null
   if (field === "unitCode") return unitLabel(value);
   const labels = VALUE_LABELS[field];
   if (labels) return labelOf(labels, value);
-  if (field.endsWith("At")) return formatDateTimeFr(value) ?? value;
+  if (field.endsWith("At") || field === "at") return formatDateTimeFr(value) ?? value;
   return value;
 }
 

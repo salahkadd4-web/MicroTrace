@@ -44,6 +44,7 @@ import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
 import * as spectralModule from "@/server/spectral";
 import * as settingsModule from "@/server/study-settings";
+import * as trainingConsentModule from "@/server/training-consent";
 import { resetDb } from "../../../test/db-reset";
 import { makeLab, makeMember } from "../../../test/labs";
 
@@ -77,6 +78,7 @@ const {
   listSpectralAnalyses,
   recordSpectralDecision,
 } = spectralModule;
+const { buildTrainingExport, getTrainingConsent, setTrainingConsent } = trainingConsentModule;
 const { getStudyResults, loadActiveResultsInput } = resultsModule;
 const { buildDictionaryDownload, buildReportDownload, getReportAvailability } =
   reportDownloadModule;
@@ -359,6 +361,21 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Étude introuvable." },
     },
   },
+  "training-consent": {
+    getTrainingConsent: {
+      run: (ctx) => getTrainingConsent(ctx),
+      // Le consentement de B ne se voit jamais depuis A.
+      outcome: { returns: (r) => expect(r).toMatchObject({ granted: false, grantedAt: null }) },
+    },
+    setTrainingConsent: {
+      run: (ctx) => setTrainingConsent(ctx, false),
+      outcome: { throws: "Le consentement n'est pas donné." },
+    },
+    buildTrainingExport: {
+      run: (ctx) => buildTrainingExport(ctx, "json"),
+      outcome: { throws: "Consentement non donné : aucun export." },
+    },
+  },
   "report-download": {
     buildReportDownload: {
       run: (ctx, ids) => buildReportDownload(ctx, ids.study, "md"),
@@ -447,6 +464,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   results: {},
   quality: {},
   spectral: {},
+  "training-consent": {},
   "report-download": {},
   examples: {},
   members: {},
@@ -467,6 +485,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   results: resultsModule,
   quality: qualityModule,
   spectral: spectralModule,
+  "training-consent": trainingConsentModule,
   "report-download": reportDownloadModule,
   examples: examplesModule,
   members: membersModule,
@@ -520,6 +539,7 @@ const ADMIN_WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknow
   revokeInvitation: (ctx, ids) => revokeInvitation(ctx, ids.invitation),
   changeMemberRole: (ctx, ids) => changeMemberRole(ctx, ids.member, "viewer"),
   removeMember: (ctx, ids) => removeMember(ctx, ids.member),
+  setTrainingConsent: (ctx) => setTrainingConsent(ctx, true),
 };
 
 let ctxA: LabContext;
@@ -966,6 +986,8 @@ describe("un viewer de A", () => {
   it("la gestion des membres lui est fermée, même en lecture", async () => {
     await expect(listMembers(viewerA)).rejects.toThrow(FORBIDDEN_ADMIN);
     await expect(listPendingInvitations(researcherA)).rejects.toThrow(FORBIDDEN_ADMIN);
+    await expect(buildTrainingExport(viewerA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
+    await expect(buildTrainingExport(researcherA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
   });
 
   it("couvre toutes les écritures des services", () => {
@@ -979,6 +1001,8 @@ describe("un viewer de A", () => {
       "listAuditEvents",
       "listMembers",
       "listPendingInvitations",
+      "getTrainingConsent",
+      "buildTrainingExport",
       "existingKeys",
       "listImports",
       "getImport",
@@ -1057,5 +1081,38 @@ describe("analyses spectrales", () => {
     ).rejects.toThrow("Étude archivée : lecture seule.");
     expect(await fullSnapshot()).toBe(before);
     expect((await listSpectralAnalyses(viewerA, idsA.study)).rows).toHaveLength(1);
+  });
+});
+
+describe("consentement du laboratoire", () => {
+  it("le consentement et l'export de A ne changent rien à B, et inversement", async () => {
+    await setTrainingConsent(ctxB, true);
+    // Le consentement de B n'ouvre pas l'export de A.
+    await expect(buildTrainingExport(ctxA, "json")).rejects.toThrow(
+      "Consentement non donné : aucun export.",
+    );
+    expect(await getTrainingConsent(ctxA)).toMatchObject({ granted: false });
+    const before = await snapshotOfB();
+    await setTrainingConsent(ctxA, true);
+    const doc = JSON.parse((await buildTrainingExport(ctxA, "json")).body);
+    expect(doc.laboratory.slug).toBe("labo-a");
+    expect(doc.rows).toEqual([]);
+    expect(await snapshotOfB()).toBe(before);
+    const events = await prisma.auditEvent.findMany({
+      where: { action: { startsWith: "lab.training" } },
+    });
+    expect(events.filter((e) => e.laboratoryId === ctxA.laboratoryId)).toHaveLength(2);
+    expect(events.filter((e) => e.laboratoryId === ctxB.laboratoryId)).toHaveLength(1);
+  });
+
+  it("la dernière décision acceptée de B n'apparaît jamais dans l'export de A", async () => {
+    const analysisB = await analyzeSpectrum(ctxB, idsB.study, SPECTRUM_INPUT);
+    await recordSpectralDecision(ctxB, idsB.study, analysisB.id, { decision: "accepted" });
+    await setTrainingConsent(ctxB, true);
+    await setTrainingConsent(ctxA, true);
+    const body = (await buildTrainingExport(ctxA, "json")).body;
+    expect(JSON.parse(body).rows).toEqual([]);
+    expect(body).not.toContain(analysisB.id);
+    expect(JSON.parse((await buildTrainingExport(ctxB, "json")).body).rows).toHaveLength(1);
   });
 });

@@ -21,6 +21,7 @@ import { SPECTRAL_STATUS_BADGES, spectralDecisionBadge } from "@/lib/spectral";
 import type { SpectralModelInfo } from "@/server/engine/client";
 import { requireLab } from "@/server/lab-context";
 import { getSpectralModel, listSpectralAnalyses } from "@/server/spectral";
+import { getTrainingConsent } from "@/server/training-consent";
 import { loadStudy } from "../load-study";
 import { AnalyzeForm } from "./AnalyzeForm";
 
@@ -30,7 +31,19 @@ const VALIDATE_SENTENCE =
 const NO_TRAINING_SENTENCE =
   "Pendant la phase d'essai, aucune donnée de laboratoire ne sert à entraîner un modèle.";
 
-function TrialAlert({ info }: { info: SpectralModelInfo }) {
+function consentSentence(consent: { granted: boolean; grantedAt: Date | null }): string {
+  const base = "Utilisation des données validées de ce laboratoire pour améliorer les modèles :";
+  if (!consent.granted) return `${base} désactivée.`;
+  return `${base} activée depuis le ${formatDateTimeFr(consent.grantedAt) ?? "—"} (réglage du responsable du laboratoire).`;
+}
+
+function TrialAlert({
+  info,
+  consent,
+}: {
+  info: SpectralModelInfo;
+  consent: { granted: boolean; grantedAt: Date | null };
+}) {
   return (
     <Alert variant="info">
       <AlertDescription>
@@ -47,6 +60,7 @@ function TrialAlert({ info }: { info: SpectralModelInfo }) {
             ))}
           </ul>
           <p>{NO_TRAINING_SENTENCE}</p>
+          <p>{consentSentence(consent)}</p>
         </div>
       </AlertDescription>
     </Alert>
@@ -133,16 +147,17 @@ export default async function SpectresPage({
   const { labSlug, studyId } = await params;
   const [study, ctx] = await Promise.all([loadStudy(labSlug, studyId), requireLab(labSlug)]);
   const archived = study.archivedAt !== null;
-  const [model, list] = await Promise.all([
+  const [model, list, consent] = await Promise.all([
     getSpectralModel(ctx),
     listSpectralAnalyses(ctx, study.id),
+    getTrainingConsent(ctx),
   ]);
   const writable = canWrite(ctx.role) && !archived;
 
   return (
     <div className="space-y-6">
       {model.kind === "ok" ? (
-        <TrialAlert info={model.info} />
+        <TrialAlert info={model.info} consent={consent} />
       ) : (
         <Alert variant="destructive">
           <AlertDescription>
