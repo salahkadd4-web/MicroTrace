@@ -17,6 +17,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 train = ["scikit-learn>=1.5"]
+imaging = ["Pillow==12.1.1", "scikit-image==0.26.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

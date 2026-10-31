@@ -75,20 +75,25 @@ def _runtime_tree() -> dict[str, str]:
     from packaging.markers import default_environment
     from packaging.requirements import Requirement
 
-    env = {**default_environment(), "sys_platform": "linux", "platform_system": "Linux",
-           "os_name": "posix", "extra": ""}
+    base = {**default_environment(), "sys_platform": "linux", "platform_system": "Linux",
+            "os_name": "posix"}
     seen: dict[str, str] = {}
-    stack = ["microtrace-core", "microtrace-engine"]
+    stack = [("microtrace-core", frozenset()), ("microtrace-engine", frozenset())]
+    done: set[tuple[str, frozenset[str]]] = set()
     while stack:
-        dist = distribution(stack.pop())
+        raw_name, extras = stack.pop()
+        dist = distribution(raw_name)
         name = dist.metadata["Name"].lower().replace("_", "-")
-        if name in seen:
+        if (name, extras) in done:
             continue
+        done.add((name, extras))
         seen[name] = dist.version
         for raw in dist.requires or []:
             req = Requirement(raw)
-            if req.marker is None or req.marker.evaluate(env):
-                stack.append(req.name)
+            ok = req.marker is None or any(
+                req.marker.evaluate({**base, "extra": e}) for e in (extras or {""}))
+            if ok:
+                stack.append((req.name, frozenset(req.extras)))
     return {k: v for k, v in seen.items() if not k.startswith("microtrace-")}
 
 

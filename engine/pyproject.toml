@@ -7,7 +7,7 @@ name = "microtrace-engine"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "microtrace-core",
+    "microtrace-core[imaging]",
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "python-multipart>=0.0.9",
