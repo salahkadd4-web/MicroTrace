@@ -52,3 +52,22 @@ export function spectralDecisionBadge(status: string | null): {
     ? { label: found.label, badge: found.badge }
     : { label: "Non examinée", badge: "outline" };
 }
+
+/** Les bibliothèques sans référence complète portent « À compléter » côté moteur. */
+export function citationText(citation: string): string {
+  return citation.trim().toLowerCase() === "à compléter" ? "Référence à compléter." : citation;
+}
+
+/** Axe horizontal tel que le chercheur l'a déclaré (jamais l'étiquette du graphique). */
+export function declaredXUnitText(xUnit: string, laserNm: number | null): string {
+  if (xUnit === "nm") {
+    return laserNm !== null
+      ? `Longueur d'onde (nm), convertie en cm⁻¹ avec le laser (${new Intl.NumberFormat("fr-FR").format(laserNm)} nm)`
+      : "Longueur d'onde (nm), convertie en cm⁻¹ avec le laser";
+  }
+  return X_UNIT_OPTIONS.find((o) => o.code === xUnit)?.label ?? xUnit;
+}
+
+export function declaredYUnitText(yUnit: string): string {
+  return Y_UNIT_OPTIONS.find((o) => o.code === yUnit)?.label ?? yUnit;
+}

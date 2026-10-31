@@ -1248,6 +1248,8 @@ export interface components {
             n_references: number;
             /** Polymers */
             polymers: components["schemas"]["PolymerOptionModel"][];
+            /** Unevaluated Polymers */
+            unevaluated_polymers: components["schemas"]["PolymerOptionModel"][];
             /** Window Min */
             window_min: number;
             /** Window Max */

@@ -15,7 +15,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { canWrite } from "@/lib/roles";
-import { SPECTRAL_STATUS_BADGES, spectralDecisionBadge } from "@/lib/spectral";
+import {
+  SPECTRAL_STATUS_BADGES,
+  citationText,
+  declaredXUnitText,
+  declaredYUnitText,
+  spectralDecisionBadge,
+} from "@/lib/spectral";
 import { requireLab } from "@/server/lab-context";
 import { getSpectralAnalysis, getSpectralModel } from "@/server/spectral";
 import { loadStudy } from "../../load-study";
@@ -50,6 +56,12 @@ export default async function SpectrumAnalysisPage({
   const abstained = out.status === "not_identified";
   const canDecide = canWrite(ctx.role) && !analysis.archived;
   const currentVersion = model.kind === "engine_down" ? null : model.info.version;
+  const expectedSha = model.kind === "engine_down" ? null : (model.info.expected_sha256 ?? null);
+  const sameVersionOtherWeights =
+    currentVersion === analysis.modelVersion &&
+    expectedSha !== null &&
+    analysis.modelSha256 !== null &&
+    expectedSha.toLowerCase() !== analysis.modelSha256.toLowerCase();
   const decision = analysis.decision;
   const decisionBadge = spectralDecisionBadge(decision?.decision ?? null);
   const base = `/labo/${labSlug}/etudes/${study.id}/spectres`;
@@ -67,6 +79,14 @@ export default async function SpectrumAnalysisPage({
           <AlertDescription>
             Analyse faite avec la version {analysis.modelVersion} du modèle ; version actuelle :{" "}
             {currentVersion}.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {sameVersionOtherWeights ? (
+        <Alert variant="info">
+          <AlertDescription>
+            Analyse faite avec d&apos;autres poids que ceux de la version {analysis.modelVersion}{" "}
+            actuelle (empreinte différente).
           </AlertDescription>
         </Alert>
       ) : null}
@@ -90,10 +110,10 @@ export default async function SpectrumAnalysisPage({
           </dd>
           <dt className="text-muted-foreground">Technique</dt>
           <dd>{out.input.technique_label}</dd>
-          <dt className="text-muted-foreground">Axe</dt>
-          <dd>{out.x_label}</dd>
-          <dt className="text-muted-foreground">Ordonnée</dt>
-          <dd>{out.y_label}</dd>
+          <dt className="text-muted-foreground">Axe déclaré</dt>
+          <dd>{declaredXUnitText(analysis.xUnit, analysis.laserNm)}</dd>
+          <dt className="text-muted-foreground">Ordonnée déclarée</dt>
+          <dd>{declaredYUnitText(analysis.yUnit)}</dd>
           {analysis.laserNm !== null ? (
             <>
               <dt className="text-muted-foreground">Laser</dt>
@@ -239,12 +259,16 @@ export default async function SpectrumAnalysisPage({
               {out.references.map((r) => (
                 <TableRow key={`${r.library}-${r.spectrum_id}`}>
                   <TableCell>{r.rank}</TableCell>
-                  <TableCell>{r.library_name}</TableCell>
-                  <TableCell className="break-all">{r.spectrum_id}</TableCell>
-                  <TableCell>{r.label}</TableCell>
+                  <TableCell className="min-w-28 whitespace-normal">{r.library_name}</TableCell>
+                  <TableCell className="min-w-32 whitespace-normal break-all">
+                    {r.spectrum_id}
+                  </TableCell>
+                  <TableCell className="min-w-28 whitespace-normal">{r.label}</TableCell>
                   <TableCell className="tabular-nums">{r.score_text}</TableCell>
-                  <TableCell>{r.licence_text}</TableCell>
-                  <TableCell>{r.curve ? "affichée" : (r.curve_note ?? "non affichée")}</TableCell>
+                  <TableCell className="min-w-24 whitespace-normal">{r.licence_text}</TableCell>
+                  <TableCell className="min-w-36 whitespace-normal">
+                    {r.curve ? "affichée" : (r.curve_note ?? "non affichée")}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -253,7 +277,21 @@ export default async function SpectrumAnalysisPage({
             <ul className="space-y-1 text-xs text-muted-foreground">
               {cited.map((r) => (
                 <li key={r.library}>
-                  {r.library_name} : {r.citation}
+                  {r.library_name} : {citationText(r.citation)}
+                  {r.licence_text.includes("CC BY-SA") && r.curve !== null ? (
+                    <>
+                      {" "}
+                      Courbes de référence prétraitées (modifiées) ; licence{" "}
+                      <a
+                        href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr"
+                        className="underline underline-offset-4"
+                        rel="noopener noreferrer"
+                      >
+                        CC BY-SA 4.0
+                      </a>
+                      .
+                    </>
+                  ) : null}
                 </li>
               ))}
             </ul>

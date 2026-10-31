@@ -67,17 +67,22 @@ const info = (over: object = {}) => ({
         { code: "PE", label: "Polyéthylène" },
         { code: "PP", label: "Polypropylène" },
       ],
+      unevaluated_polymers: [{ code: "PLA", label: "Acide polylactique (PLA)" }],
       window_min: 600,
       window_max: 1800,
       thresholds: THRESHOLDS,
       metrics: {
-        n: 100,
-        n_in_library: 90,
-        n_out_of_library: 10,
+        n: 2792,
+        n_in_library: 2477,
+        n_out_of_library: 25,
         top1: 0.9,
         top3: 0.97,
         status_in_library: { identified: 0.6, uncertain: 0.2, not_identified: 0.2 },
-        status_out_of_library: null,
+        status_out_of_library: {
+          identified: 0.08,
+          uncertain: 0.44,
+          not_identified: 0.48,
+        },
         nested_identified_precision_min: 0.95,
         nested_identified_precision_max: 0.99,
       },
@@ -204,7 +209,10 @@ describe("page Spectres", () => {
     await renderPage();
     const alerts = screen.getAllByRole("alert");
     expect(alerts).toHaveLength(1);
-    expect(alerts[0]).toHaveTextContent("Modèle spectral absent : lancez l'entraînement.");
+    expect(alerts[0]).toHaveTextContent(
+      "Le modèle spectral n'est pas installé : contactez l'équipe MicroTrace.",
+    );
+    expect(alerts[0]).not.toHaveTextContent("lancez l'entraînement");
     expect(screen.queryByLabelText("Fichier du spectre")).not.toBeInTheDocument();
     expect(screen.getByRole("table")).toBeInTheDocument();
   });
@@ -241,7 +249,80 @@ describe("page Spectres", () => {
     const card = screen.getByRole("region", { name: "Fiche du modèle (version s1)" });
     expect(card).toHaveTextContent("MicroPlastiX");
     expect(card).toHaveTextContent("Autre bibliothèque");
+    expect(card).toHaveTextContent("Citation autre.");
     expect(screen.getByText(/docs\/models\/c5-spectral\.md/)).toBeInTheDocument();
+  });
+
+  it("fiche du modèle : seuils en français, effectifs réels et polymères non évalués", async () => {
+    await renderPage();
+    const card = screen.getByRole("region", { name: "Fiche du modèle (version s1)" });
+    expect(card).toHaveTextContent(
+      "incertain à partir d'une corrélation de 0,50 ; identifié à partir de 0,80, avec un écart d'au moins 0,05 sur le suivant et l'accord du classifieur",
+    );
+    expect(card).not.toHaveTextContent("0.5");
+    expect(card).toHaveTextContent("sur 2 477 spectres de la bibliothèque");
+    expect(card).not.toHaveTextContent("2 792");
+    expect(card).toHaveTextContent("48 % hors bibliothèque (n = 25)");
+    expect(card).toHaveTextContent("Polymères évalués");
+    expect(card).toHaveTextContent("Polyéthylène, Polypropylène");
+    expect(card).toHaveTextContent("Présents dans une seule bibliothèque (non évalués)");
+    expect(card).toHaveTextContent("Acide polylactique (PLA). Aucune mesure de performance");
+    expect(card).not.toHaveTextContent("Polymères connus");
+  });
+
+  it("fiche du modèle : un écart minimal nul n'est pas écrit « au moins 0 »", async () => {
+    const base = info();
+    const t = base.techniques[0];
+    vi.mocked(getSpectralModel).mockResolvedValue({
+      kind: "ok",
+      info: {
+        ...base,
+        techniques: [
+          { ...t, unevaluated_polymers: [], thresholds: { ...THRESHOLDS, identified_min_margin: 0 } },
+        ],
+      },
+    } as never);
+    await renderPage();
+    const card = screen.getByRole("region", { name: "Fiche du modèle (version s1)" });
+    expect(card).toHaveTextContent("sans écart minimal exigé sur le suivant");
+    expect(card).not.toHaveTextContent("au moins 0");
+    expect(card).not.toHaveTextContent("Présents dans une seule bibliothèque");
+  });
+
+  it("tableau : Statut avant Proposition, cellules longues à la ligne, action collée à droite", async () => {
+    await renderPage();
+    const table = screen.getByRole("table");
+    expect(within(table).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Date",
+      "Fichier",
+      "Technique",
+      "Statut",
+      "Proposition",
+      "Décision",
+      "Actions",
+    ]);
+    const cells = within(table).getAllByRole("cell");
+    expect(cells[1]).toHaveClass("whitespace-normal", "min-w-32");
+    expect(cells[4]).toHaveClass("whitespace-normal", "min-w-32");
+    expect(cells[6]).toHaveClass("sticky", "right-0", "bg-card");
+  });
+
+  it("la phrase d'essai n'est affichée qu'une fois", async () => {
+    vi.mocked(getSpectralModel).mockResolvedValue({
+      kind: "ok",
+      info: info({
+        limits: [
+          "Modèle d'essai : entraîné sur des données publiques, pas encore sur les vôtres.",
+          "Le modèle n'a pas vu de particules extraites de sang.",
+        ],
+      }),
+    } as never);
+    await renderPage();
+    expect(
+      screen.getAllByText(
+        "Modèle d'essai : entraîné sur des données publiques, pas encore sur les vôtres.",
+      ),
+    ).toHaveLength(1);
   });
 
   it("aucun champ ni bouton dans l'en-tête, les onglets ou le bandeau", async () => {

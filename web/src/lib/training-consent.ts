@@ -12,7 +12,7 @@ export const TRAINING_CONSENT_DETAILS: readonly string[] = [
   "Pendant la phase d'essai, aucune donnée de laboratoire ne sert à entraîner un modèle. Aucun réentraînement n'aura lieu avant la validation du cadre légal (loi 18-07) et du contrat avec le laboratoire.",
 ];
 
-/** Colonnes de l'export (JSON : chaque ligne y ajoute `file_base64`), dans l'ordre. */
+/** Colonnes de l'export (JSON : chaque ligne porte le spectre analysé par le moteur sous `spectrum`), dans l'ordre. */
 export const EXPORT_COLUMNS: readonly string[] = [
   "analysis_id",
   "decision_id",

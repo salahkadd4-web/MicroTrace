@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/server/lab-context", () => ({ requireLab: vi.fn() }));
@@ -173,6 +173,61 @@ describe("page d'une analyse", () => {
         name: "Spectre déposé superposé aux spectres de référence affichables (1)",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("axe et ordonnée déclarés : nm avec laser, puis transmittance", async () => {
+    vi.mocked(getSpectralAnalysis).mockResolvedValue(
+      analysis({}, { xUnit: "nm", laserNm: 532 }) as never,
+    );
+    await renderPage();
+    expect(screen.getByText("Axe déclaré")).toBeInTheDocument();
+    expect(
+      screen.getByText("Longueur d'onde (nm), convertie en cm⁻¹ avec le laser (532 nm)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Intensité (Raman)")).toBeInTheDocument();
+    cleanup();
+    vi.mocked(getSpectralAnalysis).mockResolvedValue(
+      analysis(
+        { input: { ...output().input, technique: "ftir_atr", y_unit: "transmittance_pct", laser_nm: null } },
+        { technique: "ftir_atr", yUnit: "transmittance_pct", laserNm: null },
+      ) as never,
+    );
+    await renderPage();
+    expect(screen.getByText("Nombre d'onde (cm⁻¹)")).toBeInTheDocument();
+    expect(screen.getByText("Transmittance en % (FTIR)")).toBeInTheDocument();
+  });
+
+  it("tableau des références : cellules longues à la ligne ; citation à compléter ; licence CC BY-SA", async () => {
+    vi.mocked(getSpectralAnalysis).mockResolvedValue(
+      analysis({
+        references: [
+          ref(1, { licence_text: "CC BY-SA 4.0" }),
+          ref(2, { library: "other", library_name: "Autre", citation: "À compléter", curve: null, curve_note: "Licence à confirmer : courbe non affichée." }),
+        ],
+      }) as never,
+    );
+    await renderPage();
+    const table = screen.getByRole("table", { name: "Spectres de référence les plus proches" });
+    expect(within(table).getByText("mpx-1")).toHaveClass("whitespace-normal");
+    expect(within(table).getByText("Licence à confirmer : courbe non affichée.")).toHaveClass(
+      "whitespace-normal",
+    );
+    expect(screen.getByText(/Autre : Référence à compléter\./)).toBeInTheDocument();
+    expect(screen.queryByText(/À compléter/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Courbes de référence prétraitées \(modifiées\)/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "CC BY-SA 4.0" })).toHaveAttribute(
+      "href",
+      "https://creativecommons.org/licenses/by-sa/4.0/deed.fr",
+    );
+  });
+
+  it("même version mais empreinte différente : Alert info", async () => {
+    vi.mocked(getSpectralModel).mockResolvedValue({
+      kind: "ok",
+      info: { version: "s1", expected_sha256: "z".repeat(64) },
+    } as never);
+    await renderPage();
+    expect(screen.getByText(/d'autres poids que ceux de la version s1/)).toBeInTheDocument();
   });
 
   it("version différente : Alert info", async () => {

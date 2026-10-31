@@ -2,7 +2,7 @@ import { ScanLine } from "lucide-react";
 import Link from "next/link";
 import { DateTimeFr, formatDateTimeFr } from "@/components/app/DateTimeFr";
 import { EmptyState } from "@/components/app/EmptyState";
-import { formatPercentFr } from "@/components/app/NumberFr";
+import { formatNumberFr, formatPercentFr } from "@/components/app/NumberFr";
 import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { ENGINE_DOWN } from "@/lib/engine-messages";
 import { canWrite } from "@/lib/roles";
-import { SPECTRAL_STATUS_BADGES, spectralDecisionBadge } from "@/lib/spectral";
+import { SPECTRAL_STATUS_BADGES, citationText, spectralDecisionBadge } from "@/lib/spectral";
 import type { SpectralModelInfo } from "@/server/engine/client";
 import { requireLab } from "@/server/lab-context";
 import { getSpectralModel, listSpectralAnalyses } from "@/server/spectral";
@@ -37,6 +37,14 @@ function consentSentence(consent: { granted: boolean; grantedAt: Date | null }):
   return `${base} activée depuis le ${formatDateTimeFr(consent.grantedAt) ?? "—"} (réglage du responsable du laboratoire).`;
 }
 
+/** Texte destiné aux membres du laboratoire : jamais la commande d'entraînement du moteur. */
+function unavailableText(info: SpectralModelInfo): string {
+  if (info.reason === "missing") {
+    return "Le modèle spectral n'est pas installé : contactez l'équipe MicroTrace.";
+  }
+  return info.message ?? ENGINE_DOWN;
+}
+
 function TrialAlert({ info }: { info: SpectralModelInfo }) {
   return (
     <Alert variant="info">
@@ -49,7 +57,9 @@ function TrialAlert({ info }: { info: SpectralModelInfo }) {
           <p>{info.trial_sentence}</p>
           <p>{VALIDATE_SENTENCE}</p>
           <ul className="list-disc space-y-1 pl-5">
-            {info.limits.map((l, i) => (
+            {info.limits
+              .filter((l) => l !== info.trial_sentence)
+              .map((l, i) => (
               <li key={i}>{l}</li>
             ))}
           </ul>
@@ -60,6 +70,17 @@ function TrialAlert({ info }: { info: SpectralModelInfo }) {
   );
 }
 
+const threshold = (v: number) => formatNumberFr(v, 2);
+
+function thresholdsText(t: SpectralModelInfo["techniques"][number]["thresholds"]): string {
+  const margin =
+    t.identified_min_margin > 0
+      ? ` avec un écart d'au moins ${threshold(t.identified_min_margin)} sur le suivant`
+      : " sans écart minimal exigé sur le suivant";
+  const classifier = t.classifier_agreement_required ? " et l'accord du classifieur" : "";
+  return `incertain à partir d'une corrélation de ${threshold(t.uncertain_min_score)} ; identifié à partir de ${threshold(t.identified_min_score)},${margin}${classifier}`;
+}
+
 function ModelCard({ info }: { info: SpectralModelInfo }) {
   return (
     <Section title={`Fiche du modèle (version ${info.version})`}>
@@ -68,24 +89,30 @@ function ModelCard({ info }: { info: SpectralModelInfo }) {
           <div key={t.technique} className="space-y-2">
             <h3 className="text-base font-medium">{t.label}</h3>
             <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
-              <dt className="text-muted-foreground">Polymères connus</dt>
+              <dt className="text-muted-foreground">Polymères évalués</dt>
               <dd>{t.polymers.map((p) => p.label).join(", ")}</dd>
+              {t.unevaluated_polymers.length > 0 ? (
+                <>
+                  <dt className="text-muted-foreground">
+                    Présents dans une seule bibliothèque (non évalués)
+                  </dt>
+                  <dd>
+                    {t.unevaluated_polymers.map((p) => p.label).join(", ")}. Aucune mesure de
+                    performance n&apos;existe pour eux : les chiffres ci-dessous ne les concernent
+                    pas.
+                  </dd>
+                </>
+              ) : null}
               <dt className="text-muted-foreground">Seuils</dt>
-              <dd>
-                incertain à partir d&apos;une corrélation de {t.thresholds.uncertain_min_score} ;
-                identifié à partir de {t.thresholds.identified_min_score}, avec un écart d&apos;au
-                moins {t.thresholds.identified_min_margin} sur le suivant
-                {t.thresholds.classifier_agreement_required
-                  ? " et l'accord du classifieur"
-                  : ""}
-              </dd>
+              <dd>{thresholdsText(t.thresholds)}</dd>
               {t.metrics ? (
                 <>
                   <dt className="text-muted-foreground">Premier choix correct</dt>
                   <dd>
                     {formatPercentFr(t.metrics.top1)} (trois premiers :{" "}
-                    {formatPercentFr(t.metrics.top3)}), sur {t.metrics.n} spectres, en laissant
-                    chaque jeu de données de côté tour à tour
+                    {formatPercentFr(t.metrics.top3)}), sur {formatNumberFr(t.metrics.n_in_library)}{" "}
+                    spectres de la bibliothèque, en laissant chaque jeu de données de côté tour à
+                    tour
                   </dd>
                   {t.metrics.nested_identified_precision_min !== null &&
                   t.metrics.nested_identified_precision_max !== null ? (
@@ -102,7 +129,7 @@ function ModelCard({ info }: { info: SpectralModelInfo }) {
                     {formatPercentFr(t.metrics.status_in_library.not_identified)} dans la
                     bibliothèque
                     {t.metrics.status_out_of_library
-                      ? `, ${formatPercentFr(t.metrics.status_out_of_library.not_identified)} hors bibliothèque`
+                      ? `, ${formatPercentFr(t.metrics.status_out_of_library.not_identified)} hors bibliothèque (n = ${formatNumberFr(t.metrics.n_out_of_library)})`
                       : ""}
                   </dd>
                 </>
@@ -115,7 +142,7 @@ function ModelCard({ info }: { info: SpectralModelInfo }) {
           <ul className="space-y-2 text-sm">
             {info.libraries.map((lib) => (
               <li key={lib.code}>
-                <span className="font-medium">{lib.name}</span> : {lib.citation}{" "}
+                <span className="font-medium">{lib.name}</span> : {citationText(lib.citation)}{" "}
                 <span className="text-muted-foreground">
                   Licence : {lib.licence_text}
                   {lib.curve_allowed ? "" : " (courbes non affichées)"}
@@ -154,7 +181,7 @@ export default async function SpectresPage({
       ) : (
         <Alert variant="destructive">
           <AlertDescription>
-            {model.kind === "engine_down" ? ENGINE_DOWN : (model.info.message ?? ENGINE_DOWN)}
+            {model.kind === "engine_down" ? ENGINE_DOWN : unavailableText(model.info)}
           </AlertDescription>
         </Alert>
       )}
@@ -185,10 +212,10 @@ export default async function SpectresPage({
                   <TableHead>Date</TableHead>
                   <TableHead>Fichier</TableHead>
                   <TableHead>Technique</TableHead>
-                  <TableHead>Proposition</TableHead>
                   <TableHead>Statut</TableHead>
+                  <TableHead>Proposition</TableHead>
                   <TableHead>Décision</TableHead>
-                  <TableHead>
+                  <TableHead className="sticky right-0 bg-muted">
                     <span className="sr-only">Actions</span>
                   </TableHead>
                 </TableRow>
@@ -201,9 +228,10 @@ export default async function SpectresPage({
                       <TableCell>
                         <DateTimeFr value={r.createdAt} />
                       </TableCell>
-                      <TableCell className="break-all">{r.fileName}</TableCell>
+                      <TableCell className="min-w-32 whitespace-normal break-all">
+                        {r.fileName}
+                      </TableCell>
                       <TableCell>{r.techniqueLabel}</TableCell>
-                      <TableCell>{r.proposedLabel ?? "Aucune proposition fiable"}</TableCell>
                       <TableCell>
                         <Badge
                           variant={
@@ -214,10 +242,13 @@ export default async function SpectresPage({
                           {r.statusLabel}
                         </Badge>
                       </TableCell>
+                      <TableCell className="min-w-32 whitespace-normal">
+                        {r.proposedLabel ?? "Aucune proposition fiable"}
+                      </TableCell>
                       <TableCell>
                         <Badge variant={decision.badge}>{decision.label}</Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="sticky right-0 bg-card shadow-[inset_1px_0_0_var(--border)]">
                         <Link
                           href={`/labo/${labSlug}/etudes/${study.id}/spectres/${r.id}`}
                           aria-label={`Ouvrir l'analyse du ${formatDateTimeFr(r.createdAt) ?? ""}`}

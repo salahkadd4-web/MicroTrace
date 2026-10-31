@@ -318,7 +318,7 @@ describe("page Qualité", () => {
     await renderPage();
     expect(screen.getAllByRole("heading", { level: 4 })).toHaveLength(200);
     expect(screen.getByText("1 autres signaux non affichés.")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("état vide : NO_SAMPLE_MEASUREMENTS, puis les signaux disparus", async () => {
     vi.mocked(getStudyQuality).mockResolvedValue({ kind: "empty", disappeared: [decisionView()] } as never);
