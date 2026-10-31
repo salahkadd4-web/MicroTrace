@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { DateTimeFr } from "@/components/app/DateTimeFr";
-import { formatNumberFr } from "@/components/app/NumberFr";
+import { DateTimeFr, formatDateTimeFr } from "@/components/app/DateTimeFr";
+import { formatEngineNumberFr, formatNumberFr } from "@/components/app/NumberFr";
 import { Section } from "@/components/app/Section";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,9 @@ import { getSpectralAnalysis, getSpectralModel } from "@/server/spectral";
 import { loadStudy } from "../../load-study";
 import { DecisionForm } from "./DecisionForm";
 import { SpectrumChart } from "./SpectrumChart";
+
+/** Au plus ce nombre de points est listé dans « Voir les données ». */
+const MAX_TABLE_ROWS = 500;
 
 const short = (sha: string) => (sha.length > 12 ? `${sha.slice(0, 12)}…` : sha);
 
@@ -51,14 +54,14 @@ export default async function SpectrumAnalysisPage({
   const decisionBadge = spectralDecisionBadge(decision?.decision ?? null);
   const base = `/labo/${labSlug}/etudes/${study.id}/spectres`;
   const displayed = out.references.filter((r) => r.curve !== null);
+  const plotted = [
+    { name: "Spectre déposé", curve: out.query_curve },
+    ...displayed.map((r) => ({ name: `${r.library_name} ${r.spectrum_id}`, curve: r.curve! })),
+  ].flatMap(({ name, curve }) => curve.x.map((x, i) => ({ name, x, y: curve.y[i] })));
   const cited = [...new Map(out.references.map((r) => [r.library, r])).values()];
 
   return (
     <div className="space-y-6">
-      <h2 className="font-heading text-lg font-semibold">
-        Analyse du <DateTimeFr value={analysis.createdAt} />
-      </h2>
-
       {currentVersion !== null && currentVersion !== analysis.modelVersion ? (
         <Alert variant="info">
           <AlertDescription>
@@ -75,7 +78,7 @@ export default async function SpectrumAnalysisPage({
         </Alert>
       ) : null}
 
-      <Section title="Fichier et paramètres">
+      <Section title={`Analyse du ${formatDateTimeFr(analysis.createdAt) ?? ""}`}>
         <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
           <dt className="text-muted-foreground">Fichier</dt>
           <dd className="break-all">{analysis.fileName}</dd>
@@ -165,22 +168,60 @@ export default async function SpectrumAnalysisPage({
 
       <Section title="Spectre et références">
         <div className="space-y-4">
-          <SpectrumChart
-            query={out.query_curve}
-            references={out.references.map((r) => ({
-              id: r.spectrum_id,
-              name: `${r.library_name} ${r.spectrum_id}`,
-              curve: r.curve,
-            }))}
-            xLabel={out.x_label}
-            yLabel={out.y_label}
-            windowMin={out.input.window_min}
-            windowMax={out.input.window_max}
-          />
-          <p className="text-sm text-muted-foreground">
-            {displayed.length} des {out.references.length} spectres de référence les plus proches
-            ont une courbe affichable ; la fenêtre diagnostique est ombrée.
-          </p>
+          <div className="space-y-3">
+            <h3 className="text-base font-medium">Spectre déposé et références</h3>
+            <p className="text-sm text-muted-foreground">
+              Spectre déposé (trait épais), prétraité par le moteur et tracé tel qu&apos;il le
+              renvoie, superposé aux spectres de référence dont la licence permet d&apos;afficher
+              la courbe ({displayed.length} sur {out.references.length}). Axe horizontal :{" "}
+              {out.x_label} ; axe vertical : {out.y_label}. La fenêtre diagnostique est ombrée.
+            </p>
+            <SpectrumChart
+              query={out.query_curve}
+              references={out.references.map((r) => ({
+                id: r.spectrum_id,
+                name: `${r.library_name} ${r.spectrum_id}`,
+                curve: r.curve,
+              }))}
+              xLabel={out.x_label}
+              yLabel={out.y_label}
+              windowMin={out.input.window_min}
+              windowMax={out.input.window_max}
+            />
+            <details>
+              <summary className="cursor-pointer text-sm font-medium text-primary">
+                Voir les données
+              </summary>
+              <Table>
+                <TableCaption className="sr-only">Points tracés du graphique</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Courbe</TableHead>
+                    <TableHead className="text-right">{out.x_label}</TableHead>
+                    <TableHead className="text-right">{out.y_label}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {plotted.slice(0, MAX_TABLE_ROWS).map((p, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{p.name}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatEngineNumberFr(p.x)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatEngineNumberFr(p.y)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {plotted.length > MAX_TABLE_ROWS ? (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {MAX_TABLE_ROWS} premières lignes sur {formatEngineNumberFr(plotted.length)}.
+                </p>
+              ) : null}
+            </details>
+          </div>
           <Table>
             <TableCaption className="sr-only">Spectres de référence les plus proches</TableCaption>
             <TableHeader>

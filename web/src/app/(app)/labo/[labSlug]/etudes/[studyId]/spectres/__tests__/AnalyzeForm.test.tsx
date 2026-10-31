@@ -25,10 +25,10 @@ describe("AnalyzeForm", () => {
     render(<AnalyzeForm labSlug="labo" studyId="s1" />);
     expect(screen.getByLabelText("Fichier du spectre")).toBeInTheDocument();
     expect(screen.getByLabelText("Longueur d'onde du laser (nm)")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Ordonnée")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Ordonnée" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "FTIR (ATR)" }));
     expect(screen.queryByLabelText("Longueur d'onde du laser (nm)")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Ordonnée")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Ordonnée" })).toBeInTheDocument();
   });
 
   it("envoie file, technique, x_unit, y_unit, laser_nm puis ouvre l'analyse", async () => {
@@ -55,7 +55,8 @@ describe("AnalyzeForm", () => {
     render(<AnalyzeForm labSlug="labo" studyId="s1" />);
     await user.upload(screen.getByLabelText("Fichier du spectre"), file());
     await user.click(screen.getByRole("radio", { name: "FTIR (ATR)" }));
-    await user.selectOptions(screen.getByLabelText("Ordonnée"), "transmittance_pct");
+    await user.click(screen.getByRole("combobox", { name: "Ordonnée" }));
+    await user.click(screen.getByRole("option", { name: "Transmittance (%)" }));
     await user.click(screen.getByRole("button", { name: "Analyser le spectre" }));
     await waitFor(() => expect(push).toHaveBeenCalled());
     const fd = (fetchMock.mock.calls[0][1] as RequestInit).body as FormData;

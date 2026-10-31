@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { ActionForm } from "@/components/app/ActionForm";
 import { FormField } from "@/components/app/FormField";
+import { SelectField } from "@/components/app/SelectField";
 import { Textarea } from "@/components/ui/textarea";
 import { NOTE_MAX_LENGTH } from "@/lib/quality";
 import { NOTE_REQUIRED_POLYMERS, SPECTRAL_DECISIONS, type SpectralDecision } from "@/lib/spectral";
 import { recordSpectralDecisionAction } from "./actions";
-
-const SELECT_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 type Vocabulary = readonly { code: string; label: string }[];
 
@@ -54,21 +52,13 @@ function Fields({
       </fieldset>
       {decision === "corrected" ? (
         <FormField id={`${analysisId}-polymer`} label="Polymère retenu">
-          <select
+          <SelectField
             id={`${analysisId}-polymer`}
             name="polymer"
-            required
             value={polymer}
-            onChange={(e) => setPolymer(e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="">Choisir…</option>
-            {vocabulary.map((p) => (
-              <option key={p.code} value={p.code}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            onValueChange={setPolymer}
+            options={vocabulary.map((p) => ({ value: p.code, label: p.label }))}
+          />
         </FormField>
       ) : null}
       <FormField id={`${analysisId}-note`} label="Note">

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import { FormError } from "@/components/app/FormError";
 import { FormField } from "@/components/app/FormField";
+import { SelectField } from "@/components/app/SelectField";
 import { SubmitButton } from "@/components/app/SubmitButton";
 import { Input } from "@/components/ui/input";
 import { SPECTRAL_MAX_BYTES } from "@/lib/spectral";
@@ -11,8 +12,6 @@ import { SPECTRAL_MAX_BYTES } from "@/lib/spectral";
 const TOO_BIG = "Fichier trop volumineux (2 Mo maximum).";
 const NO_FILE = "Choisissez le fichier du spectre.";
 const UPLOAD_FAILED = "Échec de l'envoi du fichier.";
-const SELECT_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 type Technique = "raman" | "ftir_atr";
 
@@ -110,15 +109,16 @@ export function AnalyzeForm({ labSlug, studyId }: { labSlug: string; studyId: st
       {technique === "raman" ? (
         <>
           <FormField id="spectrum-x-unit" label="Unité de l'axe">
-            <select
+            <SelectField
               id="spectrum-x-unit"
+              name="x_unit"
               value={xUnit}
-              onChange={(e) => setXUnit(e.target.value)}
-              className={SELECT_CLASS}
-            >
-              <option value="cm-1">Déplacement Raman (cm⁻¹)</option>
-              <option value="nm">Longueur d&apos;onde (nm)</option>
-            </select>
+              onValueChange={setXUnit}
+              options={[
+                { value: "cm-1", label: "Déplacement Raman (cm⁻¹)" },
+                { value: "nm", label: "Longueur d'onde (nm)" },
+              ]}
+            />
           </FormField>
           <FormField id="spectrum-laser" label="Longueur d'onde du laser (nm)">
             <Input
@@ -133,15 +133,16 @@ export function AnalyzeForm({ labSlug, studyId }: { labSlug: string; studyId: st
         </>
       ) : (
         <FormField id="spectrum-y-unit" label="Ordonnée">
-          <select
+          <SelectField
             id="spectrum-y-unit"
+            name="y_unit"
             value={yUnit}
-            onChange={(e) => setYUnit(e.target.value)}
-            className={SELECT_CLASS}
-          >
-            <option value="absorbance">Absorbance</option>
-            <option value="transmittance_pct">Transmittance (%)</option>
-          </select>
+            onValueChange={setYUnit}
+            options={[
+              { value: "absorbance", label: "Absorbance" },
+              { value: "transmittance_pct", label: "Transmittance (%)" },
+            ]}
+          />
         </FormField>
       )}
 

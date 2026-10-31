@@ -226,6 +226,20 @@ describe("page d'une analyse", () => {
     expect(screen.getByText(/par Bob/)).toHaveTextContent("(2 décisions, voir le Journal)");
   });
 
+  it("graphique : h3, phrase avant le graphique, et « Voir les données » avec légende", async () => {
+    await renderPage();
+    const h3 = screen.getByRole("heading", { level: 3, name: "Spectre déposé et références" });
+    const chart = screen.getByRole("img", { name: /Spectre déposé superposé/ });
+    expect(
+      h3.compareDocumentPosition(chart) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText(/tracé tel qu'il le renvoie/)).toBeInTheDocument();
+    expect(screen.getByText("Voir les données")).toBeInTheDocument();
+    const data = screen.getByRole("table", { name: "Points tracés du graphique", hidden: true });
+    // 2 points du spectre déposé + 2 de la seule référence affichable
+    expect(within(data).getAllByRole("row", { hidden: true })).toHaveLength(1 + 4);
+  });
+
   it("un seul h1, lien Toutes les analyses", async () => {
     await renderPage();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);

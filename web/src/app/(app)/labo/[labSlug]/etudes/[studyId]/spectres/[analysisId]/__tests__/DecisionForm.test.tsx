@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,11 @@ const VOCAB = [
   { code: "OTHER", label: "Autre polymère" },
   { code: "NOT_PLASTIC", label: "Non plastique" },
 ];
+const LABELS: Record<string, string> = Object.fromEntries(VOCAB.map((p) => [p.code, p.label]));
+async function pick(user: ReturnType<typeof userEvent.setup>, code: string) {
+  await user.click(screen.getByRole("combobox", { name: "Polymère retenu" }));
+  await user.click(screen.getByRole("option", { name: LABELS[code] }));
+}
 const setup = (notIdentified = false) =>
   render(
     <DecisionForm labSlug="labo" studyId="s1" analysisId="a1" notIdentified={notIdentified} vocabulary={VOCAB} />,
@@ -38,11 +43,11 @@ describe("DecisionForm", () => {
   it("« Polymère retenu » visible pour Corrigée, avec le vocabulaire du moteur", async () => {
     const user = userEvent.setup();
     setup();
-    expect(screen.queryByLabelText("Polymère retenu")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Polymère retenu" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "Corrigée" }));
-    const select = screen.getByLabelText("Polymère retenu");
-    const options = within(select).getAllByRole("option").map((o) => o.getAttribute("value"));
-    expect(options).toEqual(["", "PE", "PP", "OTHER", "NOT_PLASTIC"]);
+    await user.click(screen.getByRole("combobox", { name: "Polymère retenu" }));
+    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    expect(options).toEqual(["Polyéthylène", "Polypropylène", "Autre polymère", "Non plastique"]);
   });
 
   it("note obligatoire pour Rejetée et pour OTHER / NOT_PLASTIC", async () => {
@@ -56,11 +61,11 @@ describe("DecisionForm", () => {
     expect(note).not.toBeRequired();
     await user.click(screen.getByRole("radio", { name: "Corrigée" }));
     expect(note).not.toBeRequired();
-    await user.selectOptions(screen.getByLabelText("Polymère retenu"), "PP");
+    await pick(user, "PP");
     expect(note).not.toBeRequired();
-    await user.selectOptions(screen.getByLabelText("Polymère retenu"), "OTHER");
+    await pick(user, "OTHER");
     expect(note).toBeRequired();
-    await user.selectOptions(screen.getByLabelText("Polymère retenu"), "NOT_PLASTIC");
+    await pick(user, "NOT_PLASTIC");
     expect(note).toBeRequired();
   });
 
@@ -68,7 +73,7 @@ describe("DecisionForm", () => {
     const user = userEvent.setup();
     setup();
     await user.click(screen.getByRole("radio", { name: "Corrigée" }));
-    await user.selectOptions(screen.getByLabelText("Polymère retenu"), "PP");
+    await pick(user, "PP");
     await user.type(screen.getByLabelText("Note"), "Pic à 840");
     await user.click(screen.getByRole("button", { name: "Enregistrer la décision" }));
     await waitFor(() => expect(record).toHaveBeenCalled());
