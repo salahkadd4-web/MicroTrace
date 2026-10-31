@@ -49,5 +49,5 @@ export const CONSENT_ALREADY_GIVEN = "Le consentement est déjà donné.";
 export const CONSENT_NOT_GIVEN = "Le consentement n'est pas donné.";
 export const NO_CONSENT_EXPORT = "Consentement non donné : aucun export.";
 export const CONSENT_RENEW =
-  "Le texte du consentement a changé : renouvelez le consentement avant d'exporter.";
+  "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.";
 export const EXPORT_TOO_LARGE = "Export trop volumineux (50 Mo maximum) : contactez l'équipe MicroTrace.";

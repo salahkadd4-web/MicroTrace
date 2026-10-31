@@ -399,7 +399,7 @@ describe("buildTrainingExport", () => {
       data: { trainingConsentVersion: "c0" },
     });
     await expect(buildTrainingExport(admin, "json")).rejects.toThrow(
-      "Le texte du consentement a changé : renouvelez le consentement avant d'exporter.",
+      "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.",
     );
     expect(await events("lab.training_export")).toHaveLength(0);
   });

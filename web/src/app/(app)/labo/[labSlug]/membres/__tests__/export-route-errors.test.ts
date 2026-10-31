@@ -42,10 +42,10 @@ describe("GET membres/export-entrainement : refus du service", () => {
 
   it("texte du consentement changé : 403 avec le message", async () => {
     build.mockRejectedValue(
-      new DomainError("Le texte du consentement a changé : renouvelez le consentement avant d'exporter."),
+      new DomainError("Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter."),
     );
     const res = await call();
     expect(res.status).toBe(403);
-    expect(await res.text()).toContain("renouvelez le consentement");
+    expect(await res.text()).toContain("retirez puis accordez de nouveau le consentement");
   });
 });

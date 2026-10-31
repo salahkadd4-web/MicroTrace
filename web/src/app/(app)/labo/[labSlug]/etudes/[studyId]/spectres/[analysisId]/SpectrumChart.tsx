@@ -82,12 +82,6 @@ export function SpectrumChart({
               tick={AXIS}
               tickFormatter={(v: number) => formatEngineNumberFr(v)}
               width={56}
-              label={{
-                value: yLabel,
-                angle: -90,
-                position: "insideLeft",
-                fill: "var(--muted-foreground)",
-              }}
             />
             <Tooltip
               contentStyle={TOOLTIP_STYLE}
@@ -121,6 +115,7 @@ export function SpectrumChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      <p className="text-xs text-muted-foreground">Axe vertical : {yLabel}</p>
       <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs" aria-label="Légende du graphique">
         <li className="flex items-center gap-1.5">
           <span
