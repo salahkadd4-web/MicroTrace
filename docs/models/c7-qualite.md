@@ -8,6 +8,7 @@ L'assistant qualité attire l'attention de la personne qui relit des résultats 
 - Aucune gravité, aucune imputation d'une valeur censurée, aucune prédiction de santé, aucune modification d'une mesure.
 - Les règles sont des statistiques robustes documentées. Il n'y a pas d'apprentissage automatique.
 - Les signaux sont recalculés à chaque ouverture. Seules les décisions humaines sont enregistrées (§8).
+- **Ces règles sont des règles d'essai** (R-C7-2) : leurs seuils sont des points de départ documentés, et les décisions ne servent à aucun entraînement pendant la phase d'essai (§10).
 
 ## 2. Version
 
@@ -52,6 +53,8 @@ Toutes les comparaisons sont strictes : une valeur exactement au seuil ne décle
 
 **Arrondi (règle R-C7-1).** Chaque grandeur comparée (valeurs par échantillon avant médiane et MAD, MAD, écart relatif, rapport au blanc, score z) est calculée une seule fois, arrondie à **12 chiffres significatifs** pour effacer le bruit de calcul binaire, comparée strictement au seuil, puis exposée telle quelle. Ainsi, une paire 0,1 et 0,06 (écart exactement 50 %) ou une valeur de 0,3 face à un blanc de 100 ng/mL (rapport exactement 3) ne déclenche rien, et un MAD réellement nul est nul (note `zero_mad`).
 
+**Arrondi d'affichage.** Le texte d'un signal arrondit les chiffres montrés (écart relatif 1 décimale, rapport 1 décimale, score z 2 décimales, p 2 chiffres significatifs), sauf exception : si le nombre arrondi touchait le seuil ou passait de l'autre côté (« 3 fois » pour un seuil « moins de 3 fois »), des chiffres sont ajoutés jusqu'à ce que le nombre montré soit strictement du côté qui déclenche le signal. Les décisions ne dépendent jamais de l'arrondi d'affichage.
+
 ### a) Discordance entre aliquotes (`aliquot_discordance`)
 
 - **Population :** les mesures d'un même échantillon dans un même groupe, avec au moins 2 aliquotes quantifiées.
@@ -68,7 +71,7 @@ Toutes les comparaisons sont strictes : une valeur exactement au seuil ne décle
 ### b) Valeur proche des blancs (`near_blank`)
 
 - **Population :** chaque mesure quantifiée, comparée à chaque contrôle qualité résumé de type `procedural_blank`, du même polymère et de moyenne strictement positive. Le polymère du contrôle (texte libre) est normalisé par `normalize_result_polymer(libellé, technique)` : « PS » devient `PS_SUM` pour une technique thermo-analytique.
-- **Méthode :** le contrôle résumé n'a pas de champ méthode dans le prototype. Il s'applique donc à toutes les méthodes du polymère dont l'unité est convertible. C'est une limite (§6).
+- **Méthode :** le contrôle résumé n'a pas de champ méthode dans le prototype. Il s'applique donc à toutes les méthodes et à toutes les matrices du polymère dont l'unité est convertible. C'est une limite (§6).
 - **Unités :** l'unité du contrôle est lue par `parse_unit`. Elle doit avoir la même (grandeur, base) que le groupe, et la moyenne est convertie dans l'unité canonique du groupe. Sinon, il n'y a pas de signal et une note le dit (`blank_unit_mismatch`, `blank_unit_unknown`).
 - **Formule :** rapport = valeur canonique / moyenne canonique du blanc. Il y a signal si rapport < 3.
 - **Seuil 3 × :**
@@ -133,7 +136,7 @@ JSON canonique : `sort_keys=True`, `ensure_ascii=False`, `separators=(",", ":")`
 - **Petit n et MAD minuscule :** avec des valeurs groupées, le MAD est minuscule et l'on sur-signale (exemple fictif, PE : MAD 0,1, l'échantillon 4 à 3,6 µg/mL a z = 7,42).
 - **Forte censure à gauche :** seules les valeurs quantifiées forment la distribution. Elle est tronquée, la médiane est tirée vers le haut et une valeur basse anormale est presque indétectable.
 - **Aliquote censurée qui masque une discordance :** une paire « 2,2 et < LOD » ne donne aucun signal.
-- **Blanc sans méthode :** le contrôle résumé s'applique à toutes les méthodes du polymère.
+- **Blanc sans méthode ni matrice :** le contrôle résumé s'applique à toutes les méthodes et à toutes les matrices du polymère (un blanc en µg/mL s'applique au sang total comme au plasma).
 - **Données corrigées du blanc :** le rapport compare une valeur nette à un blanc brut.
 - **Unités non convertibles :** un blanc d'une autre grandeur ou base, ou d'une unité inconnue, ne produit aucun signal.
 - **Comparaisons multiples :** α = 0,01 sans correction ; environ 1 faux signal attendu pour 100 comparaisons.
@@ -178,3 +181,10 @@ Le signal de l'échantillon 7 est à la limite (3,507 pour un seuil de 3,5). Auc
 ## 9. Ce qui change la version
 
 Tout changement de seuil, de population, de formule ou de clé donne `q2`. Les décisions prises en q1 restent lisibles, avec leur version.
+
+## 10. Phase d'essai et usage des décisions
+
+- Les règles q1 sont des règles d'essai (R-C7-2) : aucune décision n'est utilisée pour un entraînement pendant l'essai.
+- En production (spec §10), seule la dernière décision par clé compte. « À vérifier » (`proposed`) et « Erreur de saisie confirmée » (`accepted`) excluent les mesures concernées (`output.records`) d'un jeu d'entraînement ; « Justifié » (`rejected`) ne les exclut pas.
+- Les signaux sans décision ne sont pas enregistrés : un exporteur doit recalculer les signaux courants (même version) et traiter « Non examiné » comme exclu.
+- « Erreur de saisie confirmée » ne modifie pas les résultats : la valeur reste dans Résultats et dans le rapport. Pour la corriger, retirer l'import puis importer le fichier corrigé.

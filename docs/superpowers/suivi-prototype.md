@@ -75,3 +75,7 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - L'avertissement de versions de règles différentes sur l'onglet Qualité ne liste pas les versions (le service ne les expose pas).
 - L'onglet cite la fiche des règles par son chemin dans le dépôt (`docs/models/c7-qualite.md`) : à remplacer par une page de documentation accessible aux laboratoires.
 - Une note de décision qui n'est pas une chaîne est traitée comme absente.
+- Les signaux sans décision ne sont pas enregistrés : l'exporteur d'entraînement futur doit recalculer les signaux courants (même version) et traiter « Non examiné » comme exclu (spec §10). Le contrôle « résultats validés » devra refuser la validation tant que des signaux sont « Non examiné » ou « À vérifier », et traiter les décisions sur des signaux disparus comme sans effet.
+- Le parcours e2e ne couvre pas le retour d'une décision après retrait puis réimport du même fichier (couvert par les tests de la clé et du service), ni une ligne censurée dans un signal (« — » couvert par les tests de page et du moteur) : à ajouter quand un exemple fictif portera des lots.
+- Le tableau des chiffres d'un signal affiche 6 chiffres significatifs : dans une bande relative de 1e-6 autour d'un seuil, un chiffre peut s'afficher égal au seuil alors que le texte explicatif, lui, ne se contredit jamais.
+- Un contrôle qualité résumé ne se modifie pas : pour corriger une saisie, le supprimer (Paramètres) puis le ressaisir.

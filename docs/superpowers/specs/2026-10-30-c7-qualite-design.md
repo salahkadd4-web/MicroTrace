@@ -113,7 +113,7 @@ Toutes les comparaisons sont **strictes**. Une valeur exactement au seuil ne dé
   - de type `procedural_blank` ;
   - au même polymère. Le polymère du contrôle (texte libre) est normalisé par `normalize_result_polymer(label, record.technique)` de B1 : « PS » devient `PS_SUM` pour une technique thermo-analytique ;
   - à la moyenne renseignée et strictement positive.
-- **Méthode :** `QualityControlSummary` n'a pas de champ méthode dans le prototype. Le contrôle s'applique donc à toutes les méthodes du polymère dont l'unité est convertible. C'est une limite écrite dans la fiche, et l'ajout d'une méthode au contrôle est reporté au suivi. Le schéma Prisma n'est pas modifié.
+- **Méthode :** `QualityControlSummary` n'a pas de champ méthode dans le prototype. Le contrôle s'applique donc à toutes les méthodes et à toutes les matrices du polymère dont l'unité est convertible. C'est une limite écrite dans la fiche, et l'ajout d'une méthode au contrôle est reporté au suivi. Le schéma Prisma n'est pas modifié.
 - **Unités :** l'unité du contrôle est lue par `parse_unit`. Elle doit avoir la même (grandeur, base) que le groupe ; la moyenne est alors convertie par `convert` dans l'unité canonique du groupe. Sinon, il n'y a pas de signal et une note est produite (`blank_unit_mismatch` ou `blank_unit_unknown`).
 - **Formule :** rapport = valeur canonique / moyenne canonique du blanc. Il y a signal si rapport < 3.
 - **Seuil 3 × :**
