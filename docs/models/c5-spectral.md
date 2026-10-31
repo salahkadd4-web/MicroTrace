@@ -13,7 +13,7 @@
 
 - Modèle : `c5-spectral`, version `s1`, entraîné le 2026-10-31.
 - Empreinte sha256 des poids (`models/c5-spectral-s1.npz`, jamais versionnés) : `20756ebdb293df12ab97842c3af22dcb4bfd4370f9026216c36e03b734f359ad`.
-- Manifeste `docs/models/c5-spectral-manifest.json` : sha256 `850d75da2f097887c31afb2f0a6dbbec09d120388d33b264e6d41c4aba9ba398` ; il porte aussi le commit du code, les versions des bibliothèques logicielles et l'empreinte de la liste des données.
+- Manifeste `docs/models/c5-spectral-manifest.json` : sha256 `850d75da2f097887c31afb2f0a6dbbec09d120388d33b264e6d41c4aba9ba398` ; il porte aussi le commit du code (celui qui précède l'ajout des fichiers produits, avec un arbre propre), les versions des bibliothèques logicielles et l'empreinte de la liste des données.
 - Verrou du moteur `engine/src/microtrace_engine/spectral_model.lock.json` : même empreinte que le manifeste. Le moteur refuse de servir des poids dont l'empreinte diffère, sans les lire.
 - Réentraînement reproductible : `python -m microtrace_core train-spectral … --check` (graine 0, deux entraînements donnent les mêmes octets sur la même machine).
 
@@ -76,7 +76,11 @@ Seuils : incertain dès 0.85, identifié dès 0.85 avec une marge d'au moins 0.1
 
 Hors bibliothèque (25 requêtes) : identifié 8,0 %, incertain 44,0 %, non identifié 48,0 %.
 
-Spectre soumis avec la mauvaise technique : 85,1 % non identifiés (3832 requêtes).
+Spectre soumis avec la mauvaise technique (3832 requêtes, population complète de la validation) : non identifié 85,1 % (dont signalé par la garde 77,1 %), incertain 14,3 %, identifié 0,5 %.
+
+Faux signalements de la garde sur des spectres bien déclarés (dans la bibliothèque, 4185 requêtes) : 0,8 % (borne visée : 5,0 % au plus ; respectée).
+
+Part de MicroPlastiX dans les références : 91,0 % (4210 spectres).
 
 | Polymère | Rappel top-1 |
 |---|---|
@@ -108,7 +112,11 @@ Seuils : incertain dès 0.5, identifié dès 0.7 avec une marge d'au moins 0.
 
 Hors bibliothèque (315 requêtes) : identifié 2,5 %, incertain 8,9 %, non identifié 88,6 %.
 
-Spectre soumis avec la mauvaise technique : 97,1 % non identifiés (911 requêtes).
+Spectre soumis avec la mauvaise technique (911 requêtes, population complète de la validation) : non identifié 97,1 % (dont signalé par la garde 77,3 %), incertain 2,9 %, identifié 0,0 %.
+
+Faux signalements de la garde sur des spectres bien déclarés (dans la bibliothèque, 2477 requêtes) : 0,4 % (borne visée : 5,0 % au plus ; respectée).
+
+Part de MicroPlastiX dans les références : 70,8 % (2792 spectres).
 
 | Polymère | Rappel top-1 |
 |---|---|
@@ -136,11 +144,12 @@ Lecture. En FTIR l'abstention est nettement plus fréquente qu'en Raman : les po
 - Polymère absent de l'apprentissage : en FTIR, le caoutchouc et l'acrylique ressemblent au PE.
 - Mélange de polymères ou particule pigmentée.
 - Vieillissement et biofilm au-delà de ceux des bibliothèques.
-- Mauvaise technique déclarée (population complète en validation, décision R-C5-3) : un spectre FTIR soumis comme Raman (n = 3 832) est « non identifié » dans 85,1 % des cas, « incertain » dans 14,3 % et « identifié » dans 0,5 % ; un spectre Raman soumis comme FTIR (n = 911) est « non identifié » dans 97,1 % des cas. Le chiffre de 199 sur 200 de la conception venait d'un échantillon aléatoire. Un « incertain » est montré comme tel au chercheur. La garde signale la plupart des cas, mais produit des faux signalements (de l'ordre de 2,5 % en Raman), qui donnent une abstention prudente.
+- Mauvaise technique déclarée : la garde en signale la majorité, mais pas la totalité ; les parts exactes (non identifié, incertain, identifié, signalé par la garde) sont dans la section 6. Un « incertain » est montré comme tel au chercheur. La conception avait mesuré un taux de signalement plus haut (199 sur 200 en FTIR déclaré Raman) avec un autre protocole (échantillon, référence identique exclue) ; seul le chiffre de la section 6 fait foi. Les faux signalements sur des spectres bien déclarés donnent une abstention prudente ; leur taux mesuré est en section 6.
 - Erreur de laser : un axe en nm avec un laser faux donne une couverture insuffisante et une abstention.
+- Spectre Raman sur un axe en nm (par exemple MicroPlastiX, FLOPP) : la garde de technique ne le couvre pas, car elle ne s'applique qu'aux axes en cm⁻¹ ; un tel spectre déclaré FTIR n'est pas signalé par la garde.
 - Transmittance déclarée absorbance : bandes inversées, abstention attendue.
 - Spectre tronqué hors de la fenêtre diagnostique.
-- Domination de MicroPlastiX (92 % des requêtes FTIR, 71 % des requêtes Raman) : les performances reflètent surtout des polymères de référence propres.
+- Domination de MicroPlastiX dans les références (part par technique donnée en section 6) : les performances reflètent surtout des polymères de référence propres.
 
 ## 8. Décisions humaines, traçabilité, consentement
 

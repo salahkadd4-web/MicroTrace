@@ -555,7 +555,7 @@ Hors bibliothèque : FTIR = caoutchouc 15, acrylique 6, acétate de cellulose 2,
 
 **Seuils et statuts :** §5.3. **Estimation imbriquée :** §5.4. **Abstention :** §4.4. **Garde de technique :** §4.3.
 
-**Mauvaise technique, population complète (R-C5-3) :** FTIR soumis comme Raman (n = 3 832) : 85,1 % non identifié, 14,3 % incertain, 0,5 % identifié ; Raman soumis comme FTIR (n = 911) : 97,1 % non identifié. Le « 199 sur 200 » du §4.3 était un échantillon aléatoire.
+**Mauvaise technique, population complète (R-C5-3) :** FTIR soumis comme Raman (n = 3 832) : 85,1 % non identifié, 14,3 % incertain, 0,5 % identifié ; Raman soumis comme FTIR (n = 911) : 97,1 % non identifié. Le « 199 sur 200 » du §4.3 est le taux de signalement de la garde mesuré avec un autre protocole (échantillon, référence identique exclue) ; sur la population complète de la validation, le taux de signalement de la garde est de 77,1 % (FTIR soumis comme Raman) et 77,3 % (Raman soumis comme FTIR), le reste des « non identifié » venant du score faible.
 
 **Spectre de bout en bout :** `VLFR_02-HDPE_nobio_Raman_dc1c0b0b.csv` de MicroPlastiX (CC BY-SA 4.0, Lenz et al. 2023), Raman, axe en nm (526,508 à 663,087 nm, une ligne d'en-tête `nm,Intensity`), laser 532 nm, 1 024 points, 14 283 octets, sha256 `36d2f382b66b680d8d204ab900ac0fbb6d8a93ae6bbea6495ba95dc22e57ce19`. Attendu : **identifié**, top-1 **Polyéthylène (PE)** ; première référence `mpx:VLFR_02-HDPE_nobio_Raman_dc1c0b0b` (le spectre lui-même, corrélation « 1,000 », licence « CC BY-SA 4.0 », courbe affichée). Sans lui-même (exploration) : PE à 0,996, marge 0,326 sur PA, SVM PE : le résultat ne dépend pas de l'auto-correspondance.
 

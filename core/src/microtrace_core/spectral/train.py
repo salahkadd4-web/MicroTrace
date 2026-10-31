@@ -554,12 +554,26 @@ def render_card_metrics(manifest: Mapping) -> str:
                 f"| {_pct(s['uncertain'])} | {_pct(s['not_identified'])} "
                 f"| {_pct(b['identified_precision'])} | {_pct(nested)} |")
         so = g["status_out_of_library"]
+        si = g["status_in_library"]
+        w = m["wrong_technique"]
         L += ["", f"Hors bibliothèque ({so['n']} requêtes) : identifié {_pct(so['identified'])}, "
               f"incertain {_pct(so['uncertain'])}, non identifié {_pct(so['not_identified'])}.",
-              "", "Spectre soumis avec la mauvaise technique : "
-              f"{_pct(m['wrong_technique'].get('not_identified'))} non identifiés "
-              f"({m['wrong_technique'].get('n', 0)} requêtes).", "",
-              "| Polymère | Rappel top-1 |", "|---|---|"]
+              "", "Spectre soumis avec la mauvaise technique "
+              f"({w.get('n', 0)} requêtes, population complète de la validation) : "
+              f"non identifié {_pct(w.get('not_identified'))} "
+              f"(dont signalé par la garde {_pct(w.get('technique_mismatch'))}), "
+              f"incertain {_pct(w.get('uncertain'))}, identifié {_pct(w.get('identified'))}.",
+              "", "Faux signalements de la garde sur des spectres bien déclarés "
+              f"(dans la bibliothèque, {si['n']} requêtes) : {_pct(si.get('technique_mismatch'))} "
+              "(borne visée : 5,0 % au plus ; "
+              + ("respectée" if (si.get("technique_mismatch") or 0) <= 0.05 else "NON respectée")
+              + ").", ""]
+        counts = manifest.get("data", {}).get("counts", {}).get(t)
+        if counts and counts.get("n"):
+            share = counts["by_source"].get("mpx", 0) / counts["n"]
+            L += [f"Part de MicroPlastiX dans les références : {_pct(share)} "
+                  f"({counts['n']} spectres).", ""]
+        L += ["| Polymère | Rappel top-1 |", "|---|---|"]
         L += [f"| {k} | {_pct(v)} |" for k, v in m["recall_by_polymer"].items()]
         L.append("")
     return "\n".join(L)
