@@ -163,8 +163,8 @@ test("Parcours F — onglet Spectres : analyse, décisions, journal et consentem
   const cells = listRows.first().getByRole("cell");
   await expect(cells.nth(1)).toHaveText(FIXTURE_NAME);
   await expect(cells.nth(2)).toHaveText("Raman");
-  await expect(cells.nth(3)).toHaveText("Polyéthylène (PE)");
-  await expect(cells.nth(4)).toHaveText("Identifié (proposition)");
+  await expect(cells.nth(4)).toHaveText("Polyéthylène (PE)");
+  await expect(cells.nth(3)).toHaveText("Identifié (proposition)");
   await expect(cells.nth(5)).toHaveText("Acceptée");
 
   // 6. Bruit déterministe : abstention.
