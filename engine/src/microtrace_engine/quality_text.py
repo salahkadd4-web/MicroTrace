@@ -8,6 +8,7 @@ done here on the exact numbers that ``core`` exposes, never on a recomputed quan
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from microtrace_core.results import UNITS
 from microtrace_core.results.issues import fmt_fr
@@ -68,8 +69,8 @@ RULE_TEXTS: dict[QualityRule, RuleText] = {
         "Chaque mesure quantifiée est comparée à la moyenne de chaque blanc de procédure "
         "résumé du même polymère, convertie dans l'unité du groupe : rapport = valeur / moyenne "
         f"du blanc. Signal si le rapport est inférieur à {_FACTOR}.",
-        ("Le contrôle résumé n'a pas de méthode : il s'applique à toutes les méthodes du "
-         "polymère.",
+        ("Le contrôle résumé n'a ni méthode ni matrice : il s'applique à toutes les méthodes "
+         "et toutes les matrices du polymère.",
          "Sur des données déjà corrigées du blanc, le rapport compare une valeur nette à un "
          "blanc brut.",
          "Un blanc d'une autre grandeur ou base, ou d'une unité inconnue, ne produit aucun "
@@ -135,12 +136,34 @@ def _fig(s: Signal) -> dict[str, float]:
     return dict(s.figures)
 
 
+def _plain(x: float) -> str:
+    """A rounded number as plain French text (decimal comma, no exponent)."""
+    text = format(Decimal(repr(x)), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text.replace(".", ",")
+
+
+def _vs_threshold(x: float, digits: int, threshold: float, *, above: bool,
+                  significant: bool = False) -> str:
+    """Display ``x`` with ``digits`` decimals (or significant digits), then add digits until
+    the shown number is strictly on the triggering side of the threshold (above: > threshold,
+    otherwise < threshold), so the text never contradicts the decision made on the exact number.
+    """
+    for d in range(digits, 13):
+        shown = float(f"{x:.{d}g}") if significant else round(x, d)
+        if (shown > threshold) if above else (shown < threshold):
+            return _plain(shown)
+    return _plain(x)
+
+
+def _z(z: float, threshold: float) -> str:
+    shown = _vs_threshold(abs(z), 2, threshold, above=True)
+    return f"-{shown}" if z < 0 else shown
+
+
 def _r(x: float, digits: int) -> str:
     return fmt_fr(round(x, digits))
-
-
-def _p(x: float) -> str:
-    return fmt_fr(float(f"{x:.2g}"))
 
 
 def subject_label(s: Signal) -> str:
@@ -170,7 +193,7 @@ def explanation(s: Signal, blank_corrected: str) -> str:
     unit = _unit(s.group.canonical_unit.code)
     if s.rule == QualityRule.aliquot_discordance:
         text = (f"{head}aliquotes quantifiées {_aliquot_values(s)}, écart relatif "
-                f"{_r(f['rpd_percent'], 1)} % (étendue / moyenne), au-delà du seuil de "
+                f"{_vs_threshold(f['rpd_percent'], 1, f['threshold_percent'], above=True)} % (étendue / moyenne), au-delà du seuil de "
                 f"{fmt_fr(f['threshold_percent'])} %.")
         left = int(f["n_aliquots"] - f["n_quantified"])
         if left > 0:
@@ -185,7 +208,7 @@ def explanation(s: Signal, blank_corrected: str) -> str:
         mean = f"{fmt_fr(f['blank_mean_reported'])} {reported_label}"
         if reported_unit is None or reported_unit.code != s.group.canonical_unit.code:
             mean += f", soit {fmt_fr(f['blank_mean'])} {unit}"
-        text = (f"{head}{fmt_fr(f['value'])} {unit}, soit {_r(f['ratio'], 1)} fois la moyenne "
+        text = (f"{head}{fmt_fr(f['value'])} {unit}, soit {_vs_threshold(f['ratio'], 1, f['factor'], above=False)} fois la moyenne "
                 f"des blancs de procédure ({mean} ; n = {int(f['blank_n'])}) ; seuil : moins de "
                 f"{fmt_fr(f['factor'])} fois.")
         if blank_corrected == "yes":
@@ -194,7 +217,7 @@ def explanation(s: Signal, blank_corrected: str) -> str:
         return text
     if s.rule == QualityRule.robust_outlier:
         return (f"{head}{fmt_fr(f['value'])} {unit} (moyenne des aliquotes quantifiées), score "
-                f"z modifié {_r(f['z'], 2)} (médiane {fmt_fr(f['median'])}, écart absolu médian "
+                f"z modifié {_z(f['z'], f['threshold'])} (médiane {fmt_fr(f['median'])}, écart absolu médian "
                 f"{fmt_fr(f['mad'])}, n = {int(f['n'])} échantillons quantifiés) ; seuil : "
                 f"|z| > {fmt_fr(f['threshold'])}.")
     others = "autres lots" if s.dimension == "batch" else "autres dates"
@@ -202,7 +225,7 @@ def explanation(s: Signal, blank_corrected: str) -> str:
     return (f"{what} « {s.stratum} » — {group_label(s.group)} : {int(f['k_stratum'])}/"
             f"{int(f['n_stratum'])} mesures < LOD ({_r(f['rate_stratum_percent'], 1)} %), "
             f"contre {int(f['k_rest'])}/{int(f['n_rest'])} ({_r(f['rate_rest_percent'], 1)} %) "
-            f"dans les {others} ; test exact de Fisher bilatéral, p = {_p(f['p_value'])} "
+            f"dans les {others} ; test exact de Fisher bilatéral, p = {_vs_threshold(f['p_value'], 2, f['alpha'], above=False, significant=True)} "
             f"(seuil {fmt_fr(f['alpha'])}).")
 
 
@@ -227,7 +250,7 @@ def note_message(n: QualityNote) -> str:
     if n.reason == NoteReason.blank_unit_mismatch:
         assert b is not None
         return (f"Le blanc de procédure « {polymer_label(b.polymer)} » est exprimé en "
-                f"{b.unit_code}, d'une autre grandeur ou base que le groupe {g} : pas de "
+                f"{_unit(b.unit_code)}, d'une autre grandeur ou base que le groupe {g} : pas de "
                 "comparaison.")
     if n.reason == NoteReason.blank_unit_unknown:
         assert b is not None

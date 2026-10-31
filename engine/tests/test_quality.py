@@ -173,3 +173,35 @@ def test_quality_figures_are_exact_core_numbers(client, auth_headers):
     assert figs["blank_mean_reported"]["unit"] == "ng/mL"
     assert all(f["label"] for f in near["figures"])
     assert json.dumps(body)
+
+
+# ------------------------------------------------ display rounding never contradicts the rule
+
+def test_vs_threshold_ratio_never_shows_the_threshold():
+    from microtrace_engine.quality_text import _vs_threshold
+    assert _vs_threshold(2.96, 1, 3.0, above=False) == "2,96"
+    assert _vs_threshold(2.5, 1, 3.0, above=False) == "2,5"
+    assert _vs_threshold(1.8, 1, 3.0, above=False) == "1,8"
+
+
+def test_vs_threshold_rpd_z_and_p():
+    from microtrace_engine.quality_text import _vs_threshold, _z
+    assert _vs_threshold(50.016, 1, 50.0, above=True) == "50,02"
+    assert _vs_threshold(55.93, 1, 50.0, above=True) == "55,9"
+    assert _z(3.502, 3.5) == "3,502"
+    assert _z(-3.502, 3.5) == "-3,502"
+    assert _z(20.5678, 3.5) == "20,57"
+    assert _vs_threshold(0.00999, 2, 0.01, above=False, significant=True) == "0,00999"
+    assert _vs_threshold(0.0031, 2, 0.01, above=False, significant=True) == "0,0031"
+
+
+def test_explanations_never_contradict_the_threshold(client, auth_headers):
+    # ratio 2.96: 0.74 ug/mL against a 250 ng/mL blank
+    recs = _fictive()
+    base = next(r for r in recs if r["status"] == "quantified" and r["polymer"] == "PET")
+    near = dict(base, sample_id="N1", aliquot="a", value=0.74, canonical_value=0.74,
+                source_row=5000)
+    body = _post(client, auth_headers, [near], qc_summaries=[BLANK]).json()
+    sig = next(s for s in body["signals"] if s["rule"] == "near_blank")
+    assert "soit 2,96 fois" in sig["explanation"]
+    assert "soit 3 fois" not in sig["explanation"]
