@@ -4,6 +4,7 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 
 ## Exigences avant tout hébergement de données réelles
 
+- Avant de présenter C5 aux laboratoires : confirmer les licences « À compléter » des bibliothèques spectrales (FLOPP, FLOPP-e, SLoPP, SLoPP-E, RaSPI, base Raman vieillie).
 - Vérifier l'adresse e-mail à l'acceptation d'une invitation, ou imposer une réinitialisation du mot de passe. Aujourd'hui :
   - le détenteur du lien choisit le mot de passe de l'adresse invitée ;
   - l'existence d'un compte est révélée au détenteur du lien.
@@ -79,3 +80,26 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 - Le parcours e2e ne couvre pas le retour d'une décision après retrait puis réimport du même fichier (couvert par les tests de la clé et du service), ni une ligne censurée dans un signal (« — » couvert par les tests de page et du moteur) : à ajouter quand un exemple fictif portera des lots.
 - Le tableau des chiffres d'un signal affiche 6 chiffres significatifs : dans une bande relative de 1e-6 autour d'un seuil, un chiffre peut s'afficher égal au seuil alors que le texte explicatif, lui, ne se contredit jamais.
 - Un contrôle qualité résumé ne se modifie pas : pour corriger une saisie, le supprimer (Paramètres) puis le ressaisir.
+
+## C5 — points reportés (clos le 2026-10-31)
+
+Hors périmètre (conception, §14) :
+
+- Classe non plastique : spectres RaMPI à télécharger et bibliothèques Open Specy (`pyreadr`), licences à confirmer.
+- Formats JCAMP-DX, `.spa`, multi-spectres, cartes Raman ; un seul spectre par dépôt.
+- Report d'une identification acceptée vers une mesure : non-objectif.
+- Marquage « résultats validés » d'une étude, exclusion par les signaux C7 et validation juridique de l'export : à faire dans le sous-projet de réentraînement, avant toute utilisation de l'export (l'export actuel n'est qu'une préparation).
+- Téléchargement du fichier déposé depuis l'écran ; plafond du nombre d'analyses par étude ; pagination au-delà de 500.
+- Rechargement à chaud du modèle : après un réentraînement, redémarrer le moteur.
+- Empreinte des poids dépendante de la plateforme de calcul (BLAS) : un réentraînement sur une autre machine peut donner un autre sha256, que le moteur refuse jusqu'à la mise à jour du verrou.
+- Seuils et fenêtres fixes, non réglables par laboratoire ; aucune calibration par instrument.
+
+Laissé de côté volontairement pendant la réalisation :
+
+- L'écran Spectres cite la fiche par son chemin dans le dépôt (« Fiche complète : docs/models/c5-spectral.md ») : à remplacer par une page de documentation accessible aux laboratoires (comme pour C7).
+- Seuil affiché avec deux décimales (fiche et écran) : un seuil plus fin s'afficherait arrondi. Autres mineurs du moteur : ordre des imports, hypothèses de repli, 503 avant 413, `sys.path` dans `conftest`, tests écrits après le code.
+- Toutes les décisions d'une étude sont chargées en mémoire pour la page (pas de pagination) ; l'analyse des feuilles de saisie duplique l'analyseur de champs (à factoriser).
+- Export d'entraînement : lecture des analyses sans `DISTINCT ON` (à améliorer), export construit en mémoire (pas de flux), liens et messages d'erreur d'export à retravailler ; une erreur 5xx du moteur interrompt tout l'export (aucune ligne marquée en échec) ; le CSV n'indique ni `truncated` ni `total_rows` (présents dans le JSON).
+- PostgreSQL embarqué des tests e2e : la base doit être en UTF8 (un hôte Windows en WIN1252 rejetait « cm⁻¹ ») ; tout hôte Windows qui crée une base doit utiliser l'encodage UTF8.
+- Les parcours e2e de l'onglet Spectres sont ignorés si les poids (`models/`) ou les jeux de données (`datasets/`) manquent, ce qui est le cas en intégration continue : ils ne s'y exécuteront que si l'IC entraîne le modèle ou monte ces données (jamais dans Git).
+- Captures d'écran (`e2e/screenshots.spec.ts`) : pages Spectres non ajoutées (elles exigent les poids et un spectre réel, absents des données de départ).

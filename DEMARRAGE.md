@@ -143,6 +143,21 @@ npm run e2e
 
 Il faut que l'environnement Python du dépôt (`.venv`) existe, avec le moteur installé. Comptez environ trois minutes (l'application est compilée dans un dossier séparé, `.next-e2e`, supprimé à la fin).
 
+## Entraîner le modèle spectral (une fois)
+
+L'onglet Spectres a besoin des poids du modèle, qui ne sont **jamais dans Git** (dossier `models/`, ignoré). Il faut les générer une fois, depuis la racine du dépôt (les jeux de données doivent être présents dans `datasets/`) :
+
+```powershell
+.venv/Scripts/python -m microtrace_core train-spectral --catalog data/processed/spectra_catalog.parquet `
+  --baseline reports/baseline/metrics.json --models models --manifest docs/models/c5-spectral-manifest.json `
+  --data-list docs/models/c5-spectral-s1-data.sha256 --lock engine/src/microtrace_engine/spectral_model.lock.json `
+  --card docs/models/c5-spectral.md
+```
+
+L'entraînement dure environ une minute et demie quand le catalogue existe déjà (il est plus long s'il faut le reconstruire). Pour seulement vérifier que les fichiers produits sont cohérents, sans rien écrire, relancez la même commande avec `--check` en plus : le code de sortie doit être 0.
+
+Après un réentraînement, **redémarrez le moteur** (il ne recharge pas les poids à chaud).
+
 ## 12. Mise en production
 
 - Définissez **`APP_URL`** dans `.env` avec l'adresse publique réelle (par exemple `https://labo.exemple.fr`, sans barre finale). Elle sert aux liens d'invitation et à la redirection après connexion. **Elle est obligatoire en production.**
