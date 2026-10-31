@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
@@ -474,5 +475,50 @@ describe("invariants d'étude en base (clés étrangères composites)", () => {
     const file = await fileIn(study.id, user.id);
     await runIn(study.id, file.id, user.id);
     await expect(prisma.dataFile.delete({ where: { id: file.id } })).rejects.toThrow(FK);
+  });
+});
+
+describe("consentement du laboratoire (C5)", () => {
+  it("la contrainte de consentement refuse un état partiel", async () => {
+    const lab = await prisma.laboratory.create({ data: { name: "Labo", slug: "labo" } });
+    await expect(
+      prisma.laboratory.update({ where: { id: lab.id }, data: { trainingConsentAt: new Date() } }),
+    ).rejects.toThrow(/Laboratory_training_consent_complete/);
+  });
+
+  it("ModelPrediction.createdById cite un utilisateur existant (RESTRICT)", async () => {
+    const { user, study } = await makeStudy();
+    const data = {
+      studyId: study.id, kind: "spectral" as const, input: {}, output: {},
+      modelName: "m", modelVersion: "v",
+    };
+    await expect(
+      prisma.modelPrediction.create({ data: { ...data, createdById: "inconnu" } }),
+    ).rejects.toThrow();
+    const author = await prisma.user.create({
+      data: { name: "Auteur", email: "auteur@example.org", passwordHash: "x" },
+    });
+    const row = await prisma.modelPrediction.create({ data: { ...data, createdById: author.id } });
+    await expect(prisma.user.delete({ where: { id: author.id } })).rejects.toThrow(
+      /ModelPrediction_createdById_fkey/,
+    );
+    expect(row.createdById).toBe(author.id);
+    expect(user.id).not.toBe(author.id);
+  });
+
+  it("aucune dérive entre migrations et schéma", () => {
+    const out = execFileSync(
+      process.execPath,
+      [
+        "node_modules/prisma/build/index.js", "migrate", "diff",
+        "--from-config-datasource", "--to-schema", "prisma/schema.prisma", "--script",
+      ],
+      { env: process.env, encoding: "utf8" },
+    );
+    const lines = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l !== "" && !l.startsWith("--"));
+    expect(lines).toEqual([]);
   });
 });

@@ -260,19 +260,10 @@ export async function getSpectralAnalysis(
   const decisions = await latestDecisions(ctx, studyId);
   const row = toRow(r, decisions);
   const input = r.input as StoredInput;
-  const creator = await prisma.auditEvent.findFirst({
-    where: {
-      laboratoryId: ctx.laboratoryId,
-      action: "spectral.analysis",
-      entityType: "ModelPrediction",
-      entityId: r.id,
-    },
-    select: { actorId: true },
-  });
-  const names = await userNames([creator?.actorId ?? null]);
+  const names = await userNames([r.createdById]);
   return {
     ...row,
-    createdBy: creator?.actorId ? (names.get(creator.actorId) ?? null) : null,
+    createdBy: r.createdById ? (names.get(r.createdById) ?? null) : null,
     sizeBytes: typeof input.sizeBytes === "number" ? input.sizeBytes : 0,
     inputSha256: r.inputFileSha256 ?? "",
     technique: str(input.technique),
@@ -399,6 +390,7 @@ export async function analyzeSpectrum(
         modelVersion: response.model.version,
         modelSha256: response.model.sha256,
         status: "proposed",
+        createdById: ctx.userId,
       },
     });
     await recordAudit(tx, {

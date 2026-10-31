@@ -94,6 +94,7 @@ model User {
   projects        Project[]
   memberships     Membership[]
   invitationsSent Invitation[]
+  predictionsCreated ModelPrediction[]
 }
 
 // Laboratoire client du SaaS (spec §11) : frontière d'isolation des données.
@@ -103,6 +104,13 @@ model Laboratory {
   slug        String    @unique
   createdAt   DateTime  @default(now())
   suspendedAt DateTime?
+
+  // Consentement à l'amélioration des modèles (C5, conception §10.1) : un seul état courant, l'historique
+  // est dans AuditEvent. Désactivé par défaut. La contrainte SQL Laboratory_training_consent_complete
+  // (migration 20261031000000, hors schéma Prisma) impose les trois champs ensemble ou aucun.
+  trainingConsentAt      DateTime?
+  trainingConsentById    String?
+  trainingConsentVersion String?
 
   memberships Membership[]
   invitations Invitation[]
@@ -381,6 +389,9 @@ model ModelPrediction {
   decidedById     String?
   decidedAt       DateTime?
   decisionNote    String?
+  // Auteur de l'analyse spectrale (null : décisions, signaux de qualité, lignes sans auteur connu).
+  createdById     String?
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: Restrict)
   createdAt       DateTime         @default(now())
 
   @@index([studyId])

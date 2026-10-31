@@ -173,6 +173,7 @@ describe("analyzeSpectrum", () => {
       modelSha256: MODEL_SHA,
       decidedById: null,
       decisionNote: null,
+      createdById: researcher.userId,
     });
     expect(row.input).toEqual({
       role: "analysis",
@@ -587,6 +588,12 @@ describe("cas limites", () => {
     expect(existsSync(path.join(dir, "files", sha(BYTES)))).toBe(true);
   });
 
+  it("l'auteur de l'analyse est lu dans createdById, pas dans l'audit", async () => {
+    const { id } = await analyzeSpectrum(researcher, studyId, input());
+    await prisma.modelPrediction.update({ where: { id }, data: { createdById: viewer.userId } });
+    expect((await getSpectralAnalysis(viewer, studyId, id))?.createdBy).toBe("Vera");
+  });
+
   it("invariant : chaque analyse a exactement un événement spectral.analysis, au même acteur", async () => {
     await analyzeSpectrum(researcher, studyId, input());
     await analyzeSpectrum(researcher, studyId, input({ laserNm: "785" }));
@@ -599,6 +606,7 @@ describe("cas limites", () => {
       });
       expect(events).toHaveLength(1);
       expect(events[0].actorId).toBe(researcher.userId);
+      expect(a.createdById).toBe(events[0].actorId);
     }
   });
 });

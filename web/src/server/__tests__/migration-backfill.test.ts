@@ -109,3 +109,37 @@ describe("migration multi_lab : rattachement des données existantes", () => {
     expect((await c.query(`SELECT count(*)::int AS n FROM "Membership"`)).rows[0].n).toBe(0);
   }, 120000);
 });
+
+describe("migration lab_training_consent : auteur des analyses spectrales", () => {
+  it("rattrape createdById depuis l'audit spectral.analysis et laisse le reste vide", async () => {
+    const idx = MIGRATIONS.findIndex((m) => m === "20261031000000_lab_training_consent");
+    expect(idx).toBeGreaterThan(0);
+    const c = await freshDb();
+    await applyUpTo(c, idx - 1);
+    await c.query(`
+      INSERT INTO "User" (id, name, email, "passwordHash") VALUES ('u1', 'A', 'a@example.org', 'h');
+      INSERT INTO "Laboratory" (id, name, slug) VALUES ('l1', 'L', 'l');
+      INSERT INTO "Project" (id, title, "ownerId", "laboratoryId") VALUES ('p1', 'P', 'u1', 'l1');
+      INSERT INTO "Study" (id, "projectId", "laboratoryId", title, nature)
+        VALUES ('s1', 'p1', 'l1', 'E', 'simulated');
+      INSERT INTO "ModelPrediction" (id, "studyId", kind, input, output, "modelName", "modelVersion")
+        VALUES ('a1', 's1', 'spectral', '{}', '{}', 'm', 'v'),
+               ('a2', 's1', 'spectral', '{}', '{}', 'm', 'v'),
+               ('q1', 's1', 'quality', '{}', '{}', 'm', 'v');
+      INSERT INTO "AuditEvent" (id, "actorId", action, "entityType", "entityId", "laboratoryId") VALUES
+        ('e1', 'u1', 'spectral.analysis', 'ModelPrediction', 'a1', 'l1'),
+        ('e2', 'fantome', 'spectral.analysis', 'ModelPrediction', 'a2', 'l1'),
+        ('e3', 'u1', 'quality.decision', 'ModelPrediction', 'q1', 'l1');`);
+    await c.query(sql(MIGRATIONS[idx]));
+    const rows = (
+      await c.query(`SELECT id, "createdById" FROM "ModelPrediction" ORDER BY id`)
+    ).rows;
+    expect(rows).toEqual([
+      { id: "a1", createdById: "u1" },
+      { id: "a2", createdById: null },
+      { id: "q1", createdById: null },
+    ]);
+    const lab = (await c.query(`SELECT "trainingConsentAt" FROM "Laboratory"`)).rows;
+    expect(lab).toEqual([{ trainingConsentAt: null }]);
+  }, 120000);
+});
