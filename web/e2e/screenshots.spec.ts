@@ -1,6 +1,7 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { login, readState, test } from "./fixtures";
+import { REPO_DIR } from "./stack";
 
 // Opt-in : captures pleine page des pages principales, pour une relecture visuelle.
 // Les images contiennent des données d'exemple fictives ; elles ne sont jamais versionnées.
@@ -42,5 +43,28 @@ test("captures des pages principales", async ({ page }) => {
     await page.goto(url);
     await page.waitForLoadState("networkidle");
     for (const w of WIDTHS) await shoot(w, name);
+  }
+
+  // Onglet Spectres (nécessite les poids du modèle et le spectre d'essai de datasets/).
+  const spectrum = join(
+    REPO_DIR,
+    "datasets/Spectres/10.22000-1820/data/dataset/VLFR_02-HDPE_nobio_Raman_dc1c0b0b.csv",
+  );
+  if (process.env.E2E_SPECTRAL_MODEL === "present" && existsSync(spectrum)) {
+    const list = `/labo/${labA.labSlug}/etudes/${labA.simulatedStudyId}/spectres`;
+    await page.setViewportSize({ width: WIDTHS[0], height: 900 });
+    await page.goto(list);
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("Fichier du spectre").setInputFiles(spectrum);
+    await page.getByRole("combobox", { name: "Unité de l'axe" }).click();
+    await page.getByRole("option", { name: "Longueur d'onde (nm)", exact: true }).click();
+    await page.getByLabel("Longueur d'onde du laser (nm)").fill("532");
+    await page.getByRole("button", { name: "Analyser le spectre" }).click();
+    await page.waitForURL(/\/spectres\/[^/]+$/);
+    await page.waitForLoadState("networkidle");
+    for (const w of WIDTHS) await shoot(w, "spectres-analyse");
+    await page.goto(list);
+    await page.waitForLoadState("networkidle");
+    for (const w of WIDTHS) await shoot(w, "spectres-liste");
   }
 });

@@ -55,6 +55,9 @@ export async function startTestDb(opts: StartOptions = {}): Promise<TestDb> {
       password: "postgres",
       port,
       persistent: false,
+      // Même encodage qu'en production : sous Windows, initdb prendrait WIN1252 et refuserait des
+      // caractères comme « cm⁻¹ » dans les sorties enregistrées.
+      initdbFlags: ["--encoding=UTF8"],
     });
     await pg.initialise();
     await pg.start();

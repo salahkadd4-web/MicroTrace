@@ -8,7 +8,7 @@ import { prisma } from "@/server/db";
 import { acceptInvitation, createLaboratoryWithFirstAdmin } from "@/server/invitations";
 import type { LabContext } from "@/server/lab-context";
 import { createProject } from "@/server/projects";
-import { createStudy } from "@/server/studies";
+import { createStudy, declarePseudonymisation } from "@/server/studies";
 import { createUser } from "@/server/users";
 
 async function labWithAdmin(
@@ -38,7 +38,27 @@ async function labWithAdmin(
     nature: "laboratory",
     blankCorrected: "unknown",
   });
-  return { labSlug, email, studyId: study.id };
+  // Études des parcours Spectres : l'une exportable (laboratoire, pseudonymisation déclarée),
+  // l'autre simulée (jamais exportée, même pseudonymisée).
+  const exportable = await createStudy(ctx, project.id, {
+    title: `Étude exportable de ${labName}`,
+    nature: "laboratory",
+    blankCorrected: "unknown",
+  });
+  await declarePseudonymisation(ctx, exportable.id);
+  const simulated = await createStudy(ctx, project.id, {
+    title: `Étude simulée de ${labName}`,
+    nature: "simulated",
+    blankCorrected: "unknown",
+  });
+  await declarePseudonymisation(ctx, simulated.id);
+  return {
+    labSlug,
+    email,
+    studyId: study.id,
+    exportableStudyId: exportable.id,
+    simulatedStudyId: simulated.id,
+  };
 }
 
 async function main() {

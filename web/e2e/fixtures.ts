@@ -2,7 +2,15 @@ import { readFileSync } from "node:fs";
 import { Client } from "pg";
 import { test as base, expect, type Page } from "@playwright/test";
 
-export type LabSeed = { labSlug: string; email: string; studyId: string };
+export type LabSeed = {
+  labSlug: string;
+  email: string;
+  studyId: string;
+  /** Étude du laboratoire, pseudonymisation déclarée (exportable). */
+  exportableStudyId: string;
+  /** Étude simulée, pseudonymisation déclarée (jamais exportée). */
+  simulatedStudyId: string;
+};
 export type E2eState = { labA: LabSeed; labB: LabSeed };
 
 export function readState(): E2eState {

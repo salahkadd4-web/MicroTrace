@@ -1,4 +1,5 @@
 import { type ChildProcess, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { startTestDb, type TestDb } from "../test/db-start";
 import {
@@ -61,6 +62,8 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         ENGINE_SECRET: engineSecret,
         ENGINE_HOST: "127.0.0.1",
         ENGINE_PORT: String(enginePort),
+        // Poids réels du modèle spectral (git-ignorés) ; absents, les parcours Spectres sont ignorés.
+        ENGINE_MODELS_DIR: path.join(REPO_DIR, "models"),
       },
       REPO_DIR,
       path.join(work, "engine.log"),
@@ -73,6 +76,23 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
         return false;
       }
     });
+
+    // Disponibilité du modèle spectral : sans poids (ex. intégration continue), seuls les parcours
+    // Spectres sont ignorés (E2E_SPECTRAL_MODEL=absent) ; poids présents mais refusés = échec.
+    if (existsSync(path.join(REPO_DIR, "models", "c5-spectral-s1.npz"))) {
+      const res = await fetch(`${engineUrl}/ai/spectral/model`, {
+        headers: { "x-engine-secret": engineSecret },
+      });
+      const info = (await res.json().catch(() => null)) as { available?: unknown } | null;
+      if (info?.available !== true) {
+        throw new Error(
+          "Modèle spectral indisponible pour les tests de bout en bout : lancez python -m microtrace_core train-spectral (voir DEMARRAGE.md).",
+        );
+      }
+      process.env.E2E_SPECTRAL_MODEL = "present";
+    } else {
+      process.env.E2E_SPECTRAL_MODEL = "absent";
+    }
 
     const appEnv: NodeJS.ProcessEnv = {
       ...process.env,
