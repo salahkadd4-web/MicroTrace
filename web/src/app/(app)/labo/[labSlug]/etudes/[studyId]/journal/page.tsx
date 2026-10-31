@@ -54,7 +54,7 @@ export default async function JournalPage({
                   <TableCell className="min-w-32 whitespace-normal">{e.actorName ?? "—"}</TableCell>
                   <TableCell>{label}</TableCell>
                   <TableCell className="min-w-32 whitespace-normal">
-                    {auditObjectName(e, labels) ?? entityTypeLabel(e.entityType)}
+                    {auditObjectName(e, labels) ?? entityTypeLabel(e.entityType, e.after)}
                   </TableCell>
                   <TableCell className="text-right">
                     <AuditDetails title={label} changes={diffChanges(e.before, e.after, labels)} />

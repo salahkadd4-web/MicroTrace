@@ -204,3 +204,17 @@ export async function storeFile(
   }
   return relative;
 }
+
+/** Lit un fichier du magasin ; `null` s'il est absent, erreur si son contenu n'est plus celui du sha256. */
+export async function readStoredFile(sha256: string): Promise<Buffer | null> {
+  if (!SHA_RE.test(sha256)) throw new Error("sha256 invalide.");
+  let bytes: Buffer;
+  try {
+    bytes = await readFile(path.join(filesDir(), sha256));
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw e;
+  }
+  if (sha256Of(bytes) !== sha256) throw new Error("Fichier du magasin corrompu.");
+  return bytes;
+}

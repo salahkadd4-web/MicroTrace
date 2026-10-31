@@ -1,4 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+const spectralDir = mkdtempSync(path.join(tmpdir(), "mt-tenant-"));
+process.env.MICROTRACE_VAR_DIR = spectralDir;
+afterAll(() => rmSync(spectralDir, { recursive: true, force: true }));
 
 vi.mock("@/server/engine/client", async (orig) => {
   const actual = await orig<typeof import("@/server/engine/client")>();
@@ -14,6 +22,8 @@ vi.mock("@/server/engine/client", async (orig) => {
       quality: vi.fn(),
       report: vi.fn(),
       dictionary: vi.fn(),
+      spectralModel: vi.fn(),
+      identifySpectrum: vi.fn(),
     },
   };
 });
@@ -32,6 +42,7 @@ import * as qualityModule from "@/server/quality";
 import * as reportDownloadModule from "@/server/report-download";
 import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
+import * as spectralModule from "@/server/spectral";
 import * as settingsModule from "@/server/study-settings";
 import { resetDb } from "../../../test/db-reset";
 import { makeLab, makeMember } from "../../../test/labs";
@@ -59,6 +70,13 @@ const {
 } = membersModule;
 const { createProject, getProject, listProjects } = projectsModule;
 const { getStudyQuality, recordQualityDecision } = qualityModule;
+const {
+  analyzeSpectrum,
+  getSpectralAnalysis,
+  getSpectralModel,
+  listSpectralAnalyses,
+  recordSpectralDecision,
+} = spectralModule;
 const { getStudyResults, loadActiveResultsInput } = resultsModule;
 const { buildDictionaryDownload, buildReportDownload, getReportAvailability } =
   reportDownloadModule;
@@ -82,6 +100,31 @@ const {
 } = settingsModule;
 
 const SIGNAL_KEY = "a1".padEnd(64, "0");
+const SPECTRUM = new TextEncoder().encode("100 1 200 2") as Uint8Array<ArrayBuffer>;
+const SPECTRUM_INPUT = {
+  fileName: "s.txt",
+  mimeType: "text/plain",
+  bytes: SPECTRUM,
+  technique: "raman",
+  xUnit: "nm",
+  yUnit: "intensity",
+  laserNm: "532",
+};
+const spectralResponse = (bytes: Uint8Array) =>
+  ({
+    model: { name: "c5-spectral", version: "s1", sha256: "d".repeat(64) },
+    input: {
+      sha256: createHash("sha256").update(bytes).digest("hex"),
+      technique_label: "Raman",
+    },
+    status: "identified",
+    status_label: "Identifié (proposition)",
+    candidates: [{ rank: 1, polymer: "PE", label: "Polyéthylène (PE)", score: 0.9, score_text: "0,900" }],
+    correction_vocabulary: [
+      { code: "PE", label: "Polyéthylène (PE)" },
+      { code: "PP", label: "Polypropylène (PP)" },
+    ],
+  }) as never;
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
 const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";
@@ -294,6 +337,28 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Étude introuvable." },
     },
   },
+  spectral: {
+    getSpectralModel: {
+      run: (ctx) => getSpectralModel(ctx),
+      outcome: { returns: (r) => expect(r).toMatchObject({ kind: "ok" }) },
+    },
+    listSpectralAnalyses: {
+      run: (ctx, ids) => listSpectralAnalyses(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    getSpectralAnalysis: {
+      run: (ctx, ids) => getSpectralAnalysis(ctx, ids.study, MISSING),
+      outcome: { returns: (r) => expect(r).toBeNull() },
+    },
+    analyzeSpectrum: {
+      run: (ctx, ids) => analyzeSpectrum(ctx, ids.study, SPECTRUM_INPUT),
+      outcome: { throws: "Étude introuvable." },
+    },
+    recordSpectralDecision: {
+      run: (ctx, ids) => recordSpectralDecision(ctx, ids.study, MISSING, { decision: "accepted" }),
+      outcome: { throws: "Étude introuvable." },
+    },
+  },
   "report-download": {
     buildReportDownload: {
       run: (ctx, ids) => buildReportDownload(ctx, ids.study, "md"),
@@ -381,6 +446,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   },
   results: {},
   quality: {},
+  spectral: {},
   "report-download": {},
   examples: {},
   members: {},
@@ -400,6 +466,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   imports: importsModule,
   results: resultsModule,
   quality: qualityModule,
+  spectral: spectralModule,
   "report-download": reportDownloadModule,
   examples: examplesModule,
   members: membersModule,
@@ -442,6 +509,9 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     retireImport: (ctx, ids) => retireImport(ctx, ids.importRun, "motif"),
     recordQualityDecision: (ctx, ids) =>
       recordQualityDecision(ctx, ids.study, { signalKey: SIGNAL_KEY, decision: "to_check" }),
+    analyzeSpectrum: (ctx, ids) => analyzeSpectrum(ctx, ids.study, SPECTRUM_INPUT),
+    recordSpectralDecision: (ctx, ids) =>
+      recordSpectralDecision(ctx, ids.study, MISSING, { decision: "accepted" }),
   };
 
 /** Écritures réservées aux responsables. */
@@ -537,6 +607,10 @@ beforeEach(async () => {
     mapping: MAPPING,
     context: { data_nature: "laboratory", methods: [], limits: [], blank_corrected: "unknown" },
   } as never);
+  vi.mocked(engineClient.spectralModel).mockResolvedValue({ available: true } as never);
+  vi.mocked(engineClient.identifySpectrum).mockImplementation(async (a) =>
+    spectralResponse(a.file.data as Uint8Array),
+  );
   vi.mocked(engineClient.checkImport).mockResolvedValue({
     records: [],
     qc_records: [],
@@ -911,6 +985,9 @@ describe("un viewer de A", () => {
       "getStudyResults",
       "loadActiveResultsInput",
       "getStudyQuality",
+      "getSpectralModel",
+      "listSpectralAnalyses",
+      "getSpectralAnalysis",
       "buildReportDownload",
       "buildDictionaryDownload",
       "getReportAvailability",
@@ -931,11 +1008,54 @@ describe("un viewer de A", () => {
     expect((await loadActiveResultsInput(viewerA, idsA.study)).study.id).toBe(idsA.study);
     expect(await getStudyResults(viewerA, idsA.study)).toEqual({ empty: true });
     expect(await getStudyQuality(viewerA, idsA.study)).toEqual({ kind: "empty", disappeared: [] });
+    expect(await listSpectralAnalyses(viewerA, idsA.study)).toEqual({ rows: [], hidden: 0 });
+    expect(await getSpectralModel(viewerA)).toMatchObject({ kind: "ok" });
+    expect(await getSpectralAnalysis(viewerA, idsA.study, MISSING)).toBeNull();
     expect(await buildStudyContext(viewerA, idsA.study)).toMatchObject({
       data_nature: "laboratory",
     });
     expect((await listAuditEvents(viewerA, idsA.study)).length).toBeGreaterThan(
       0,
     );
+  });
+});
+
+describe("analyses spectrales", () => {
+  it("une analyse de B citée dans une étude de A : « Analyse introuvable. », sans écriture", async () => {
+    const analysisB = await analyzeSpectrum(ctxB, idsB.study, SPECTRUM_INPUT);
+    const before = await fullSnapshot();
+    await expect(
+      recordSpectralDecision(researcherA, idsA.study, analysisB.id, { decision: "accepted" }),
+    ).rejects.toThrow("Analyse introuvable.");
+    expect(await fullSnapshot()).toBe(before);
+    expect(await getSpectralAnalysis(ctxA, idsA.study, analysisB.id)).toBeNull();
+    expect(await getSpectralAnalysis(ctxA, idsB.study, analysisB.id)).toBeNull();
+    expect((await listSpectralAnalyses(ctxA, idsA.study)).rows).toEqual([]);
+  });
+
+  it("une décision de B sur une analyse de A est impossible", async () => {
+    const analysisA = await analyzeSpectrum(ctxA, idsA.study, SPECTRUM_INPUT);
+    const before = await fullSnapshot();
+    await expect(
+      recordSpectralDecision(ctxB, idsB.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Analyse introuvable.");
+    await expect(
+      recordSpectralDecision(ctxB, idsA.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Étude introuvable.");
+    expect(await fullSnapshot()).toBe(before);
+  });
+
+  it("étude archivée : analyse et décision refusées, sans écriture", async () => {
+    const analysisA = await analyzeSpectrum(ctxA, idsA.study, SPECTRUM_INPUT);
+    await archiveStudy(ctxA, idsA.study, "fin");
+    const before = await fullSnapshot();
+    await expect(analyzeSpectrum(ctxA, idsA.study, SPECTRUM_INPUT)).rejects.toThrow(
+      "Étude archivée : lecture seule.",
+    );
+    await expect(
+      recordSpectralDecision(ctxA, idsA.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Étude archivée : lecture seule.");
+    expect(await fullSnapshot()).toBe(before);
+    expect((await listSpectralAnalyses(viewerA, idsA.study)).rows).toHaveLength(1);
   });
 });

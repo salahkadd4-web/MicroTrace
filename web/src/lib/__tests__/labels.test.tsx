@@ -116,6 +116,38 @@ describe("audit-labels", () => {
     ).toBe("PE (Py-GC/MS)");
     expect(auditObjectName({ entityType: "Study", before: null, after: { methodsCreated: 1 } })).toBeNull();
   });
+
+  it("nomme les analyses spectrales sans exposer de champ technique", () => {
+    const analysis = {
+      kind: "spectral",
+      technique: "raman",
+      proposedLabel: "Polyéthylène (PE)",
+      inputSha256: "abc",
+      status: "identified",
+    };
+    expect(auditObjectName({ entityType: "ModelPrediction", before: null, after: analysis })).toBe(
+      "Raman — Polyéthylène (PE)",
+    );
+    expect(
+      auditObjectName({
+        entityType: "ModelPrediction",
+        before: null,
+        after: { kind: "spectral", technique: "raman", proposedLabel: null },
+      }),
+    ).toBe("Raman — aucune proposition");
+    expect(entityTypeLabel("ModelPrediction", analysis)).toBe("Analyse spectrale");
+    expect(entityTypeLabel("ModelPrediction", { ruleTitle: "R" })).toBe("Signal de qualité");
+    expect(entityTypeLabel("ModelPrediction")).toBe("Signal de qualité");
+    expect(auditActionLabel("spectral.analysis")).toBe("Analyse spectrale enregistrée");
+    expect(auditActionLabel("spectral.decision")).toBe("Décision spectrale enregistrée");
+    const fields = diffChanges(null, { ...analysis, analysisId: "x" }).map((c) => c.field);
+    expect(fields).not.toContain("Type");
+    expect(fields).not.toContain("Empreinte (SHA-256)");
+    expect(diffChanges(null, { kind: "spectral", technique: "ftir_atr", status: "uncertain" })).toEqual([
+      { field: "Technique", before: "—", after: "FTIR (ATR)" },
+      { field: "Statut", before: "—", after: "Incertain" },
+    ]);
+  });
 });
 
 describe("libellés d'audit des laboratoires, invitations et membres", () => {

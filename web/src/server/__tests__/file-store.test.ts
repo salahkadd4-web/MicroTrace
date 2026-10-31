@@ -17,6 +17,7 @@ import {
   purgeStaging,
   putStaging,
   readStaging,
+  readStoredFile,
   storeFile,
   varDir,
 } from "@/server/file-store";
@@ -183,5 +184,25 @@ describe("storeFile", () => {
     writeFileSync(path.join(dir, "files", h), "corrompu");
     await expect(storeFile(h, bytes)).rejects.toThrow();
     expect(readFileSync(path.join(dir, "files", h), "utf8")).toBe("corrompu");
+  });
+});
+
+describe("readStoredFile", () => {
+  it("renvoie les octets du magasin", async () => {
+    const h = sha(bytes);
+    await storeFile(h, bytes);
+    expect(Buffer.from((await readStoredFile(h))!).equals(Buffer.from(bytes))).toBe(true);
+  });
+  it("renvoie null pour un fichier absent", async () => {
+    expect(await readStoredFile(sha(new Uint8Array([9, 9])))).toBeNull();
+  });
+  it("lève une erreur si le contenu a été altéré", async () => {
+    const h = sha(bytes);
+    await storeFile(h, bytes);
+    writeFileSync(path.join(dir, "files", h), "altéré");
+    await expect(readStoredFile(h)).rejects.toThrow();
+  });
+  it("refuse un sha256 mal formé", async () => {
+    await expect(readStoredFile("../x")).rejects.toThrow();
   });
 });

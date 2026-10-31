@@ -23,6 +23,11 @@ describe("matcher du proxy", () => {
   it("exclut la route de dépôt (corps de 50 Mo non mis en tampon par le proxy)", () => {
     expect(re.test("/labo/mon-labo/etudes/abc123/imports/upload")).toBe(false);
   });
+  it("exclut la route d'analyse spectrale (authentification propre)", () => {
+    expect(re.test("/labo/mon-labo/etudes/abc123/spectres/analyser")).toBe(false);
+    expect(re.test("/labo/mon-labo/etudes/abc123/spectres/analyser/x")).toBe(true);
+    expect(re.test("/labo/mon-labo/etudes/abc123/spectres")).toBe(true);
+  });
   it.each([
     "/labo/mon-labo/etudes/abc123/rapport/telecharger",
     "/labo/mon-labo/etudes/abc123/rapport/dictionnaire",

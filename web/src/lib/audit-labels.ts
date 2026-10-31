@@ -9,6 +9,7 @@ import {
   labelOf,
 } from "@/lib/labels";
 import { QUALITY_DECISIONS } from "@/lib/quality";
+import { SPECTRAL_DECISIONS, TECHNIQUE_OPTIONS } from "@/lib/spectral";
 import { unitLabel } from "@/lib/units";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -29,6 +30,8 @@ const ACTION_LABELS: Record<string, string> = {
   "import.retire": "Import retiré",
   "import.refused_pii": "Import refusé (données personnelles)",
   "quality.decision": "Décision qualité enregistrée",
+  "spectral.analysis": "Analyse spectrale enregistrée",
+  "spectral.decision": "Décision spectrale enregistrée",
   "report.download": "Rapport téléchargé",
   "lab.create": "Laboratoire créé",
   "lab.suspend": "Laboratoire suspendu",
@@ -102,6 +105,9 @@ const FIELD_LABELS: Record<string, string> = {
   decision: "Décision",
   modelVersion: "Version des règles",
   hasNote: "Note jointe",
+  proposedPolymer: "Polymère proposé",
+  proposedLabel: "Proposition",
+  polymerLabel: "Polymère retenu",
 };
 
 /** Libellé français d'un code d'action ; un code inconnu est montré tel quel. */
@@ -109,7 +115,8 @@ export function auditActionLabel(code: string): string {
   return ACTION_LABELS[code] ?? code;
 }
 
-export function entityTypeLabel(type: string): string {
+export function entityTypeLabel(type: string, after?: unknown): string {
+  if (type === "ModelPrediction" && asRecord(after).kind === "spectral") return "Analyse spectrale";
   return ENTITY_LABELS[type] ?? type;
 }
 
@@ -121,16 +128,24 @@ export type AuditContext = {
 };
 
 /** Champs techniques sans intérêt pour la lecture : jamais affichés. */
-const HIDDEN_FIELDS = new Set(["id", "ids", "studyId", "projectId", "nameKey", "signalKey", "rule"]);
+const HIDDEN_FIELDS = new Set(["id", "ids", "studyId", "projectId", "nameKey", "signalKey", "rule", "analysisId", "inputSha256"]);
 
 const VALUE_LABELS: Record<string, Record<string, string>> = {
   nature: NATURE_LABELS,
   blankCorrected: BLANK_CORRECTED_LABELS,
-  technique: TECHNIQUE_LABELS,
+  technique: { ...TECHNIQUE_LABELS, ...Object.fromEntries(TECHNIQUE_OPTIONS.map((t) => [t.code, t.label])) },
   kind: QC_KIND_LABELS,
   role: ROLE_LABELS,
-  status: { active: "Actif", retired: "Retiré" },
-  decision: Object.fromEntries(QUALITY_DECISIONS.map((d) => [d.code, d.label])),
+  status: {
+    active: "Actif",
+    retired: "Retiré",
+    identified: "Identifié (proposition)",
+    uncertain: "Incertain",
+    not_identified: "Non identifié (abstention)",
+  },
+  decision: Object.fromEntries(
+    [...QUALITY_DECISIONS, ...SPECTRAL_DECISIONS].map((d) => [d.code, d.label]),
+  ),
   format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)" },
 };
 
@@ -162,8 +177,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 export function diffChanges(before: unknown, after: unknown, ctx: AuditContext = {}): AuditChange[] {
   const b = asRecord(before);
   const a = asRecord(after);
+  // `kind` vaut « spectral » pour une prédiction (champ technique) ; pour un contrôle qualité, c'est le type.
+  const spectral = a.kind === "spectral" || b.kind === "spectral";
   const fields = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(
-    (f) => !HIDDEN_FIELDS.has(f),
+    (f) => !HIDDEN_FIELDS.has(f) && !(spectral && f === "kind"),
   );
   const changes: AuditChange[] = [];
   for (const f of fields) {
@@ -189,6 +206,12 @@ export function auditObjectName(
     case "ImportRun":
       return str("fileName");
     case "ModelPrediction": {
+      if (data.kind === "spectral") {
+        const technique = TECHNIQUE_OPTIONS.find((t) => t.code === data.technique)?.label ?? null;
+        const proposal = str("proposedLabel") ?? "aucune proposition";
+        if (technique) return `${technique} — ${proposal}`;
+        return str("polymerLabel");
+      }
       const rule = str("ruleTitle");
       const subject = str("subject");
       return rule && subject ? `${rule} — ${subject}` : rule;
