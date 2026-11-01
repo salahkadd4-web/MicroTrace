@@ -67,4 +67,24 @@ test("captures des pages principales", async ({ page }) => {
     await page.waitForLoadState("networkidle");
     for (const w of WIDTHS) await shoot(w, "spectres-liste");
   }
+
+  // Onglet Images (nécessite les poids du modèle et l'image d'essai de datasets/).
+  const image = join(
+    REPO_DIR,
+    "datasets/Images/dataset3/bead/original_image_bead/Dove_men_acrylates_copolymer_microbeads_new_No0045.tif",
+  );
+  if (process.env.E2E_IMAGE_MODEL === "present" && existsSync(image)) {
+    const list = `/labo/${labA.labSlug}/etudes/${labA.simulatedStudyId}/images`;
+    await page.setViewportSize({ width: WIDTHS[0], height: 900 });
+    await page.goto(list);
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("Image de microscopie").setInputFiles(image);
+    await page.getByRole("button", { name: "Analyser l'image" }).click();
+    await page.waitForURL(/\/images\/[^/]+$/);
+    await page.waitForLoadState("networkidle");
+    for (const w of WIDTHS) await shoot(w, "images-analyse");
+    await page.goto(list);
+    await page.waitForLoadState("networkidle");
+    for (const w of WIDTHS) await shoot(w, "images-liste");
+  }
 });

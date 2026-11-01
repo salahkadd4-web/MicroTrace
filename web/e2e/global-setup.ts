@@ -94,6 +94,23 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
       process.env.E2E_SPECTRAL_MODEL = "absent";
     }
 
+    // Même logique pour le modèle d'images (models/c6-microscopie-i1.npz).
+    if (existsSync(path.join(REPO_DIR, "models", "c6-microscopie-i1.npz"))) {
+      const res = await fetch(`${engineUrl}/ai/image/model`, {
+        headers: { "x-engine-secret": engineSecret },
+      });
+      const info = (await res.json().catch(() => null)) as { available?: unknown } | null;
+      if (info?.available !== true) {
+        throw new Error(
+          "Modèle d'images indisponible pour les tests de bout en bout : lancez python -m microtrace_core train-image (voir DEMARRAGE.md).",
+        );
+      }
+      process.env.E2E_IMAGE_MODEL = "present";
+    } else {
+      process.env.E2E_IMAGE_MODEL = "absent";
+    }
+    process.env.E2E_VAR_DIR = varDir;
+
     const appEnv: NodeJS.ProcessEnv = {
       ...process.env,
       DATABASE_URL: db.url,
