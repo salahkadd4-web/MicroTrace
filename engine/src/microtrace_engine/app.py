@@ -11,6 +11,8 @@ from typing import Any, TypeVar
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from microtrace_core.imaging.model import CorrectionError, ScaleMismatch, analyze
+from microtrace_core.imaging.reading import MAX_IMAGE_BYTES, ImageReadError, decode_image
 from microtrace_core.results import (
     AGGREGATION_RULE_FR,
     LESLIE_LIKE_FILENAME,
@@ -60,6 +62,15 @@ from .convert import (
 )
 from .crossimport import cross_import_issues
 from .errors import InputError, error_response, safe_errors
+from . import image_text
+from .image import (
+    ImageModelStore,
+    parse_scale,
+    read_image_lock,
+    to_validated,
+)
+from .image import to_model_info as to_image_model_info
+from .image import to_response as to_image_response
 from .report import build_markdown, to_html
 from .schemas import (
     DictionaryResponse,
@@ -67,6 +78,10 @@ from .schemas import (
     ExampleResponse,
     ExistingKeyModel,
     HealthResponse,
+    ImageAnalyzeResponse,
+    ImageModelInfo,
+    ImageValidatedSummary,
+    ImageValidateRequest,
     ImportResultModel,
     MappingModel,
     QualityRequest,
@@ -255,7 +270,8 @@ def _register_part_models(schema: dict[str, Any]) -> None:
         components.setdefault(name, definition)
 
 
-def create_app(settings: Settings, spectral_lock: ModelLock | None = None) -> FastAPI:
+def create_app(settings: Settings, spectral_lock: ModelLock | None = None,
+               image_lock: ModelLock | None = None) -> FastAPI:
     app = FastAPI(
         title="MicroTrace engine",
         version=version("microtrace-engine"),
@@ -281,6 +297,10 @@ def create_app(settings: Settings, spectral_lock: ModelLock | None = None) -> Fa
     # the weights are read lazily, on the first spectral request: the engine always starts
     spectral_store = SpectralModelStore(settings.models_dir, spectral_lock or read_lock())
     app.state.spectral_store = spectral_store
+    image_store = ImageModelStore(settings.models_dir, image_lock or read_image_lock())
+    app.state.image_store = image_store
+    # Pillow logs the raw value of every TIFF tag at DEBUG (operator names, comments): never
+    logging.getLogger("PIL").setLevel(logging.WARNING)
 
     @app.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -568,6 +588,70 @@ def create_app(settings: Settings, spectral_lock: ModelLock | None = None) -> Fa
             return SpectralParsedModel(x=[float(v) for v in x], y=[float(v) for v in y])
 
         return await run_in_threadpool(run)
+
+    @app.get(
+        "/ai/image/model",
+        response_model=ImageModelInfo,
+        dependencies=[Depends(require_secret)],
+    )
+    def image_model() -> ImageModelInfo:
+        # sync route: the first call reads and verifies the weights in the threadpool
+        return to_image_model_info(image_store)
+
+    @app.post(
+        "/ai/image/analyze",
+        response_model=ImageAnalyzeResponse,
+        dependencies=[Depends(require_secret)],
+        responses={503: {"model": ErrorModel, "description": "Modèle d'images indisponible"}},
+    )
+    async def image_analyze(
+        file: UploadFile = File(..., description="Image PNG, JPEG ou TIFF (25 Mio au plus)"),
+        scale_um_per_px: str | None = Form(
+            None, description="Échelle saisie (µm par pixel de l'image déposée), facultative"),
+    ) -> ImageAnalyzeResponse:
+        entered, problem = parse_scale(scale_um_per_px)
+        if problem is not None:
+            raise HTTPException(status_code=422, detail=problem)
+        state, model, digest = await run_in_threadpool(image_store.get)
+        if state is not ModelState.OK or model is None or digest is None:
+            raise HTTPException(status_code=503, detail=image_text.UNAVAILABLE[state.value])
+        try:  # the size limit is enforced while reading: nothing is decoded above it
+            data = await read_upload(file, MAX_IMAGE_BYTES)
+        except TooLarge:
+            raise HTTPException(status_code=413, detail=image_text.too_large_message()) from None
+
+        def run() -> ImageAnalyzeResponse:
+            try:
+                decoded = decode_image(data)
+                analysis = analyze(model, decoded, entered)
+            except ImageReadError as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=image_text.read_error_message(
+                        exc.issue, exc.width, exc.height, exc.pixels)) from None
+            except ScaleMismatch as exc:
+                raise HTTPException(
+                    status_code=422,
+                    detail=image_text.scale_mismatch_message(exc.entered, exc.metadata)) from None
+            return to_image_response(model, digest, analysis, decoded,
+                                     data_sha256=sha256_hex(data), size=len(data))
+
+        return await run_in_threadpool(run)
+
+    @app.post(
+        "/ai/image/validate",
+        response_model=ImageValidatedSummary,
+        dependencies=[Depends(require_secret)],
+    )
+    def image_validate(req: ImageValidateRequest) -> ImageValidatedSummary:
+        # sync route, no access to the weights: available even when the model is missing
+        try:
+            return to_validated(req.analysis, req.excluded,
+                                [(r.id, r.shape) for r in req.reshaped], req.missed_count)
+        except CorrectionError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=image_text.correction_message(exc.code, exc.particle_id)) from None
 
     return app
 

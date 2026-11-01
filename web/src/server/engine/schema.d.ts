@@ -252,10 +252,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ai/image/model": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Image Model */
+        get: operations["image_model"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/image/analyze": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Image Analyze */
+        post: operations["image_analyze"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ai/image/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Image Validate */
+        post: operations["image_validate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_image_analyze */
+        Body_image_analyze: {
+            /**
+             * File
+             * @description Image PNG, JPEG ou TIFF (25 Mio au plus)
+             */
+            file: string;
+            /**
+             * Scale Um Per Px
+             * @description Échelle saisie (µm par pixel de l'image déposée), facultative
+             */
+            scale_um_per_px?: string | null;
+        };
         /** Body_imports_check */
         Body_imports_check: {
             /**
@@ -414,6 +478,326 @@ export interface components {
             engine_version: string;
             /** Rules Version */
             rules_version: string;
+        };
+        /** ImageAnalyzeResponse */
+        ImageAnalyzeResponse: {
+            model: components["schemas"]["ImageModelRef"];
+            /** Trial Label */
+            trial_label: string;
+            /** Trial Sentence */
+            trial_sentence: string;
+            input: components["schemas"]["ImageInputModel"];
+            scale: components["schemas"]["ImageScaleModel"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "proposal" | "unreliable";
+            /** Status Label */
+            status_label: string;
+            /** Reasons */
+            reasons: components["schemas"]["ImageReasonModel"][];
+            /** Explanation */
+            explanation: string;
+            /** Count */
+            count: number;
+            /** Count By Shape */
+            count_by_shape: components["schemas"]["ImageShapeCountModel"][];
+            /** Particles */
+            particles: components["schemas"]["ImageParticleModel"][];
+            size_distribution: components["schemas"]["ImageSizeDistributionModel"] | null;
+            images: components["schemas"]["ImageImagesModel"];
+            thresholds: components["schemas"]["ImageThresholdsModel"];
+            /** Limits */
+            limits: string[];
+            /** Shape Vocabulary */
+            shape_vocabulary: components["schemas"]["ImageShapeOptionModel"][];
+        };
+        /** ImageImagesModel */
+        ImageImagesModel: {
+            /** Display Png Base64 */
+            display_png_base64: string;
+            /** Annotated Png Base64 */
+            annotated_png_base64: string;
+        };
+        /** ImageInputModel */
+        ImageInputModel: {
+            /** Sha256 */
+            sha256: string;
+            /** Size */
+            size: number;
+            /**
+             * Format
+             * @enum {string}
+             */
+            format: "PNG" | "JPEG" | "TIFF";
+            /** Width */
+            width: number;
+            /** Height */
+            height: number;
+            /** Bit Depth */
+            bit_depth: number;
+            /**
+             * Color
+             * @enum {string}
+             */
+            color: "gray" | "rgb" | "cmyk" | "palette";
+            /** Orientation Applied */
+            orientation_applied: boolean;
+            /** Alpha Ignored */
+            alpha_ignored: boolean;
+            /** Cropped Bottom Px */
+            cropped_bottom_px: number;
+            /** Analysis Width */
+            analysis_width: number;
+            /** Analysis Height */
+            analysis_height: number;
+            /** Downscale */
+            downscale: number;
+        };
+        /** ImageMetricsModel */
+        ImageMetricsModel: {
+            /** Test Images */
+            test_images: number | null;
+            /** F1 Objects */
+            f1_objects: number | null;
+            /** Count Mae */
+            count_mae: number | null;
+            /** Dice */
+            dice: number | null;
+            /** Shape Balanced Accuracy */
+            shape_balanced_accuracy: number | null;
+            /** Unreliable Share */
+            unreliable_share: number | null;
+        };
+        /** ImageModelInfo */
+        ImageModelInfo: {
+            /** Available */
+            available: boolean;
+            /** Reason */
+            reason: ("missing" | "sha_mismatch" | "invalid") | null;
+            /** Message */
+            message: string | null;
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Expected Sha256 */
+            expected_sha256: string;
+            /** Sha256 */
+            sha256: string | null;
+            /** Trial Label */
+            trial_label: string;
+            /** Trial Sentence */
+            trial_sentence: string;
+            /** Limits */
+            limits: string[];
+            /** Card Path */
+            card_path: string;
+            /** Max Bytes */
+            max_bytes: number;
+            /** Max Pixels */
+            max_pixels: number;
+            /** Analysis Max Side */
+            analysis_max_side: number;
+            /** Shape Vocabulary */
+            shape_vocabulary: components["schemas"]["ImageShapeOptionModel"][];
+            thresholds: components["schemas"]["ImageThresholdsModel"] | null;
+            metrics: components["schemas"]["ImageMetricsModel"] | null;
+            /** Training Data */
+            training_data: string;
+        };
+        /** ImageModelRef */
+        ImageModelRef: {
+            /** Name */
+            name: string;
+            /** Version */
+            version: string;
+            /** Sha256 */
+            sha256: string;
+        };
+        /** ImageParticleModel */
+        ImageParticleModel: {
+            /** Id */
+            id: number;
+            /** Contour */
+            contour: number[][];
+            /** Bbox */
+            bbox: number[];
+            /** Area Px */
+            area_px: number;
+            /** Feret Max Px */
+            feret_max_px: number;
+            /** Feret Min Px */
+            feret_min_px: number;
+            /** Area Um2 */
+            area_um2: number | null;
+            /** Feret Max Um */
+            feret_max_um: number | null;
+            /** Feret Min Um */
+            feret_min_um: number | null;
+            /** Eq Diameter Um */
+            eq_diameter_um: number | null;
+            /** Circularity */
+            circularity: number;
+            /** Solidity */
+            solidity: number;
+            /** Elongation */
+            elongation: number;
+            /** Touches Border */
+            touches_border: boolean;
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "fibre" | "fragment" | "bille" | "film" | "uncertain" | "unspecified";
+            /** Shape Label */
+            shape_label: string;
+            /** Shape Score */
+            shape_score: number;
+            /** Shape Score Text */
+            shape_score_text: string;
+            /**
+             * Shape Status
+             * @enum {string}
+             */
+            shape_status: "proposed" | "uncertain";
+        };
+        /** ImageReasonModel */
+        ImageReasonModel: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "no_particle" | "too_many_particles" | "large_foreground" | "low_contrast" | "scale_out_of_range";
+            /** Label */
+            label: string;
+        };
+        /**
+         * ImageRecordedAnalysis
+         * @description The parts of a recorded analysis a decision is validated against.
+         */
+        ImageRecordedAnalysis: {
+            /** Particles */
+            particles: components["schemas"]["ImageParticleModel"][];
+            scale: components["schemas"]["ImageScaleModel"] | null;
+            /** Count */
+            count: number;
+        };
+        /** ImageReshapeModel */
+        ImageReshapeModel: {
+            /** Id */
+            id: number;
+            /** Shape */
+            shape: string;
+        };
+        /** ImageScaleModel */
+        ImageScaleModel: {
+            /** Um Per Px Input */
+            um_per_px_input: number;
+            /** Um Per Px Analysis */
+            um_per_px_analysis: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "metadata" | "entered" | "none";
+            /** Source Label */
+            source_label: string;
+            /** Min Detectable Um */
+            min_detectable_um: number;
+        };
+        /** ImageShapeCountModel */
+        ImageShapeCountModel: {
+            /**
+             * Shape
+             * @enum {string}
+             */
+            shape: "fibre" | "fragment" | "bille" | "film" | "uncertain" | "unspecified";
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /** ImageShapeOptionModel */
+        ImageShapeOptionModel: {
+            /**
+             * Code
+             * @enum {string}
+             */
+            code: "fibre" | "fragment" | "bille" | "film";
+            /** Label */
+            label: string;
+            /** Evaluated */
+            evaluated: boolean;
+        };
+        /** ImageSizeBinModel */
+        ImageSizeBinModel: {
+            /** Lower */
+            lower: number;
+            /** Upper */
+            upper: number | null;
+            /** Label */
+            label: string;
+            /** Count */
+            count: number;
+        };
+        /** ImageSizeDistributionModel */
+        ImageSizeDistributionModel: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "feret_max_um";
+            /** Bins */
+            bins: components["schemas"]["ImageSizeBinModel"][];
+            /** Median Um */
+            median_um: number | null;
+            /** P10 Um */
+            p10_um: number | null;
+            /** P90 Um */
+            p90_um: number | null;
+        };
+        /** ImageThresholdsModel */
+        ImageThresholdsModel: {
+            /** Pixel */
+            pixel: number;
+            /** Min Area Frac */
+            min_area_frac: number;
+            /** Shape Min Score */
+            shape_min_score: number;
+            /** Max Foreground */
+            max_foreground: number;
+            /** Min Contrast */
+            min_contrast: number;
+        };
+        /** ImageValidateRequest */
+        ImageValidateRequest: {
+            analysis: components["schemas"]["ImageRecordedAnalysis"];
+            /** Excluded */
+            excluded?: number[];
+            /** Reshaped */
+            reshaped?: components["schemas"]["ImageReshapeModel"][];
+            /** Missed Count */
+            missed_count: number;
+        };
+        /** ImageValidatedSummary */
+        ImageValidatedSummary: {
+            /** Count */
+            count: number;
+            /** Kept */
+            kept: number;
+            /** Excluded */
+            excluded: number;
+            /** Missed */
+            missed: number;
+            /** Count By Shape */
+            count_by_shape: components["schemas"]["ImageShapeCountModel"][];
+            size_distribution: components["schemas"]["ImageSizeDistributionModel"] | null;
+            /** Changes */
+            changes: number;
+            /** Sentence */
+            sentence: string;
         };
         /** ImportResultModel */
         ImportResultModel: {
@@ -2193,6 +2577,197 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SpectralParsedModel"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    image_model: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageModelInfo"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    image_analyze: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_image_analyze"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageAnalyzeResponse"];
+                };
+            };
+            /** @description Secret du moteur manquant ou invalide */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Requête trop volumineuse */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Entrée invalide (message français, et emplacements pour une erreur de schéma) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Erreur interne du moteur */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+            /** @description Modèle d'images indisponible */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorModel"];
+                };
+            };
+        };
+    };
+    image_validate: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Engine-Secret"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImageValidateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImageValidatedSummary"];
                 };
             };
             /** @description Secret du moteur manquant ou invalide */

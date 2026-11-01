@@ -124,6 +124,49 @@ describe("engineClient", () => {
     expect((fetch.mock.calls[0][1].body as FormData).has("laser_nm")).toBe(false);
   });
 
+  it("lit la fiche du modèle d'images avec le secret", async () => {
+    const { fetch, client } = setup(() => json(200, { available: false }));
+    await client.imageModel();
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("http://engine.test/ai/image/model");
+    expect(init.method).toBe("GET");
+    expect((init.headers as Record<string, string>)["X-Engine-Secret"]).toBe("s".repeat(40));
+  });
+
+  it("envoie l'image et l'échelle saisie en multipart", async () => {
+    const { fetch, client } = setup(() => json(200, { status: "proposal" }));
+    await client.analyzeImage({
+      file: { data: new Uint8Array([1, 2, 3]), filename: "p.png" },
+      scaleUmPerPx: "0,5",
+    });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("http://engine.test/ai/image/analyze");
+    expect(init.method).toBe("POST");
+    const form = init.body as FormData;
+    expect((form.get("file") as File).name).toBe("p.png");
+    expect(form.get("scale_um_per_px")).toBe("0,5");
+  });
+
+  it("n'envoie pas scale_um_per_px quand l'échelle est nulle", async () => {
+    const { fetch, client } = setup(() => json(200, {}));
+    await client.analyzeImage({ file: { data: new Blob(["x"]), filename: "p.png" }, scaleUmPerPx: null });
+    expect((fetch.mock.calls[0][1].body as FormData).has("scale_um_per_px")).toBe(false);
+  });
+
+  it("envoie la décision sur une image en JSON", async () => {
+    const { fetch, client } = setup(() => json(200, { count: 3 }));
+    const body = {
+      analysis: { particles: [], scale: null, count: 0 },
+      excluded: [1],
+      reshaped: [{ id: 2, shape: "fibre" }],
+      missed_count: 1,
+    };
+    await expect(client.validateImage(body)).resolves.toEqual({ count: 3 });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("http://engine.test/ai/image/validate");
+    expect(JSON.parse(init.body as string)).toEqual(body);
+  });
+
   it("omet existing quand il est absent", async () => {
     const { fetch, client } = setup(() => json(200, {}));
     await client.checkImport({

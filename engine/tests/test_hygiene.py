@@ -151,3 +151,33 @@ def test_quality_logs_hold_no_sample_id_nor_control_source(client, auth_headers,
     assert ok.status_code == 200 and dup.status_code == 422 and bad.status_code == 422
     assert "DONOR-SECRET" not in caplog.text and "SOURCE-SECRET" not in caplog.text
     assert "DONOR-SECRET-9" not in bad.text and "SOURCE-SECRET" not in dup.text
+
+
+def test_image_logs_hold_no_file_name_nor_metadata(image_models_dir, auth_headers, caplog):
+    import base64
+    import sys
+
+    from .conftest import _CORE_TESTS, image_client
+
+    if str(_CORE_TESTS) not in sys.path:
+        sys.path.insert(0, str(_CORE_TESTS))
+    import imaging_fixtures as fx
+
+    client = image_client(image_models_dir.path, image_models_dir.lock)
+    good = fx.trapped_tiff(h=960, w=1280)
+    caplog.set_level(logging.DEBUG)
+    for name in ("", "uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
+        logging.getLogger(name).setLevel(logging.DEBUG)
+    ok = client.post("/ai/image/analyze", headers=auth_headers,
+                     files={"file": ("DONOR-SECRET.tif", good)})
+    ko = client.post("/ai/image/analyze", headers=auth_headers,
+                     files={"file": ("DONOR-SECRET.tif", good[:300])})
+    bad = client.post("/ai/image/analyze", headers=auth_headers, data={"scale_um_per_px": "2"},
+                      files={"file": ("DONOR-SECRET.tif", good)})
+    assert ok.status_code == 200 and ko.status_code == 422 and bad.status_code == 422
+    for text in (caplog.text, ok.text, ko.text, bad.text):
+        assert "DONOR-SECRET" not in text and "Dupont" not in text
+    body = ok.json()
+    for key in ("display_png_base64", "annotated_png_base64"):
+        raw = base64.b64decode(body["images"][key])
+        assert b"DONOR-SECRET" not in raw and b"Dupont" not in raw

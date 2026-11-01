@@ -1152,10 +1152,295 @@
           }
         }
       }
+    },
+    "/ai/image/model": {
+      "get": {
+        "summary": "Image Model",
+        "operationId": "image_model",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageModelInfo"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/image/analyze": {
+      "post": {
+        "summary": "Image Analyze",
+        "operationId": "image_analyze",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_image_analyze"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageAnalyzeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Modèle d'images indisponible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ai/image/validate": {
+      "post": {
+        "summary": "Image Validate",
+        "operationId": "image_validate",
+        "parameters": [
+          {
+            "name": "X-Engine-Secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Engine-Secret"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageValidateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageValidatedSummary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Secret du moteur manquant ou invalide",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Requête trop volumineuse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Entrée invalide (message français, et emplacements pour une erreur de schéma)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Erreur interne du moteur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorModel"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "Body_image_analyze": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Image PNG, JPEG ou TIFF (25 Mio au plus)"
+          },
+          "scale_um_per_px": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scale Um Per Px",
+            "description": "Échelle saisie (µm par pixel de l'image déposée), facultative"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_image_analyze"
+      },
       "Body_imports_check": {
         "properties": {
           "file": {
@@ -1573,6 +1858,1041 @@
           "rules_version"
         ],
         "title": "HealthResponse"
+      },
+      "ImageAnalyzeResponse": {
+        "properties": {
+          "model": {
+            "$ref": "#/components/schemas/ImageModelRef"
+          },
+          "trial_label": {
+            "type": "string",
+            "title": "Trial Label"
+          },
+          "trial_sentence": {
+            "type": "string",
+            "title": "Trial Sentence"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ImageInputModel"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageScaleModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposal",
+              "unreliable"
+            ],
+            "title": "Status"
+          },
+          "status_label": {
+            "type": "string",
+            "title": "Status Label"
+          },
+          "reasons": {
+            "items": {
+              "$ref": "#/components/schemas/ImageReasonModel"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "count_by_shape": {
+            "items": {
+              "$ref": "#/components/schemas/ImageShapeCountModel"
+            },
+            "type": "array",
+            "title": "Count By Shape"
+          },
+          "particles": {
+            "items": {
+              "$ref": "#/components/schemas/ImageParticleModel"
+            },
+            "type": "array",
+            "title": "Particles"
+          },
+          "size_distribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageSizeDistributionModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "images": {
+            "$ref": "#/components/schemas/ImageImagesModel"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/ImageThresholdsModel"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "shape_vocabulary": {
+            "items": {
+              "$ref": "#/components/schemas/ImageShapeOptionModel"
+            },
+            "type": "array",
+            "title": "Shape Vocabulary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "model",
+          "trial_label",
+          "trial_sentence",
+          "input",
+          "scale",
+          "status",
+          "status_label",
+          "reasons",
+          "explanation",
+          "count",
+          "count_by_shape",
+          "particles",
+          "size_distribution",
+          "images",
+          "thresholds",
+          "limits",
+          "shape_vocabulary"
+        ],
+        "title": "ImageAnalyzeResponse"
+      },
+      "ImageImagesModel": {
+        "properties": {
+          "display_png_base64": {
+            "type": "string",
+            "title": "Display Png Base64"
+          },
+          "annotated_png_base64": {
+            "type": "string",
+            "title": "Annotated Png Base64"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "display_png_base64",
+          "annotated_png_base64"
+        ],
+        "title": "ImageImagesModel"
+      },
+      "ImageInputModel": {
+        "properties": {
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "PNG",
+              "JPEG",
+              "TIFF"
+            ],
+            "title": "Format"
+          },
+          "width": {
+            "type": "integer",
+            "title": "Width"
+          },
+          "height": {
+            "type": "integer",
+            "title": "Height"
+          },
+          "bit_depth": {
+            "type": "integer",
+            "title": "Bit Depth"
+          },
+          "color": {
+            "type": "string",
+            "enum": [
+              "gray",
+              "rgb",
+              "cmyk",
+              "palette"
+            ],
+            "title": "Color"
+          },
+          "orientation_applied": {
+            "type": "boolean",
+            "title": "Orientation Applied"
+          },
+          "alpha_ignored": {
+            "type": "boolean",
+            "title": "Alpha Ignored"
+          },
+          "cropped_bottom_px": {
+            "type": "integer",
+            "title": "Cropped Bottom Px"
+          },
+          "analysis_width": {
+            "type": "integer",
+            "title": "Analysis Width"
+          },
+          "analysis_height": {
+            "type": "integer",
+            "title": "Analysis Height"
+          },
+          "downscale": {
+            "type": "number",
+            "title": "Downscale"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sha256",
+          "size",
+          "format",
+          "width",
+          "height",
+          "bit_depth",
+          "color",
+          "orientation_applied",
+          "alpha_ignored",
+          "cropped_bottom_px",
+          "analysis_width",
+          "analysis_height",
+          "downscale"
+        ],
+        "title": "ImageInputModel"
+      },
+      "ImageMetricsModel": {
+        "properties": {
+          "test_images": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Test Images"
+          },
+          "f1_objects": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F1 Objects"
+          },
+          "count_mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Mae"
+          },
+          "dice": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dice"
+          },
+          "shape_balanced_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Balanced Accuracy"
+          },
+          "unreliable_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unreliable Share"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "test_images",
+          "f1_objects",
+          "count_mae",
+          "dice",
+          "shape_balanced_accuracy",
+          "unreliable_share"
+        ],
+        "title": "ImageMetricsModel"
+      },
+      "ImageModelInfo": {
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "title": "Available"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "missing",
+                  "sha_mismatch",
+                  "invalid"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "expected_sha256": {
+            "type": "string",
+            "title": "Expected Sha256"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "trial_label": {
+            "type": "string",
+            "title": "Trial Label"
+          },
+          "trial_sentence": {
+            "type": "string",
+            "title": "Trial Sentence"
+          },
+          "limits": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limits"
+          },
+          "card_path": {
+            "type": "string",
+            "title": "Card Path"
+          },
+          "max_bytes": {
+            "type": "integer",
+            "title": "Max Bytes"
+          },
+          "max_pixels": {
+            "type": "integer",
+            "title": "Max Pixels"
+          },
+          "analysis_max_side": {
+            "type": "integer",
+            "title": "Analysis Max Side"
+          },
+          "shape_vocabulary": {
+            "items": {
+              "$ref": "#/components/schemas/ImageShapeOptionModel"
+            },
+            "type": "array",
+            "title": "Shape Vocabulary"
+          },
+          "thresholds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageThresholdsModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageMetricsModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training_data": {
+            "type": "string",
+            "title": "Training Data"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "available",
+          "reason",
+          "message",
+          "name",
+          "version",
+          "expected_sha256",
+          "sha256",
+          "trial_label",
+          "trial_sentence",
+          "limits",
+          "card_path",
+          "max_bytes",
+          "max_pixels",
+          "analysis_max_side",
+          "shape_vocabulary",
+          "thresholds",
+          "metrics",
+          "training_data"
+        ],
+        "title": "ImageModelInfo"
+      },
+      "ImageModelRef": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "sha256"
+        ],
+        "title": "ImageModelRef"
+      },
+      "ImageParticleModel": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "contour": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array",
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "type": "array",
+            "maxItems": 400,
+            "title": "Contour"
+          },
+          "bbox": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Bbox"
+          },
+          "area_px": {
+            "type": "number",
+            "title": "Area Px"
+          },
+          "feret_max_px": {
+            "type": "number",
+            "title": "Feret Max Px"
+          },
+          "feret_min_px": {
+            "type": "number",
+            "title": "Feret Min Px"
+          },
+          "area_um2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Um2"
+          },
+          "feret_max_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feret Max Um"
+          },
+          "feret_min_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feret Min Um"
+          },
+          "eq_diameter_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eq Diameter Um"
+          },
+          "circularity": {
+            "type": "number",
+            "title": "Circularity"
+          },
+          "solidity": {
+            "type": "number",
+            "title": "Solidity"
+          },
+          "elongation": {
+            "type": "number",
+            "title": "Elongation"
+          },
+          "touches_border": {
+            "type": "boolean",
+            "title": "Touches Border"
+          },
+          "shape": {
+            "type": "string",
+            "enum": [
+              "fibre",
+              "fragment",
+              "bille",
+              "film",
+              "uncertain",
+              "unspecified"
+            ],
+            "title": "Shape"
+          },
+          "shape_label": {
+            "type": "string",
+            "title": "Shape Label"
+          },
+          "shape_score": {
+            "type": "number",
+            "title": "Shape Score"
+          },
+          "shape_score_text": {
+            "type": "string",
+            "title": "Shape Score Text"
+          },
+          "shape_status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "uncertain"
+            ],
+            "title": "Shape Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "contour",
+          "bbox",
+          "area_px",
+          "feret_max_px",
+          "feret_min_px",
+          "area_um2",
+          "feret_max_um",
+          "feret_min_um",
+          "eq_diameter_um",
+          "circularity",
+          "solidity",
+          "elongation",
+          "touches_border",
+          "shape",
+          "shape_label",
+          "shape_score",
+          "shape_score_text",
+          "shape_status"
+        ],
+        "title": "ImageParticleModel"
+      },
+      "ImageReasonModel": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "no_particle",
+              "too_many_particles",
+              "large_foreground",
+              "low_contrast",
+              "scale_out_of_range"
+            ],
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "ImageReasonModel"
+      },
+      "ImageRecordedAnalysis": {
+        "properties": {
+          "particles": {
+            "items": {
+              "$ref": "#/components/schemas/ImageParticleModel"
+            },
+            "type": "array",
+            "maxItems": 300,
+            "title": "Particles"
+          },
+          "scale": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageScaleModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "particles",
+          "scale",
+          "count"
+        ],
+        "title": "ImageRecordedAnalysis",
+        "description": "The parts of a recorded analysis a decision is validated against."
+      },
+      "ImageReshapeModel": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "shape": {
+            "type": "string",
+            "title": "Shape"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "shape"
+        ],
+        "title": "ImageReshapeModel"
+      },
+      "ImageScaleModel": {
+        "properties": {
+          "um_per_px_input": {
+            "type": "number",
+            "title": "Um Per Px Input"
+          },
+          "um_per_px_analysis": {
+            "type": "number",
+            "title": "Um Per Px Analysis"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "metadata",
+              "entered",
+              "none"
+            ],
+            "title": "Source"
+          },
+          "source_label": {
+            "type": "string",
+            "title": "Source Label"
+          },
+          "min_detectable_um": {
+            "type": "number",
+            "title": "Min Detectable Um"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "um_per_px_input",
+          "um_per_px_analysis",
+          "source",
+          "source_label",
+          "min_detectable_um"
+        ],
+        "title": "ImageScaleModel"
+      },
+      "ImageShapeCountModel": {
+        "properties": {
+          "shape": {
+            "type": "string",
+            "enum": [
+              "fibre",
+              "fragment",
+              "bille",
+              "film",
+              "uncertain",
+              "unspecified"
+            ],
+            "title": "Shape"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "shape",
+          "label",
+          "count"
+        ],
+        "title": "ImageShapeCountModel"
+      },
+      "ImageShapeOptionModel": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "fibre",
+              "fragment",
+              "bille",
+              "film"
+            ],
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "evaluated": {
+            "type": "boolean",
+            "title": "Evaluated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "evaluated"
+        ],
+        "title": "ImageShapeOptionModel"
+      },
+      "ImageSizeBinModel": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lower",
+          "upper",
+          "label",
+          "count"
+        ],
+        "title": "ImageSizeBinModel"
+      },
+      "ImageSizeDistributionModel": {
+        "properties": {
+          "basis": {
+            "type": "string",
+            "const": "feret_max_um",
+            "title": "Basis"
+          },
+          "bins": {
+            "items": {
+              "$ref": "#/components/schemas/ImageSizeBinModel"
+            },
+            "type": "array",
+            "title": "Bins"
+          },
+          "median_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Um"
+          },
+          "p10_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P10 Um"
+          },
+          "p90_um": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P90 Um"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "basis",
+          "bins",
+          "median_um",
+          "p10_um",
+          "p90_um"
+        ],
+        "title": "ImageSizeDistributionModel"
+      },
+      "ImageThresholdsModel": {
+        "properties": {
+          "pixel": {
+            "type": "number",
+            "title": "Pixel"
+          },
+          "min_area_frac": {
+            "type": "number",
+            "title": "Min Area Frac"
+          },
+          "shape_min_score": {
+            "type": "number",
+            "title": "Shape Min Score"
+          },
+          "max_foreground": {
+            "type": "number",
+            "title": "Max Foreground"
+          },
+          "min_contrast": {
+            "type": "number",
+            "title": "Min Contrast"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pixel",
+          "min_area_frac",
+          "shape_min_score",
+          "max_foreground",
+          "min_contrast"
+        ],
+        "title": "ImageThresholdsModel"
+      },
+      "ImageValidateRequest": {
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/ImageRecordedAnalysis"
+          },
+          "excluded": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "maxItems": 300,
+            "title": "Excluded"
+          },
+          "reshaped": {
+            "items": {
+              "$ref": "#/components/schemas/ImageReshapeModel"
+            },
+            "type": "array",
+            "maxItems": 300,
+            "title": "Reshaped"
+          },
+          "missed_count": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Missed Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "analysis",
+          "missed_count"
+        ],
+        "title": "ImageValidateRequest"
+      },
+      "ImageValidatedSummary": {
+        "properties": {
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "kept": {
+            "type": "integer",
+            "title": "Kept"
+          },
+          "excluded": {
+            "type": "integer",
+            "title": "Excluded"
+          },
+          "missed": {
+            "type": "integer",
+            "title": "Missed"
+          },
+          "count_by_shape": {
+            "items": {
+              "$ref": "#/components/schemas/ImageShapeCountModel"
+            },
+            "type": "array",
+            "title": "Count By Shape"
+          },
+          "size_distribution": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ImageSizeDistributionModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changes": {
+            "type": "integer",
+            "title": "Changes"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "count",
+          "kept",
+          "excluded",
+          "missed",
+          "count_by_shape",
+          "size_distribution",
+          "changes",
+          "sentence"
+        ],
+        "title": "ImageValidatedSummary"
       },
       "ImportResultModel": {
         "properties": {

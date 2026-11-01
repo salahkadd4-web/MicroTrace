@@ -71,3 +71,34 @@ def spectral_models_dir(_spectral_archive) -> SpectralFixture:
 
 def spectral_client(path: Path, lock: ModelLock) -> TestClient:
     return TestClient(create_app(Settings(secret=TEST_SECRET, models_dir=path), lock))
+
+
+# --- C6: synthetic image model (no real weights needed) ----------------------------------------
+
+@dataclass(frozen=True)
+class ImageFixture:
+    path: Path
+    lock: ModelLock
+
+
+@pytest.fixture(scope="session")
+def _image_archive(tmp_path_factory) -> tuple[Path, ModelLock]:
+    if str(_CORE_TESTS) not in sys.path:
+        sys.path.insert(0, str(_CORE_TESTS))
+    from imaging_fixtures import threshold_model
+    from microtrace_core.archive import write_archive
+    from microtrace_core.imaging.model import model_to_arrays
+
+    folder = tmp_path_factory.mktemp("image_models")
+    sha = write_archive(folder / "c6-microscopie-i1.npz", model_to_arrays(threshold_model()))
+    return folder, ModelLock("c6-microscopie", "i1", "c6-microscopie-i1.npz", sha)
+
+
+@pytest.fixture
+def image_models_dir(_image_archive) -> ImageFixture:
+    folder, lock = _image_archive
+    return ImageFixture(folder, lock)
+
+
+def image_client(path: Path, lock: ModelLock) -> TestClient:
+    return TestClient(create_app(Settings(secret=TEST_SECRET, models_dir=path), None, lock))

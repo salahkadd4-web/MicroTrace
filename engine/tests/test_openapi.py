@@ -76,7 +76,8 @@ def test_operation_ids_are_function_names(app, schema):
     ids = {op["operationId"] for _, _, op in _operations(schema)}
     assert ids == names == {"health", "tables_read", "mapping_suggest", "imports_check",
                             "summary", "quality", "report", "dictionary", "example_leslie_like", "example_leslie_2022",
-                            "context_validate", "spectral_model", "spectral_identify", "spectral_parse"}
+                            "context_validate", "spectral_model", "spectral_identify", "spectral_parse",
+                            "image_model", "image_analyze", "image_validate"}
 
 
 def test_served_schema_is_the_contract(client, auth_headers, schema):

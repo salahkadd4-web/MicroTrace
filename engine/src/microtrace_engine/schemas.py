@@ -545,3 +545,192 @@ class SpectralModelInfo(_Model):
     max_points: int
     techniques: list[SpectralTechniqueInfo]
     libraries: list[SpectralLibraryModel]
+
+
+# --- C6: microscopy image analysis (design 7) ---------------------------------------------------
+
+ImageStatusName = Literal["proposal", "unreliable"]
+ImageReasonCode = Literal["no_particle", "too_many_particles", "large_foreground",
+                          "low_contrast", "scale_out_of_range"]
+ImageShapeCode = Literal["fibre", "fragment", "bille", "film", "uncertain", "unspecified"]
+ImageShapeStatus = Literal["proposed", "uncertain"]
+ImageScaleSource = Literal["metadata", "entered", "none"]
+ImageUnavailableReason = Literal["missing", "sha_mismatch", "invalid"]
+
+
+class ImageModelRef(_Model):
+    name: str
+    version: str
+    sha256: str
+
+
+class ImageInputModel(_Model):
+    sha256: str
+    size: int
+    format: Literal["PNG", "JPEG", "TIFF"]
+    width: int
+    height: int
+    bit_depth: int
+    color: Literal["gray", "rgb", "cmyk", "palette"]
+    orientation_applied: bool
+    alpha_ignored: bool
+    cropped_bottom_px: int
+    analysis_width: int
+    analysis_height: int
+    downscale: Number
+
+
+class ImageScaleModel(_Model):
+    um_per_px_input: Number
+    um_per_px_analysis: Number
+    source: ImageScaleSource
+    source_label: str
+    min_detectable_um: Number
+
+
+class ImageReasonModel(_Model):
+    code: ImageReasonCode
+    label: str
+
+
+class ImageShapeCountModel(_Model):
+    shape: ImageShapeCode
+    label: str
+    count: int
+
+
+class ImageParticleModel(_Model):
+    id: int
+    contour: list[Annotated[list[Number], Field(min_length=2, max_length=2)]] = Field(
+        max_length=400)
+    bbox: list[int] = Field(min_length=4, max_length=4)
+    area_px: Number
+    feret_max_px: Number
+    feret_min_px: Number
+    area_um2: Number | None
+    feret_max_um: Number | None
+    feret_min_um: Number | None
+    eq_diameter_um: Number | None
+    circularity: Number
+    solidity: Number
+    elongation: Number
+    touches_border: bool
+    shape: ImageShapeCode
+    shape_label: str
+    shape_score: Number
+    shape_score_text: str
+    shape_status: ImageShapeStatus
+
+
+class ImageSizeBinModel(_Model):
+    lower: Number
+    upper: Number | None  # null: no upper bound
+    label: str
+    count: int
+
+
+class ImageSizeDistributionModel(_Model):
+    basis: Literal["feret_max_um"]
+    bins: list[ImageSizeBinModel]
+    median_um: Number | None
+    p10_um: Number | None
+    p90_um: Number | None
+
+
+class ImageImagesModel(_Model):
+    display_png_base64: str
+    annotated_png_base64: str
+
+
+class ImageThresholdsModel(_Model):
+    pixel: Number
+    min_area_frac: Number
+    shape_min_score: Number
+    max_foreground: Number
+    min_contrast: Number
+
+
+class ImageShapeOptionModel(_Model):
+    code: Literal["fibre", "fragment", "bille", "film"]
+    label: str
+    evaluated: bool
+
+
+class ImageAnalyzeResponse(_Model):
+    model: ImageModelRef
+    trial_label: str
+    trial_sentence: str
+    input: ImageInputModel
+    scale: ImageScaleModel | None
+    status: ImageStatusName
+    status_label: str
+    reasons: list[ImageReasonModel]
+    explanation: str
+    count: int
+    count_by_shape: list[ImageShapeCountModel]
+    particles: list[ImageParticleModel]
+    size_distribution: ImageSizeDistributionModel | None
+    images: ImageImagesModel
+    thresholds: ImageThresholdsModel
+    limits: list[str]
+    shape_vocabulary: list[ImageShapeOptionModel]
+
+
+class ImageMetricsModel(_Model):
+    test_images: int | None
+    f1_objects: Number | None
+    count_mae: Number | None
+    dice: Number | None
+    shape_balanced_accuracy: Number | None
+    unreliable_share: Number | None
+
+
+class ImageModelInfo(_Model):
+    available: bool
+    reason: ImageUnavailableReason | None
+    message: str | None
+    name: str
+    version: str
+    expected_sha256: str
+    sha256: str | None
+    trial_label: str
+    trial_sentence: str
+    limits: list[str]
+    card_path: str
+    max_bytes: int
+    max_pixels: int
+    analysis_max_side: int
+    shape_vocabulary: list[ImageShapeOptionModel]
+    thresholds: ImageThresholdsModel | None
+    metrics: ImageMetricsModel | None
+    training_data: str
+
+
+class ImageRecordedAnalysis(_Model):
+    """The parts of a recorded analysis a decision is validated against."""
+    particles: list[ImageParticleModel] = Field(max_length=300)
+    scale: ImageScaleModel | None
+    count: int
+
+
+class ImageReshapeModel(_Model):
+    id: int
+    shape: str
+
+
+class ImageValidateRequest(_Model):
+    analysis: ImageRecordedAnalysis
+    excluded: list[int] = Field(default_factory=list, max_length=300)
+    reshaped: list[ImageReshapeModel] = Field(default_factory=list, max_length=300)
+    missed_count: int = Field(ge=0, le=10_000)
+
+
+class ImageValidatedSummary(_Model):
+    count: int
+    kept: int
+    excluded: int
+    missed: int
+    count_by_shape: list[ImageShapeCountModel]
+    size_distribution: ImageSizeDistributionModel | None
+    changes: int
+    sentence: str

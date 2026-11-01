@@ -20,6 +20,10 @@ export type Example = S["ExampleResponse"];
 export type SpectralIdentifyResponse = S["SpectralIdentifyResponse"];
 export type SpectralModelInfo = S["SpectralModelInfo"];
 export type SpectralParsed = S["SpectralParsedModel"];
+export type ImageAnalyzeResponse = S["ImageAnalyzeResponse"];
+export type ImageModelInfo = S["ImageModelInfo"];
+export type ImageValidateRequest = S["ImageValidateRequest"];
+export type ImageValidatedSummary = S["ImageValidatedSummary"];
 
 export const ENGINE_TIMEOUT_MS = 120_000;
 /** La validation d'un contexte est rapide : délai court, car elle tient une transaction ouverte. */
@@ -190,6 +194,14 @@ export function createEngineClient(options: ClientOptions = {}) {
     /** Les deux colonnes numériques d'un fichier de spectre, lues par le moteur (export d'entraînement). */
     parseSpectrum: (file: UploadInput) =>
       call<SpectralParsed>("POST", "/ai/spectral/parse", { form: fileForm(file) }),
+    imageModel: () => call<ImageModelInfo>("GET", "/ai/image/model"),
+    analyzeImage: (args: { file: UploadInput; scaleUmPerPx: string | null }) => {
+      const form = fileForm(args.file);
+      if (args.scaleUmPerPx !== null) form.append("scale_um_per_px", args.scaleUmPerPx);
+      return call<ImageAnalyzeResponse>("POST", "/ai/image/analyze", { form });
+    },
+    validateImage: (body: ImageValidateRequest) =>
+      call<ImageValidatedSummary>("POST", "/ai/image/validate", { json: body }),
   };
 }
 
