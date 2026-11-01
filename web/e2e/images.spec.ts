@@ -221,8 +221,9 @@ test("Parcours H — onglet Images : analyse, contours, décision corrigée, com
   await expect(statusBadge(page, "Corrigée")).toHaveCount(1);
   await expect(page.getByText(`${n + 1} particules candidates validées`, { exact: true })).toBeVisible();
   // Corriger de nouveau : le formulaire reprend la correction précédente, il ne l'annule pas.
+  // La particule 1 est déjà proposée « bille » : la choisir n'est pas une correction, elle reste « Proposée ».
   await page.getByRole("radio", { name: "Corrigée", exact: true }).check();
-  await expect(page.getByRole("combobox", { name: "Forme retenue pour la particule 1" })).toHaveText("Bille");
+  await expect(page.getByRole("combobox", { name: "Forme retenue pour la particule 1" })).toHaveText("Proposée : Bille");
   await expect(page.getByLabel("Particules manquées (sans contour)")).toHaveValue("1");
 
   await page.getByRole("link", { name: "Toutes les analyses", exact: true }).click();
