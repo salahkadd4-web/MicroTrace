@@ -88,7 +88,7 @@ function ModelCard({ info }: { info: SpectralModelInfo }) {
         {info.techniques.map((t) => (
           <div key={t.technique} className="space-y-2">
             <h3 className="text-base font-medium">{t.label}</h3>
-            <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+            <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[minmax(0,16rem)_1fr]">
               <dt className="text-muted-foreground">Polymères évalués</dt>
               <dd>{t.polymers.map((p) => p.label).join(", ")}</dd>
               {t.unevaluated_polymers.length > 0 ? (

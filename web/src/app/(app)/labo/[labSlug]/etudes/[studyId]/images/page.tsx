@@ -92,7 +92,7 @@ function ModelCard({ info }: { info: ImageModelInfo }) {
   return (
     <Section title={`Fiche du modèle (version ${info.version})`}>
       <div className="space-y-4">
-        <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
+        <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[minmax(0,16rem)_1fr]">
           <dt className="text-muted-foreground">Formes évaluées</dt>
           <dd>{evaluated.map((s) => s.label).join(", ")}</dd>
           {notEvaluated.length > 0 ? (
