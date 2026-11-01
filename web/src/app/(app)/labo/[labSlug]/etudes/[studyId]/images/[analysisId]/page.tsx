@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { IMAGE_STATUS_BADGES, imageDecisionBadge } from "@/lib/images";
+import { CORRECTION_OPTIONS, IMAGE_STATUS_BADGES, imageDecisionBadge } from "@/lib/images";
 import { canWrite } from "@/lib/roles";
 import { getImageAnalysis, getImageModel } from "@/server/images";
 import { requireLab } from "@/server/lab-context";
@@ -67,6 +67,18 @@ export default async function ImageAnalysisPage({
     analysis.modelSha256 !== null &&
     expectedSha.toLowerCase() !== analysis.modelSha256.toLowerCase();
   const decision = analysis.decision;
+  const excludedIds = new Set(decision?.excluded ?? []);
+  const reshapedTo = new Map((decision?.reshaped ?? []).map((r) => [r.id, r.shape]));
+  const decisionOf = (id: number): string => {
+    if (!decision || decision.decision === "rejected") return "—";
+    if (excludedIds.has(id)) return "Exclue";
+    const shape = reshapedTo.get(id);
+    if (shape) {
+      const label = CORRECTION_OPTIONS.find((o) => o.code === shape)?.label ?? shape;
+      return `Forme corrigée : ${label}`;
+    }
+    return "Gardée";
+  };
   const decisionBadge = imageDecisionBadge(decision?.decision ?? null);
   const base = `/labo/${labSlug}/etudes/${study.id}/images`;
   const here = `${base}/${analysis.id}`;
@@ -232,6 +244,7 @@ export default async function ImageAnalysisPage({
                   <TableHead className="text-right">Aire ({unit}²)</TableHead>
                   <TableHead className="text-right">Diamètre équivalent ({unit})</TableHead>
                   <TableHead>Bord</TableHead>
+                  <TableHead>Décision</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -267,6 +280,7 @@ export default async function ImageAnalysisPage({
                       <TableCell className="min-w-20 whitespace-normal">
                         {p.touches_border ? "tronquée" : "—"}
                       </TableCell>
+                      <TableCell className="min-w-28 whitespace-normal">{decisionOf(p.id)}</TableCell>
                     </TableRow>
                   );
                 })}
@@ -319,6 +333,11 @@ export default async function ImageAnalysisPage({
               analysisId={analysis.id}
               unreliable={unreliable}
               particles={out.particles.map((p) => ({ id: p.id, shapeLabel: p.shape_label }))}
+              previous={
+                decision && decision.decision === "corrected"
+                  ? { excluded: decision.excluded, reshaped: decision.reshaped, missed: decision.missed }
+                  : null
+              }
             />
           ) : null}
         </div>

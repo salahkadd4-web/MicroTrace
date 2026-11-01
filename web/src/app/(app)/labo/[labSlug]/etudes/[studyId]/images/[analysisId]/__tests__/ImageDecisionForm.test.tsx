@@ -9,14 +9,14 @@ vi.mock("../actions", () => ({
   recordImageDecisionAction: (...a: unknown[]) => record(...a),
 }));
 
-import { ImageDecisionForm } from "../ImageDecisionForm";
+import { ImageDecisionForm, type PreviousCorrection } from "../ImageDecisionForm";
 
 const PARTICLES = [
   { id: 1, shapeLabel: "Fibre" },
   { id: 2, shapeLabel: "Bille" },
   { id: 3, shapeLabel: "Fragment" },
 ];
-const setup = (unreliable = false) =>
+const setup = (unreliable = false, previous: PreviousCorrection | null = null) =>
   render(
     <ImageDecisionForm
       labSlug="labo"
@@ -24,6 +24,7 @@ const setup = (unreliable = false) =>
       analysisId="a1"
       unreliable={unreliable}
       particles={PARTICLES}
+      previous={previous}
     />,
   );
 
@@ -61,6 +62,22 @@ describe("ImageDecisionForm", () => {
       "Pas une particule",
     ]);
     expect(screen.getByLabelText("Particules manquées (sans contour)")).toHaveValue(0);
+  });
+
+  it("deuxième correction : le formulaire reprend exclusions, formes et manquées de la précédente", async () => {
+    const user = userEvent.setup();
+    setup(false, { excluded: [3], reshaped: [{ id: 2, shape: "fragment" }], missed: 2 });
+    await user.click(screen.getByRole("radio", { name: "Corrigée" }));
+    expect(screen.getByRole("combobox", { name: "Forme retenue pour la particule 1" })).toHaveTextContent("Proposée : Fibre");
+    expect(screen.getByRole("combobox", { name: "Forme retenue pour la particule 2" })).toHaveTextContent("Fragment");
+    expect(screen.getByRole("combobox", { name: "Forme retenue pour la particule 3" })).toHaveTextContent("Pas une particule");
+    expect(screen.getByLabelText("Particules manquées (sans contour)")).toHaveValue(2);
+    expect(screen.getByText(/reprend votre dernière correction/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enregistrer la décision" }));
+    const fd = record.mock.calls.at(-1)![2] as FormData;
+    expect(fd.get("particle-3")).toBe("excluded");
+    expect(fd.get("particle-2")).toBe("fragment");
+    expect(fd.get("missed")).toBe("2");
   });
 
   it("note obligatoire pour « Rejetée » seulement", async () => {

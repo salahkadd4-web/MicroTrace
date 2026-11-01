@@ -247,6 +247,25 @@ describe("page d'une analyse d'image", () => {
     expect(screen.getByText(/2 décisions, voir le Journal/)).toBeInTheDocument();
   });
 
+  it("tableau des particules : colonne Décision (exclue, forme corrigée, gardée)", async () => {
+    vi.mocked(getImageAnalysis).mockResolvedValue(
+      analysis({
+        decision: {
+          id: "d1", decision: "corrected", note: null, decidedBy: "Alice",
+          decidedAt: new Date("2026-10-02T10:00:00Z"), count: 1, excluded: [3], reshaped: [{ id: 2, shape: "bille" }], missed: 2,
+          validated: { count: 6, kept: 3, excluded: 1, missed: 2, count_by_shape: [], size_distribution: null, changes: 1, sentence: "x" },
+        },
+      }) as never,
+    );
+    await renderPage();
+    const table = screen.getByRole("table", { name: /^Particules candidates \(tailles/ });
+    expect(within(table).getByRole("columnheader", { name: "Décision" })).toBeInTheDocument();
+    const rows = within(table).getAllByRole("row");
+    expect(rows[1]).toHaveTextContent("Gardée");
+    expect(rows[2]).toHaveTextContent("Forme corrigée : Bille");
+    expect(rows[3]).toHaveTextContent("Exclue");
+  });
+
   it("analyse inconnue : 404", async () => {
     vi.mocked(getImageAnalysis).mockResolvedValue(null);
     await expect(renderPage()).rejects.toThrow("NEXT_NOT_FOUND");

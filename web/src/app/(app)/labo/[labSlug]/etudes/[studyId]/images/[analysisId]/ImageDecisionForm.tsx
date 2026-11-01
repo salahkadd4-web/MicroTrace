@@ -21,17 +21,30 @@ import { recordImageDecisionAction } from "./actions";
 
 export type DecisionParticle = { id: number; shapeLabel: string };
 
+/** Dernière décision « Corrigée » : le formulaire repart d'elle, il ne l'annule pas en silence. */
+export type PreviousCorrection = {
+  excluded: readonly number[];
+  reshaped: readonly { id: number; shape: string }[];
+  missed: number;
+};
+
 function Fields({
   studyId,
   analysisId,
   unreliable,
   particles,
+  previous,
 }: {
   studyId: string;
   analysisId: string;
   unreliable: boolean;
   particles: readonly DecisionParticle[];
+  previous?: PreviousCorrection | null;
 }) {
+  const initialChoice = (id: number): string => {
+    if (previous?.excluded.includes(id)) return "excluded";
+    return previous?.reshaped.find((r) => r.id === id)?.shape ?? "proposed";
+  };
   const [decision, setDecision] = useState<ImageDecision | null>(null);
   const chosen = IMAGE_DECISIONS.find((d) => d.code === decision);
   const noteRequired = !!chosen?.noteRequired;
@@ -59,6 +72,12 @@ function Fields({
       </fieldset>
       {decision === "corrected" ? (
         <div className="space-y-4">
+          {previous ? (
+            <p className="text-sm text-muted-foreground">
+              Le formulaire reprend votre dernière correction : modifiez-la, elle sera remplacée
+              par cette nouvelle décision.
+            </p>
+          ) : null}
           {particles.length > 0 ? (
             <div className="max-h-96 overflow-auto rounded-lg border">
               <Table>
@@ -82,7 +101,7 @@ function Fields({
                           <SelectField
                             id={id}
                             name={`particle-${p.id}`}
-                            defaultValue="proposed"
+                            defaultValue={initialChoice(p.id)}
                             options={CORRECTION_OPTIONS.map((o) => ({
                               value: o.code,
                               label: o.code === "proposed" ? `Proposée : ${p.shapeLabel}` : o.label,
@@ -105,7 +124,7 @@ function Fields({
               min={0}
               max={MAX_MISSED}
               step={1}
-              defaultValue={0}
+              defaultValue={previous?.missed ?? 0}
               className="max-w-32"
             />
           </FormField>
@@ -138,12 +157,14 @@ export function ImageDecisionForm({
   analysisId,
   unreliable,
   particles,
+  previous,
 }: {
   labSlug: string;
   studyId: string;
   analysisId: string;
   unreliable: boolean;
   particles: readonly DecisionParticle[];
+  previous?: PreviousCorrection | null;
 }) {
   return (
     <ActionForm
@@ -157,6 +178,7 @@ export function ImageDecisionForm({
           analysisId={analysisId}
           unreliable={unreliable}
           particles={particles}
+          previous={previous}
         />
       )}
     </ActionForm>
