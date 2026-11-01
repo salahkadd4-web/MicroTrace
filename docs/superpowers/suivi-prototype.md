@@ -128,3 +128,13 @@ Laissé de côté volontairement pendant la réalisation :
 - Phrase d'essai « pas encore sur les vôtres » (voir C5) et texte du consentement c2 : à relire avec le cadre légal ; un changement de texte impose une nouvelle version du consentement.
 - Les parcours e2e de l'onglet Images sont ignorés si les poids (`models/`) ou le jeu de données (`datasets/`) manquent, ce qui est le cas en intégration continue : ils ne s'y exécuteront que si l'IC entraîne le modèle (environ 38 minutes) ou monte ces données (jamais dans Git).
 - Captures d'écran (`e2e/screenshots.spec.ts`) : les pages Images sont capturées seulement si les poids et `dataset3` sont présents ; sinon cette partie est sautée.
+
+Revue finale de C6 — points reportés :
+
+- Bande d'informations des images d'un autre fabricant (Zeiss, FEI, JEOL, export PNG ou JPEG) : seule la bande des TIFF Hitachi est retirée automatiquement. L'écran, la limite du moteur et la mention d'export demandent de recadrer avant le dépôt ; à faire plus tard : détection générique de la bande (retrait ou refus), car elle peut être comptée comme particule et son texte resterait dans les pixels exportés.
+- Export de comptages (CSV) et export d'entraînement : les colonnes `image_sha256` et `scale_um_per_px` n'ont pas le même sens (fichier déposé et échelle saisie d'un côté, PNG réécrit et échelle de l'image d'analyse de l'autre) : à renommer (`input_sha256`, `scale_um_per_px_input`, `scale_um_per_px_analysis`) avec la conception §9.3.
+- PNG annoté téléchargé : sans légende ni mention « Modèle d'essai » ni « Non fiable », couleurs différentes de celles de l'écran, particule incertaine dessinée dans la couleur de sa forme proposée : ajouter un bandeau (pixels seulement).
+- Un blanc procédural (image sans particule) est jugé non fiable (« Aucune particule candidate ») : il ne peut donc pas être enregistré comme « 0 particule validée » avec ce modèle ; à traiter avec la gestion des blancs.
+- Géométrie d'affichage en TypeScript (centroïdes des contours, taille de police de `ParticleOverlay`, moyenne des scores dans `images.ts`) : à remplacer par un point d'étiquette renvoyé par le moteur.
+- Chiffres de forme de bout en bout (exactitude sur les particules proposées, billes) : lus dans `engine/src/microtrace_engine/image_model.reading.json`, copie du manifeste vérifiée par un test ; l'archive des poids garde l'exactitude sur les contours de référence (la changer imposerait un réentraînement).
+

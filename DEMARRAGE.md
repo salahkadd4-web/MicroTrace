@@ -176,17 +176,25 @@ Lancez d'abord la commande de vérification ci-dessus (avec `--check`) : elle r�
 
 L'onglet Images a besoin des poids du modèle d'images, qui ne sont **jamais dans Git** (dossiers `models/` et `datasets/`, ignorés). L'empreinte attendue est dans le dépôt (`engine/src/microtrace_engine/image_model.lock.json`) : le moteur refuse tout fichier dont le sha256 ne correspond pas.
 
-**Chemin recommandé : copier les poids.** Prenez le fichier `models/c6-microscopie-i1.npz` de la machine de référence, copiez-le dans le dossier `models/` de cette machine, puis vérifiez-le avec `--check` :
+**Chemin recommandé : copier les poids.** Prenez le fichier `models/c6-microscopie-i1.npz` de la machine de référence, copiez-le dans le dossier `models/` de cette machine, puis vérifiez son empreinte en la comparant à celle du verrou :
+
+```powershell
+Get-FileHash models/c6-microscopie-i1.npz -Algorithm SHA256
+# doit afficher : C902BB7C70AAC3CCDBE436B25BD6B4F50EB98F99BF1E8B615EBC7BD095F9D5C7
+# (le champ « sha256 » de engine/src/microtrace_engine/image_model.lock.json)
+```
+
+Si l'empreinte affichée diffère, le moteur refuse le fichier : recopiez-le. Redémarrez ensuite le moteur : il ne recharge pas les poids à chaud. La commande `--check` n'est pas une vérification du fichier copié : elle réentraîne le modèle en mémoire (environ 37 minutes, avec `datasets/Images/dataset3`) pour contrôler la reproductibilité de l'entraînement ; gardez-la pour un réentraînement voulu.
+
+**Entraîner (seulement si c'est voulu).** Il faut le jeu de données `datasets/Images/dataset3` (images MEB, licence à confirmer) et les extras d'entraînement (`pip install -e "core[train,imaging]"`). La commande suivante, **sans** `--check`, entraîne le modèle (environ 38 minutes sur la machine de référence, sans carte graphique), écrit `models/c6-microscopie-i1.npz` et réécrit les fichiers versionnés (verrou, manifeste, liste des données et carte du modèle) : relisez `git diff` et ne committez que si c'est intentionnel. `models/` et `datasets/` restent hors de Git (`git status` ne doit rien montrer sous ces dossiers). Sur une autre machine, l'empreinte peut différer (calcul numérique dépendant de la plateforme) : préférez alors copier les poids. Après un entraînement, **redémarrez le moteur**.
 
 ```powershell
 .venv/Scripts/python -m microtrace_core train-image --dataset datasets/Images/dataset3 --models models `
   --manifest docs/models/c6-microscopie-manifest.json --data-list docs/models/c6-microscopie-i1-data.sha256 `
-  --lock engine/src/microtrace_engine/image_model.lock.json --card docs/models/c6-microscopie.md --check
+  --lock engine/src/microtrace_engine/image_model.lock.json --card docs/models/c6-microscopie.md
 ```
 
-Le code de sortie de `--check` doit être 0. Cette vérification réentraîne en mémoire et dure environ 37 minutes (elle ne nécessite pas que les poids soient copiés : elle compare l'empreinte recalculée aux fichiers versionnés, sans rien écrire). Redémarrez ensuite le moteur : il ne recharge pas les poids à chaud.
-
-**Entraîner (seulement si c'est voulu).** Il faut le jeu de données `datasets/Images/dataset3` (images MEB, licence à confirmer) et l'extra d'entraînement (`pip install -e "core[train]"`). La même commande, **sans** `--check`, entraîne le modèle (environ 38 minutes sur la machine de référence, sans carte graphique), écrit `models/c6-microscopie-i1.npz` et réécrit les fichiers versionnés (verrou, manifeste, liste des données et carte du modèle) : relisez `git diff` et ne committez que si c'est intentionnel. `models/` et `datasets/` restent hors de Git (`git status` ne doit rien montrer sous ces dossiers). Sur une autre machine, l'empreinte peut différer (calcul numérique dépendant de la plateforme) : préférez alors copier les poids. Après un entraînement, **redémarrez le moteur**.
+Avec `--check` en plus, elle réentraîne en mémoire (environ 37 minutes), compare l'empreinte aux fichiers versionnés et n'écrit rien.
 
 Sans les poids, l'onglet Images indique que le modèle est absent ; le reste de l'application fonctionne.
 

@@ -57,6 +57,18 @@ describe("SizeHistogram", () => {
     expect(screen.getByTestId("bar")).toHaveAttribute("data-fill", "var(--chart-1)");
   });
 
+  it("accord : 2 classes sur 9 ne sont pas vides ; 1 classe sur 9 n'est pas vide", () => {
+    const { unmount } = render(<SizeHistogram distribution={dist} total={6} />);
+    expect(screen.getByText(/2 classes sur 9 ne sont pas vides\./)).toBeInTheDocument();
+    unmount();
+    const one = { ...dist, bins: dist.bins.map((b, i) => ({ ...b, count: i === 1 ? 4 : 0 })) };
+    render(<SizeHistogram distribution={one} total={4} />);
+    expect(screen.getByText(/1 classe sur 9 n'est pas vide\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Distribution des tailles : 1 classe non vide" }),
+    ).toBeInTheDocument();
+  });
+
   it("« Voir les données » liste les 9 classes", () => {
     render(<SizeHistogram distribution={dist} total={6} />);
     expect(screen.getByText("Voir les données")).toBeInTheDocument();

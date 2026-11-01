@@ -135,7 +135,7 @@ Images gardées : 35, F1 objets 0,61, erreur de comptage 1,53 (32 comptées). Im
 - Tapis de fibres (`fibre_2`) : l'image est le plus souvent refusée (« non fiable »).
 - Billes : un seul échantillon de microbilles cosmétiques irrégulières ; les tailles et les formes des billes proposées sont mal évaluées et mauvaises (Feret très surestimé, billes souvent proposées « fragment » : chiffres dans la lecture de la section 6). Film : **non évaluée**, jamais proposée.
 - Échelle fausse : toutes les tailles sont fausses dans la même proportion, sans détection possible sans métadonnée.
-- Bandeau d'information d'un autre fabricant non retiré : faux objets.
+- Bandeau d'information d'un autre fabricant non retiré : faux objets, et son texte reste dans l'image exportée ; l'écran demande de recadrer avant le dépôt.
 - Aucune identification de polymère ; un comptage de particules n'est pas une concentration.
 
 ## 8. Décisions humaines, traçabilité, consentement

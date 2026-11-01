@@ -70,16 +70,18 @@ export function SizeHistogram({
                 : ""
             }`
           : ""}
-        . {formatNumberFr(filled)} classes sur {formatNumberFr(distribution.bins.length)} ne sont
-        pas vides.
+        .{" "}
+        {filled < 2
+          ? `${formatNumberFr(filled)} classe sur ${formatNumberFr(distribution.bins.length)} n'est pas vide.`
+          : `${formatNumberFr(filled)} classes sur ${formatNumberFr(distribution.bins.length)} ne sont pas vides.`}
       </p>
       <div
         role="img"
-        aria-label={`Distribution des tailles : ${filled} classes non vides`}
-        className="h-72 w-full rounded-lg border bg-card p-4 text-xs"
+        aria-label={`Distribution des tailles : ${filled} ${filled < 2 ? "classe non vide" : "classes non vides"}`}
+        className="h-80 w-full rounded-lg border bg-card p-4 text-xs"
       >
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={distribution.bins} margin={{ top: 8, right: 8, bottom: 40, left: 8 }}>
+          <BarChart data={distribution.bins} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
             <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
             <XAxis
               dataKey="label"
@@ -87,10 +89,11 @@ export function SizeHistogram({
               interval={0}
               angle={-30}
               textAnchor="end"
+              height={84}
               label={{
                 value: "Diamètre de Feret maximal (µm)",
                 position: "insideBottom",
-                offset: -34,
+                offset: 0,
                 fill: "var(--muted-foreground)",
               }}
             />
