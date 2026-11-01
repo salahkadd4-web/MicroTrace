@@ -158,7 +158,7 @@ export default async function MembresPage({
               {CONSENT_RENEW}
             </p>
           ) : null}
-          {consent.granted ? (
+          {consent.granted && consent.version === TRAINING_CONSENT_VERSION ? (
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
                 <a
@@ -212,7 +212,11 @@ export default async function MembresPage({
                     <TableCell>
                       <DateTimeFr value={h.at} />
                     </TableCell>
-                    <TableCell>{auditActionLabel(h.action)}</TableCell>
+                    <TableCell>
+                      {h.action === "lab.training_export" && h.kind === "image"
+                        ? "Export des images consenties"
+                        : auditActionLabel(h.action)}
+                    </TableCell>
                     <TableCell>{h.by ?? "—"}</TableCell>
                   </TableRow>
                 ))}

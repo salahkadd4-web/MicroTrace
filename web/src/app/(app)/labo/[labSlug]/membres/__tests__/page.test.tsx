@@ -104,6 +104,7 @@ describe("section Données et amélioration des modèles", () => {
       version: TRAINING_CONSENT_VERSION,
       history: [
         { id: "h1", at: new Date("2026-10-03T10:00:00Z"), action: "lab.training_export", by: "Alice Martin" },
+        { id: "h3", at: new Date("2026-10-03T11:00:00Z"), action: "lab.training_export", by: "Alice Martin", kind: "image" },
         { id: "h2", at: new Date("2026-10-02T10:00:00Z"), action: "lab.training_consent.grant", by: "Alice Martin" },
       ],
     });
@@ -128,6 +129,7 @@ describe("section Données et amélioration des modèles", () => {
     expect(section).not.toHaveTextContent("retirez puis accordez de nouveau");
     const history = within(section).getByRole("table", { name: "Historique" });
     expect(within(history).getByText("Export des données consenties")).toBeInTheDocument();
+    expect(within(history).getByText("Export des images consenties")).toBeInTheDocument();
     expect(within(history).getByText("Consentement donné (amélioration des modèles)")).toBeInTheDocument();
   });
 
@@ -144,5 +146,6 @@ describe("section Données et amélioration des modèles", () => {
     expect(section).toHaveTextContent(
       "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.",
     );
+    expect(within(section).queryByRole("link")).toBeNull();
   });
 });

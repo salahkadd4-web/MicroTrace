@@ -19,10 +19,12 @@ afterAll(() => rmSync(dir, { recursive: true, force: true }));
 import {
   EXPORT_COLUMNS,
   IMAGE_EXPORT_COLUMNS,
+  TRAINING_CONSENT_DETAILS,
   TRAINING_CONSENT_VERSION,
 } from "@/lib/training-consent";
 import { prisma } from "@/server/db";
 import { EngineError, engineClient } from "@/server/engine/client";
+import * as fileStore from "@/server/file-store";
 import { storeFile } from "@/server/file-store";
 import type { LabContext } from "@/server/lab-context";
 import { createProject } from "@/server/projects";
@@ -615,6 +617,101 @@ describe("buildTrainingExport (images)", () => {
     await expect(buildTrainingExport(admin, "json", "image")).resolves.toBeDefined();
   });
 
+  it("texte du consentement : entrées exactes, sans doublon, une seule mention des images", () => {
+    expect(TRAINING_CONSENT_DETAILS).toHaveLength(4);
+    expect(new Set(TRAINING_CONSENT_DETAILS).size).toBe(4);
+    expect(TRAINING_CONSENT_DETAILS.filter((d) => d.includes("images analysées"))).toEqual([
+      "Seraient aussi utilisées : les images analysées telles que réécrites par MicroTrace (pixels seulement, sans aucune métadonnée), les contours proposés et les corrections des analyses d'images acceptées ou corrigées. Jamais le fichier d'image déposé ni son nom.",
+    ]);
+  });
+
+  it("fichier corrompu, empreinte mal formée, contour mal formé : signalés sans plantage", async () => {
+    const corrupt = await imageAnalysis(studyA1, "corrupt");
+    await imageDecide(studyA1, corrupt.id, "accepted", 1);
+    const badSha = await imageAnalysis(studyA1, "badsha");
+    await prisma.modelPrediction.update({
+      where: { id: badSha.id },
+      data: {
+        input: { role: "analysis", fileName: "x.png", displaySha256: "pas-une-empreinte" },
+      },
+    });
+    await imageDecide(studyA1, badSha.id, "accepted", 2);
+    const badContour = await imageAnalysis(studyA1, "badcontour");
+    await prisma.modelPrediction.update({
+      where: { id: badContour.id },
+      data: {
+        output: {
+          status: "proposal",
+          count: 1,
+          scale: { um_per_px_input: 1, um_per_px_analysis: 1, source: "none" },
+          input: { analysis_width: 1, analysis_height: 1 },
+          particles: [{ id: 1, shape: "fragment", contour: [[0, "x"], [1]] }],
+        },
+      },
+    });
+    await imageDecide(studyA1, badContour.id, "accepted", 3);
+    await setTrainingConsent(admin, true);
+    const real = vi.spyOn(fileStore, "readStoredFile");
+    real.mockImplementation(async (digest: string) => {
+      if (digest === sha(corrupt.display)) throw new Error("Fichier du magasin corrompu.");
+      return Buffer.from("png");
+    });
+    try {
+      const doc = JSON.parse((await buildTrainingExport(admin, "json", "image")).body);
+      const by = (id: string) => doc.rows.find((r: { analysis_id: string }) => r.analysis_id === id);
+      expect(by(corrupt.id)).toMatchObject({ display_png_base64: null, file_corrupt: true });
+      expect(by(badSha.id)).toMatchObject({ display_png_base64: null, file_missing: true });
+      expect(by(badContour.id).particles[0]).toMatchObject({ contour: null, contour_invalid: true });
+    } finally {
+      real.mockRestore();
+    }
+  });
+
+  it("retrait du consentement pendant l'export d'images : refusé, ni fichier ni audit", async () => {
+    const a = await imageAnalysis(studyA1, "race");
+    await imageDecide(studyA1, a.id, "accepted", 1);
+    await setTrainingConsent(admin, true);
+    const real = vi.spyOn(fileStore, "readStoredFile");
+    real.mockImplementationOnce(async () => {
+      await setTrainingConsent(admin, false);
+      return a.display;
+    });
+    try {
+      await expect(buildTrainingExport(admin, "json", "image")).rejects.toThrow(NO_EXPORT);
+    } finally {
+      real.mockRestore();
+    }
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("chercheur et lecteur : export d'images refusé", async () => {
+    await setTrainingConsent(admin, true);
+    for (const ctx of [researcher, viewer]) {
+      await expect(buildTrainingExport(ctx, "json", "image")).rejects.toThrow(ADMIN_ONLY);
+    }
+  });
+
+  it("total_rows n'inclut pas une analyse non fiable", async () => {
+    const bad = await imageAnalysis(studyA1, "bad2", { status: "unreliable" });
+    await imageDecide(studyA1, bad.id, "accepted", 1);
+    const good = await imageAnalysis(studyA1, "good2");
+    await imageDecide(studyA1, good.id, "accepted", 2);
+    await setTrainingConsent(admin, true);
+    const doc = JSON.parse((await buildTrainingExport(admin, "json", "image")).body);
+    expect(doc).toMatchObject({ total_rows: 1, truncated: false });
+    expect(doc.rows).toHaveLength(1);
+  });
+
+  it("historique : l'export d'images est distingué de l'export spectral", async () => {
+    await setTrainingConsent(admin, true);
+    await buildTrainingExport(admin, "csv", "image");
+    await buildTrainingExport(admin, "csv");
+    const kinds = (await getTrainingConsent(admin)).history
+      .filter((h) => h.action === "lab.training_export")
+      .map((h) => h.kind);
+    expect(kinds).toEqual(["spectral", "image"]);
+  });
+
   it("sans consentement : refusé, aucun audit", async () => {
     await seedImages();
     await expect(buildTrainingExport(admin, "json", "image")).rejects.toThrow(NO_EXPORT);
@@ -648,7 +745,8 @@ describe("buildTrainingExport (images)", () => {
     expect(rows[0]).toMatchObject({
       decision: "corrected",
       study_nature: "laboratory",
-      scale_um_per_px: 0.5,
+      scale_um_per_px: 1,
+      missed_count: 0,
       scale_source: "entered",
       analysis_width: 640,
       analysis_height: 480,

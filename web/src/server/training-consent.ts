@@ -31,6 +31,8 @@ const MAX_ROWS = 1000;
 const MAX_FILES_BYTES = 50 * 1024 * 1024;
 /** Appels simultanés au moteur pour lire les spectres. */
 const PARSE_BATCH = 8;
+/** Analyses d'images relues par requête. */
+const ANALYSIS_BATCH = 200;
 const HISTORY_LIMIT = 20;
 const CONSENT_ACTIONS = [
   "lab.training_consent.grant",
@@ -44,10 +46,21 @@ export type TrainingConsentView = {
   grantedBy: string | null;
   version: string | null;
   /** Vide sauf pour un responsable du laboratoire. */
-  history: { id: string; at: Date; action: string; by: string | null }[];
+  history: {
+    id: string;
+    at: Date;
+    action: string;
+    by: string | null;
+    kind?: "spectral" | "image" | null;
+  }[];
 };
 
-type ConsentState = { name: string; granted: boolean; at: string | null; version: string | null };
+type ConsentState = {
+  name: string;
+  granted: boolean;
+  at: string | null;
+  version: string | null;
+};
 
 const stateOf = (lab: {
   name: string;
@@ -71,43 +84,76 @@ async function namesOf(ids: (string | null)[]): Promise<Map<string, string>> {
 }
 
 /** État du consentement du laboratoire (tout membre) ; l'historique n'est lu que par un responsable. */
-export async function getTrainingConsent(ctx: LabContext): Promise<TrainingConsentView> {
+export async function getTrainingConsent(
+  ctx: LabContext,
+): Promise<TrainingConsentView> {
   const lab = await prisma.laboratory.findUnique({
     where: { id: ctx.laboratoryId },
-    select: { trainingConsentAt: true, trainingConsentById: true, trainingConsentVersion: true },
+    select: {
+      trainingConsentAt: true,
+      trainingConsentById: true,
+      trainingConsentVersion: true,
+    },
   });
   const events =
     ctx.role === "lab_admin"
       ? await prisma.auditEvent.findMany({
-          where: { laboratoryId: ctx.laboratoryId, action: { in: CONSENT_ACTIONS } },
+          where: {
+            laboratoryId: ctx.laboratoryId,
+            action: { in: CONSENT_ACTIONS },
+          },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
           take: HISTORY_LIMIT,
-          select: { id: true, createdAt: true, action: true, actorId: true },
+          select: {
+            id: true,
+            createdAt: true,
+            action: true,
+            actorId: true,
+            after: true,
+          },
         })
       : [];
-  const names = await namesOf([lab?.trainingConsentById ?? null, ...events.map((e) => e.actorId)]);
+  const names = await namesOf([
+    lab?.trainingConsentById ?? null,
+    ...events.map((e) => e.actorId),
+  ]);
   return {
     granted: !!lab?.trainingConsentAt,
     grantedAt: lab?.trainingConsentAt ?? null,
-    grantedBy: lab?.trainingConsentById ? (names.get(lab.trainingConsentById) ?? null) : null,
+    grantedBy: lab?.trainingConsentById
+      ? (names.get(lab.trainingConsentById) ?? null)
+      : null,
     version: lab?.trainingConsentVersion ?? null,
     history: events.map((e) => ({
       id: e.id,
       at: e.createdAt,
       action: e.action,
       by: e.actorId ? (names.get(e.actorId) ?? null) : null,
+      kind:
+        e.action === "lab.training_export"
+          ? rec(e.after).kind === "image"
+            ? "image"
+            : "spectral"
+          : null,
     })),
   };
 }
 
 /** Donne ou retire le consentement du laboratoire (responsable) : daté, attribué, audité. */
-export async function setTrainingConsent(ctx: LabContext, granted: boolean): Promise<void> {
+export async function setTrainingConsent(
+  ctx: LabContext,
+  granted: boolean,
+): Promise<void> {
   assertRole(ctx, "lab_admin");
   await prisma.$transaction(async (tx) => {
     await lockLaboratory(tx, ctx.laboratoryId);
     const lab = await tx.laboratory.findUnique({
       where: { id: ctx.laboratoryId },
-      select: { name: true, trainingConsentAt: true, trainingConsentVersion: true },
+      select: {
+        name: true,
+        trainingConsentAt: true,
+        trainingConsentVersion: true,
+      },
     });
     if (!lab) throw new DomainError("Laboratoire introuvable.");
     const current = lab.trainingConsentAt !== null;
@@ -119,15 +165,25 @@ export async function setTrainingConsent(ctx: LabContext, granted: boolean): Pro
           trainingConsentById: ctx.userId,
           trainingConsentVersion: TRAINING_CONSENT_VERSION,
         }
-      : { trainingConsentAt: null, trainingConsentById: null, trainingConsentVersion: null };
+      : {
+          trainingConsentAt: null,
+          trainingConsentById: null,
+          trainingConsentVersion: null,
+        };
     const updated = await tx.laboratory.update({
       where: { id: ctx.laboratoryId },
       data: next,
-      select: { name: true, trainingConsentAt: true, trainingConsentVersion: true },
+      select: {
+        name: true,
+        trainingConsentAt: true,
+        trainingConsentVersion: true,
+      },
     });
     await recordAudit(tx, {
       actorId: ctx.userId,
-      action: granted ? "lab.training_consent.grant" : "lab.training_consent.revoke",
+      action: granted
+        ? "lab.training_consent.grant"
+        : "lab.training_consent.revoke",
       entityType: "Laboratory",
       entityId: ctx.laboratoryId,
       laboratoryId: ctx.laboratoryId,
@@ -153,7 +209,10 @@ const ELIGIBLE_STUDY = (ctx: LabContext) => ({
   pseudonymDeclaredAt: { not: null },
 });
 
-type ExportRow = Record<(typeof EXPORT_COLUMNS)[number], string | number | null>;
+type ExportRow = Record<
+  (typeof EXPORT_COLUMNS)[number],
+  string | number | null
+>;
 
 /**
  * Lignes d'export : la dernière décision de chaque analyse spectrale des études du laboratoire, si elle
@@ -180,19 +239,22 @@ async function latestAccepted(ctx: LabContext, kind: "spectral" | "image") {
   const latest = new Map<string, (typeof decisions)[number]>();
   for (const d of decisions) {
     const analysisId = text(rec(d.input).analysisId);
-    if (analysisId !== null && !latest.has(analysisId)) latest.set(analysisId, d);
+    if (analysisId !== null && !latest.has(analysisId))
+      latest.set(analysisId, d);
   }
   const accepted = [...latest.entries()]
     .filter(([, d]) => d.status === "accepted" || d.status === "corrected")
     .sort(
       ([, a], [, b]) =>
-        (b.decidedAt ?? b.createdAt).getTime() - (a.decidedAt ?? a.createdAt).getTime() ||
-        (a.id < b.id ? 1 : -1),
+        (b.decidedAt ?? b.createdAt).getTime() -
+          (a.decidedAt ?? a.createdAt).getTime() || (a.id < b.id ? 1 : -1),
     );
   return accepted;
 }
 
-async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; total: number }> {
+async function consentedRows(
+  ctx: LabContext,
+): Promise<{ rows: ExportRow[]; total: number }> {
   const accepted = await latestAccepted(ctx, "spectral");
   const kept = accepted.slice(0, MAX_ROWS);
   if (kept.length === 0) return { rows: [], total: 0 };
@@ -238,10 +300,14 @@ async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; tota
   return { rows, total: accepted.length };
 }
 
-type ImageExportRow = Record<(typeof IMAGE_EXPORT_COLUMNS)[number], string | number | null>;
+type ImageExportRow = Record<
+  (typeof IMAGE_EXPORT_COLUMNS)[number],
+  string | number | null
+>;
 type ImageParticleExport = {
   id: number;
-  contour: number[][];
+  contour: number[][] | null;
+  contour_invalid?: true;
   proposed_shape: string;
   validated_shape: string | null;
   excluded: boolean;
@@ -252,6 +318,19 @@ type ImageRowSet = {
   particles: ImageParticleExport[];
 };
 
+/** Contour valide : au moins 3 points [x, y] finis ; sinon null (signalé dans la ligne). */
+function validContour(v: unknown): number[][] | null {
+  if (!Array.isArray(v) || v.length < 3) return null;
+  const out: number[][] = [];
+  for (const pt of v) {
+    if (!Array.isArray(pt) || pt.length !== 2) return null;
+    if (!pt.every((n) => typeof n === "number" && Number.isFinite(n)))
+      return null;
+    out.push([pt[0] as number, pt[1] as number]);
+  }
+  return out;
+}
+
 const numbersOf = (v: unknown): number[] =>
   Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
 
@@ -260,88 +339,105 @@ const numbersOf = (v: unknown): number[] =>
  * simulées ou sans pseudonymisation, et hors analyses dont l'état proposé était « non fiable » (quelle
  * que soit la décision humaine). Ni nom de fichier, ni note, ni titre, ni métadonnée.
  */
-async function consentedImageRows(ctx: LabContext): Promise<{ rows: ImageRowSet[]; total: number }> {
+async function consentedImageRows(
+  ctx: LabContext,
+): Promise<{ rows: ImageRowSet[]; total: number }> {
   const accepted = (await latestAccepted(ctx, "image")).filter(
     ([, d]) => text(rec(d.output).proposedStatus) !== "unreliable",
   );
-  const kept = accepted.slice(0, MAX_ROWS);
-  if (kept.length === 0) return { rows: [], total: 0 };
-  const analyses = await prisma.modelPrediction.findMany({
-    where: {
-      id: { in: kept.map(([id]) => id) },
-      kind: "image",
-      status: "proposed",
-      study: ELIGIBLE_STUDY(ctx),
-    },
-    include: { study: { select: { nature: true } } },
-  });
-  const byId = new Map(analyses.map((a) => [a.id, a]));
   const rows: ImageRowSet[] = [];
-  for (const [analysisId, d] of kept) {
-    const a = byId.get(analysisId);
-    if (!a || a.studyId !== d.studyId) continue;
-    const ai = rec(a.input);
-    const ao = rec(a.output);
-    if (text(ao.status) === "unreliable") continue;
-    const di = rec(d.input);
-    const validated = rec(rec(d.output).validated);
-    const scale = rec(ao.scale);
-    const aInput = rec(ao.input);
-    const excluded = new Set(numbersOf(di.excluded));
-    const reshaped = new Map<number, string>();
-    if (Array.isArray(di.reshaped)) {
-      for (const r of di.reshaped) {
-        const { id, shape } = rec(r);
-        if (typeof id === "number" && typeof shape === "string") reshaped.set(id, shape);
-      }
-    }
-    const particles: ImageParticleExport[] = [];
-    if (Array.isArray(ao.particles)) {
-      for (const raw of ao.particles) {
-        const p = rec(raw);
-        const id = num(p.id);
-        if (id === null) continue;
-        const shape = text(p.shape) ?? "unspecified";
-        particles.push({
-          id,
-          contour: Array.isArray(p.contour) ? (p.contour as number[][]) : [],
-          proposed_shape: shape,
-          validated_shape: excluded.has(id) ? null : (reshaped.get(id) ?? shape),
-          excluded: excluded.has(id),
-        });
-      }
-    }
-    const displaySha256 = text(ai.displaySha256);
-    rows.push({
-      displaySha256,
-      particles,
-      row: {
-        analysis_id: a.id,
-        decision_id: d.id,
-        study_id: a.studyId,
-        study_nature: a.study.nature,
-        decided_at: (d.decidedAt ?? d.createdAt).toISOString(),
-        decision: d.status,
-        // Empreinte de l'image réécrite par MicroTrace (celle qui est exportée), jamais du fichier déposé.
-        image_sha256: displaySha256,
-        analysis_width: num(aInput.analysis_width),
-        analysis_height: num(aInput.analysis_height),
-        scale_um_per_px: num(scale.um_per_px_input),
-        scale_source: text(scale.source) ?? "none",
-        proposed_count: num(ao.count),
-        validated_count: num(validated.count),
-        model_name: a.modelName,
-        model_version: a.modelVersion,
-        model_sha256: a.modelSha256,
+  // `total` ne compte que les analyses réellement exportables (relues par paquets).
+  let total = 0;
+  for (let from = 0; from < accepted.length; from += ANALYSIS_BATCH) {
+    const chunk = accepted.slice(from, from + ANALYSIS_BATCH);
+    const analyses = await prisma.modelPrediction.findMany({
+      where: {
+        id: { in: chunk.map(([id]) => id) },
+        kind: "image",
+        status: "proposed",
+        study: ELIGIBLE_STUDY(ctx),
       },
+      include: { study: { select: { nature: true } } },
     });
+    const byId = new Map(analyses.map((a) => [a.id, a]));
+    for (const [analysisId, d] of chunk) {
+      const a = byId.get(analysisId);
+      if (!a || a.studyId !== d.studyId) continue;
+      const ao = rec(a.output);
+      if (text(ao.status) === "unreliable") continue;
+      total += 1;
+      if (rows.length >= MAX_ROWS) continue;
+      const ai = rec(a.input);
+      const di = rec(d.input);
+      const validated = rec(rec(d.output).validated);
+      const scale = rec(ao.scale);
+      const aInput = rec(ao.input);
+      const excluded = new Set(numbersOf(di.excluded));
+      const reshaped = new Map<number, string>();
+      if (Array.isArray(di.reshaped)) {
+        for (const r of di.reshaped) {
+          const { id, shape } = rec(r);
+          if (typeof id === "number" && typeof shape === "string")
+            reshaped.set(id, shape);
+        }
+      }
+      const particles: ImageParticleExport[] = [];
+      if (Array.isArray(ao.particles)) {
+        for (const raw of ao.particles) {
+          const p = rec(raw);
+          const id = num(p.id);
+          if (id === null) continue;
+          const shape = text(p.shape) ?? "unspecified";
+          const contour = validContour(p.contour);
+          particles.push({
+            id,
+            contour,
+            ...(contour === null ? { contour_invalid: true as const } : {}),
+            proposed_shape: shape,
+            validated_shape: excluded.has(id)
+              ? null
+              : (reshaped.get(id) ?? shape),
+            excluded: excluded.has(id),
+          });
+        }
+      }
+      const displaySha256 = text(ai.displaySha256);
+      rows.push({
+        displaySha256,
+        particles,
+        row: {
+          analysis_id: a.id,
+          decision_id: d.id,
+          study_id: a.studyId,
+          study_nature: a.study.nature,
+          decided_at: (d.decidedAt ?? d.createdAt).toISOString(),
+          decision: d.status,
+          // Empreinte de l'image réécrite par MicroTrace (celle qui est exportée), jamais du fichier déposé.
+          image_sha256: displaySha256,
+          analysis_width: num(aInput.analysis_width),
+          analysis_height: num(aInput.analysis_height),
+          scale_um_per_px: num(scale.um_per_px_analysis),
+          scale_source: text(scale.source) ?? "none",
+          proposed_count: num(ao.count),
+          validated_count: num(validated.count),
+          missed_count: num(di.missedCount) ?? num(validated.missed),
+          model_name: a.modelName,
+          model_version: a.modelVersion,
+          model_sha256: a.modelSha256,
+        },
+      });
+    }
   }
-  return { rows, total: accepted.length };
+  return { rows, total };
 }
 
 /** Lit l'image d'analyse du magasin (empreinte revérifiée) : absente ou corrompue sont signalées, non fatales. */
-async function readDisplay(sha: string | null): Promise<{ bytes: Buffer | null; corrupt: boolean }> {
-  if (!sha) return { bytes: null, corrupt: false };
+async function readDisplay(
+  sha: string | null,
+): Promise<{ bytes: Buffer | null; corrupt: boolean }> {
+  // Empreinte absente ou mal formée (valeur écrite par le serveur, mais jamais de plantage) : fichier absent.
+  if (!sha || !/^[0-9a-f]{64}$/.test(sha))
+    return { bytes: null, corrupt: false };
   try {
     return { bytes: await readStoredFile(sha), corrupt: false };
   } catch (e) {
@@ -366,12 +462,18 @@ export async function buildTrainingExport(
   assertRole(ctx, "lab_admin");
   const lab = await prisma.laboratory.findUnique({
     where: { id: ctx.laboratoryId },
-    select: { slug: true, name: true, trainingConsentAt: true, trainingConsentVersion: true },
+    select: {
+      slug: true,
+      name: true,
+      trainingConsentAt: true,
+      trainingConsentVersion: true,
+    },
   });
   if (!lab || !lab.trainingConsentAt || !lab.trainingConsentVersion) {
     throw new DomainError(NO_CONSENT_EXPORT);
   }
-  if (lab.trainingConsentVersion !== TRAINING_CONSENT_VERSION) throw new DomainError(CONSENT_RENEW);
+  if (lab.trainingConsentVersion !== TRAINING_CONSENT_VERSION)
+    throw new DomainError(CONSENT_RENEW);
   const consentAt = lab.trainingConsentAt;
   const consentVersion = lab.trainingConsentVersion;
   const generatedAt = new Date();
@@ -398,12 +500,18 @@ export async function buildTrainingExport(
       const out: Record<string, unknown>[] = [];
       for (const r of rows) {
         const f = await readDisplay(r.displaySha256);
-        totalBytes += f.bytes?.length ?? 0;
+        const png = f.bytes ? f.bytes.toString("base64") : null;
+        // Le budget compte ce qui est écrit : image en base64 et contours.
+        totalBytes += (png?.length ?? 0) + JSON.stringify(r.particles).length;
         if (totalBytes > maxBytes) throw new DomainError(EXPORT_TOO_LARGE);
         out.push({
           ...r.row,
-          display_png_base64: f.bytes ? f.bytes.toString("base64") : null,
-          ...(f.bytes ? {} : f.corrupt ? { file_corrupt: true } : { file_missing: true }),
+          display_png_base64: png,
+          ...(f.bytes
+            ? {}
+            : f.corrupt
+              ? { file_corrupt: true }
+              : { file_missing: true }),
           particles: r.particles,
         });
       }
@@ -419,7 +527,9 @@ export async function buildTrainingExport(
       const lines = [
         IMAGE_EXPORT_COLUMNS,
         ...rows.map((r) => IMAGE_EXPORT_COLUMNS.map((c) => r.row[c])),
-      ].map((r) => r.map((v) => csvCell(v as string | number | null, ",")).join(","));
+      ].map((r) =>
+        r.map((v) => csvCell(v as string | number | null, ",")).join(","),
+      );
       body = `${lines.join("\r\n")}\r\n`;
     }
   } else {
@@ -430,10 +540,21 @@ export async function buildTrainingExport(
     body = await spectralBody(rows, total, truncated, format, header, maxBytes);
   }
 
-  await auditExport(ctx, { format, rowCount, consentAt, consentVersion, kind, truncated, body });
+  await auditExport(ctx, {
+    format,
+    rowCount,
+    consentAt,
+    consentVersion,
+    kind,
+    truncated,
+    body,
+  });
   return {
     body,
-    contentType: format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8",
+    contentType:
+      format === "json"
+        ? "application/json; charset=utf-8"
+        : "text/csv; charset=utf-8",
     fileName,
   };
 }
@@ -465,11 +586,16 @@ async function spectralBody(
         batch.map(async (row) => {
           try {
             return {
-              bytes: row.file_sha256 ? await readStoredFile(String(row.file_sha256)) : null,
+              bytes: row.file_sha256
+                ? await readStoredFile(String(row.file_sha256))
+                : null,
               corrupt: false,
             };
           } catch (e) {
-            if (e instanceof Error && e.message === "Fichier du magasin corrompu.") {
+            if (
+              e instanceof Error &&
+              e.message === "Fichier du magasin corrompu."
+            ) {
               return { bytes: null, corrupt: true };
             }
             throw e;
@@ -489,7 +615,10 @@ async function spectralBody(
               filename: "spectre",
             });
           } catch (e) {
-            if (e instanceof EngineError && (e.status === 422 || e.status === 413)) {
+            if (
+              e instanceof EngineError &&
+              (e.status === 422 || e.status === 413)
+            ) {
               return "unreadable" as const;
             }
             throw e;
@@ -502,7 +631,11 @@ async function spectralBody(
         if (p && p !== "unreadable") {
           withSpectra.push({ ...row, spectrum: { x: p.x, y: p.y } });
         } else if (p === "unreadable") {
-          withSpectra.push({ ...row, spectrum: null, spectrum_unreadable: true });
+          withSpectra.push({
+            ...row,
+            spectrum: null,
+            spectrum_unreadable: true,
+          });
         } else if (f.corrupt) {
           withSpectra.push({ ...row, spectrum: null, file_corrupt: true });
         } else {
@@ -519,7 +652,10 @@ async function spectralBody(
       rows: withSpectra,
     });
   } else {
-    const lines = [EXPORT_COLUMNS, ...rows.map((r) => EXPORT_COLUMNS.map((c) => r[c]))].map((r) =>
+    const lines = [
+      EXPORT_COLUMNS,
+      ...rows.map((r) => EXPORT_COLUMNS.map((c) => r[c])),
+    ].map((r) =>
       r.map((v) => csvCell(v as string | number | null, ",")).join(","),
     );
     body = `${lines.join("\r\n")}\r\n`;

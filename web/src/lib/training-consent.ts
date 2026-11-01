@@ -9,7 +9,6 @@ export const TRAINING_CONSENT_LABEL =
 export const TRAINING_CONSENT_DETAILS: readonly string[] = [
   "Seraient utilisés : les valeurs numériques des spectres déposés et le polymère retenu des analyses acceptées ou corrigées, dans les études dont la pseudonymisation est déclarée. Jamais les fichiers eux-mêmes, les noms de fichiers, les notes, les mesures ni les études simulées.",
   "Seraient aussi utilisées : les images analysées telles que réécrites par MicroTrace (pixels seulement, sans aucune métadonnée), les contours proposés et les corrections des analyses d'images acceptées ou corrigées. Jamais le fichier d'image déposé ni son nom.",
-  "Seraient aussi utilisées : les images analysées telles que réécrites par MicroTrace (pixels seulement, sans aucune métadonnée), les contours proposés et les corrections des analyses d'images acceptées ou corrigées. Jamais le fichier d'image déposé ni son nom.",
   "Le retrait s'applique aux prochains entraînements.",
   "Pendant la phase d'essai, aucune donnée de laboratoire ne sert à entraîner un modèle. Aucun réentraînement n'aura lieu avant la validation du cadre légal (loi 18-07) et du contrat avec le laboratoire.",
 ];
@@ -39,7 +38,11 @@ export const EXPORT_COLUMNS: readonly string[] = [
 
 export const EXPORT_FORMAT = "microtrace.spectral-training-export";
 
-/** Colonnes de l'export d'images (JSON : en plus `display_png_base64` et `particles`), dans l'ordre. */
+/**
+ * Colonnes de l'export d'images (JSON : en plus `display_png_base64` et `particles`), dans l'ordre.
+ * `scale_um_per_px` est l'échelle de l'image exportée (celle des contours), pas du fichier déposé ;
+ * `validated_count = proposed_count - particules exclues + missed_count` (particules manquées signalées).
+ */
 export const IMAGE_EXPORT_COLUMNS: readonly string[] = [
   "analysis_id",
   "decision_id",
@@ -54,6 +57,7 @@ export const IMAGE_EXPORT_COLUMNS: readonly string[] = [
   "scale_source",
   "proposed_count",
   "validated_count",
+  "missed_count",
   "model_name",
   "model_version",
   "model_sha256",
@@ -63,7 +67,7 @@ export const IMAGE_EXPORT_FORMAT = "microtrace.image-training-export";
 
 /** Mention de l'export : préparation seulement, aucun entraînement avant le cadre légal. */
 export const EXPORT_NOTICE =
-  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres et les images réécrites par MicroTrace (sans métadonnée) avec leurs particules sont exportées, jamais le fichier déposé. Les analyses d'images jugées non fiables ne sont jamais exportées.";
+  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres et les images réécrites par MicroTrace (sans métadonnée) avec leurs particules sont exportées (l'échelle des images est celle de l'image exportée), jamais le fichier déposé. Les analyses d'images jugées non fiables ne sont jamais exportées.";
 
 /** Conditions préalables à tout entraînement, rappelées dans l'en-tête de l'export. */
 export const EXPORT_PREREQUISITES =
@@ -74,4 +78,5 @@ export const CONSENT_NOT_GIVEN = "Le consentement n'est pas donné.";
 export const NO_CONSENT_EXPORT = "Consentement non donné : aucun export.";
 export const CONSENT_RENEW =
   "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.";
-export const EXPORT_TOO_LARGE = "Export trop volumineux (50 Mo maximum) : contactez l'équipe MicroTrace.";
+export const EXPORT_TOO_LARGE =
+  "Export trop volumineux (50 Mo maximum) : contactez l'équipe MicroTrace.";

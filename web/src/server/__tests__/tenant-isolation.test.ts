@@ -1056,6 +1056,7 @@ describe("un viewer de A", () => {
     await expect(buildTrainingExport(viewerA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
     await expect(buildTrainingExport(researcherA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
     await expect(buildTrainingExport(viewerA, "json", "image")).rejects.toThrow(FORBIDDEN_ADMIN);
+    await expect(buildTrainingExport(researcherA, "json", "image")).rejects.toThrow(FORBIDDEN_ADMIN);
   });
 
   it("couvre toutes les écritures des services", () => {
