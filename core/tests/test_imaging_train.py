@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -201,7 +202,7 @@ def test_render_card_metrics_replaces_block_only(first_run):
     base, _, card = first_run
     man = json.loads(_paths(base)["manifest"].read_text("utf-8"))
     block = tr.render_card_metrics(man)
-    assert "|" in block and "Otsu" in block and "0." not in block.replace("0.0.", "")
+    assert "|" in block and "Otsu" in block and not re.search(r"\d\.\d", block)
     new = tr.replace_metrics_block(CARD, block)
     head, tail = CARD.split(tr.BEGIN_MARKER)[0], CARD.split(tr.END_MARKER)[1]
     assert new.startswith(head + tr.BEGIN_MARKER) and new.endswith(tr.END_MARKER + tail)

@@ -591,7 +591,64 @@ def render_card_metrics(manifest: Mapping) -> str:
           f"{_num(k_['count_mae'])} ({k_['n_counted']} comptées). Images abstenues : "
           f"{ab['n_images']}, F1 objets {_num(ab['f1'])}, erreur de comptage "
           f"{_num(ab['count_mae'])} ({ab['n_counted']} comptées).", ""]
+    L += _reading(manifest)
     return "\n".join(L)
+
+
+def _reading(manifest: Mapping) -> list[str]:
+    """Generated reading of the figures above: every number comes from the manifest."""
+    m, base, sel = manifest["metrics"], manifest["baseline_otsu"], manifest["selection"]
+    g, o, sub, a = m["global"], base["global"], m["by_subset"], m["abstention"]
+    lo, hi = sel["scale_range_um_per_px"]["min"], sel["scale_range_um_per_px"]["max"]
+    s = sel["settings"]
+    shp = g["shape"]
+
+    def at(name: str, *path):
+        cur: object = sub.get(name, {})
+        for key in path:
+            cur = cur.get(key) if isinstance(cur, dict) else None
+        return cur
+
+    bead_size = at("bead", "size") or {}
+    fib2 = a["by_subset"].get("fibre_2", {"unreliable": 0, "n_images": 0})
+    bille = (shp or {}).get("confusion", {}).get("bille", {})
+    n_bille = sum(bille.values())
+    L = ["**Lecture** (chiffres issus du manifeste).", "",
+         f"- Test global : Dice {_num(g['dice'])}, F1 objets {_num(g['objects']['f1'])} "
+         f"(Otsu : {_num(o['dice'])} et {_num(o['objects']['f1'])}) ; erreur de comptage "
+         f"{_num(g['count']['mae'])} (Otsu : {_num(o['count']['mae'])}), à rapporter à un comptage "
+         "de quelques particules par image : le modèle localise mieux que la référence, "
+         "compte un peu mieux, mais l'erreur de comptage reste grande.",
+         f"- Tailles : Feret maximal, erreur relative médiane {_pct(g['size']['feret_rel_err_median'])} "
+         f"(90e centile {_pct(g['size']['feret_rel_err_p90'])}) ; aire, erreur relative médiane "
+         f"{_pct(g['size']['area_rel_err_median'])}.",
+         f"- Bien évalué : `fragment_1`, F1 objets {_num(at('fragment_1', 'objects', 'f1'))}.",
+         f"- Faibles : `fibre_2` (tapis de fibres), F1 objets {_num(at('fibre_2', 'objects', 'f1'))}, "
+         f"aucun comptage de référence ; `fragment_2`, F1 objets "
+         f"{_num(at('fragment_2', 'objects', 'f1'))} ; `fibre_1`, F1 objets "
+         f"{_num(at('fibre_1', 'objects', 'f1'))}, erreur de comptage "
+         f"{_num(at('fibre_1', 'count', 'mae'))} (biais {_num(at('fibre_1', 'count', 'bias'))} : "
+         "fibres qui se croisent comptées comme une seule).",
+         f"- **Billes (`bead`), peu et mal évaluées** : {(at('bead', 'n_images') or 0)} images de test d'un seul "
+         "échantillon (microbilles cosmétiques). Les tailles sont mauvaises : Feret maximal, erreur "
+         f"relative médiane {_pct(bead_size.get('feret_rel_err_median'))}, biais "
+         f"{_pct(bead_size.get('feret_bias'))} ({bead_size.get('n_pairs', 0)} paires). "
+         + (f"Sur les particules proposées, {bille.get('bille', 0)} billes sur {n_bille} sont "
+            f"reconnues comme billes et {bille.get('fragment', 0)} sont proposées « fragment » ; "
+            "le rappel de 100 % des composantes de référence ne s'y retrouve pas."
+            if shp else "Aucune bille proposée n'est appariée."),
+         f"- Abstention : {a['unreliable']} images « non fiable » sur {a['n_images']} au test "
+         f"({_pct(a['unreliable_share'])}), dont {fib2['unreliable']} sur "
+         f"{fib2['n_images']} images `fibre_2` ; erreur de comptage des images "
+         f"gardées {_num(a['kept']['count_mae'])} contre {_num(g['count']['mae'])} pour l'ensemble : "
+         "l'abstention la réduit peu.",
+         f"- Forme : exactitude {_pct(m['shape_components']['accuracy'])} sur les composantes du "
+         "masque de référence"
+         + (f", {_pct(shp['accuracy'])} sur les particules proposées." if shp else "."),
+         f"- Échelle admise : {_fr(round(s['scale_min'], 3))} à {_fr(round(s['scale_max'], 2))} µm "
+         f"par pixel, soit l'intervalle mesuré sur les images d'apprentissage et de validation "
+         f"({_fr(round(lo, 3))} à {_fr(round(hi, 2))}) élargi d'un facteur 2 de chaque côté.", ""]
+    return L
 
 
 # ------------------------------------------------------------------ command

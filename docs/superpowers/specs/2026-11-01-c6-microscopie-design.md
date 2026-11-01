@@ -72,7 +72,7 @@ Images MEB (Hitachi SU5000), 237 images d'origine en 5 sous-jeux, chacune avec u
 | `fragment_2` | `fragment/fragment_2` | fragment | 41 | 1 280 × 898, 800 × 561 | gris 8 bits | 40 images, 61 | 41 |
 
 Constats :
-- **Les masques sont sémantiques (binaires), pas d'instances** : seuillés à 128, leurs composantes connexes égalent le comptage du fichier `counts` pour 38/51 images de billes (49/51 à ±1), 8/41 de `fibre_1` (les fibres se croisent : 165 composantes pour 248 fibres), 51/55 de `fragment_1`, 35/41 de `fragment_2`. Les instances d'évaluation sont donc les **composantes connexes** du masque (§5.3), et le **comptage** de référence est celui des fichiers `counts` (187 images).
+- **Les masques sont sémantiques (binaires), pas d'instances** : seuillés à 128, leurs composantes connexes égalent le comptage du fichier `counts` pour 38/51 images de billes (49/51 à ±1), 8/41 de `fibre_1` (les fibres se croisent : 165 composantes pour 248 fibres), 51/55 de `fragment_1`, 35/41 de `fragment_2`. Les instances d'évaluation sont donc les **composantes connexes** du masque (§5.3), et le **comptage** de référence est celui des fichiers `counts` (188 images).
 - Les PNG sont des recadrages des TIFF d'origine sans le bandeau d'information du bas (960 → 900, 1 920 → 1 800, 600 → 561 lignes, soit 1/16 de la hauteur environ), et `fibre_1` est réduit de moitié (2 560 → 1 280). L'appariement PNG ↔ TIFF par nom réussit pour 188 images ; `fibre_2` porte d'autres noms et n'a pas d'échelle.
 - **Échelle** : le TIFF Hitachi porte `PixelSize` (nm par pixel) dans l'étiquette 40092 (`XPComment`, UTF-16). Ramenée aux PNG : 0,099 à 4,96 µm par pixel (facteur 50).
 - **Métadonnées personnelles** : les fichiers `.txt` à côté des TIFF contiennent `Directory=C:\Users\PC-SEM\Desktop\All Users\<prénom nom>\…` (deux noms d'opérateurs, 243 fichiers). Le TIFF lui-même porte `XPComment` (avec des champs libres `SampleName`, `Comment`, `KeyWord1/2`, vides ici) et `XPAuthor` (« SU5000 ») ; 47 TIFF de `fibre_1` portent en plus XMP, EXIF et ressources Photoshop. Ces fichiers sont exactement le cas de l'anti-objectif 5.
@@ -201,7 +201,7 @@ python -m microtrace_core train-image --dataset datasets/Images/dataset3 --model
 
 - **Pixels** : Dice moyen par image entre la segmentation et le masque.
 - **Objets** : appariement glouton par IoU décroissante, seuil 0,5, entre les particules proposées et les **composantes du masque** de même taille minimale ; précision, rappel, F1 globaux et par sous-jeu.
-- **Comptage** : nombre proposé contre le fichier `counts` (187 images) : erreur absolue moyenne, biais, part exacte, part à ±20 % (au moins ±1).
+- **Comptage** : nombre proposé contre le fichier `counts` (188 images) : erreur absolue moyenne, biais, part exacte, part à ±20 % (au moins ±1).
 - **Tailles** : sur les paires appariées, erreur relative du Feret maximal et de l'aire (médiane, 90e centile, biais) ; en µm, l'erreur est la même proportion de la taille vraie quand l'échelle est juste.
 - **Forme** : matrice de confusion sur les particules appariées (vérité = forme du dossier), exactitude équilibrée ; et sur les composantes du masque (§4.3) pour isoler le classifieur.
 - **Abstention** : part de `unreliable` par raison, et métriques des images gardées contre celles abstenues.

@@ -56,7 +56,7 @@ def test_real_index(items):
     assert len({i.group for i in items}) == 218
     assert Counter(i.split for i in items) == {"train": 147, "val": 48, "test": 42}
     assert sum(i.um_per_px is not None for i in items) == 188
-    assert sum(i.count is not None for i in items) == 188  # 51+41+55+41; the design says 187
+    assert sum(i.count is not None for i in items) == 188  # 51+41+55+41
     for i in items:
         for p in (i.image, i.label, i.tiff):
             if p is not None:

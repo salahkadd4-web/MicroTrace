@@ -7,7 +7,7 @@
 - Il formule une **proposition** (contours, comptage, formes, distribution de tailles, statut) ; une personne du laboratoire examine chaque analyse et enregistre sa décision. Rien n'est automatique.
 - **Entraîné et évalué sur des images MEB seulement.** Il n'a jamais vu de microscopie optique, de fluorescence, de particules extraites de sang, de matrice organique ni de filtre.
 - Modèle classique (forêt de pixels et régression logistique pour la forme), pas un réseau de neurones : un réseau (Mask R-CNN) est un sujet de suivi, non livré.
-- **Médiocre hors des fragments isolés sur fond lisse.** Le comptage est peu fiable : l'erreur absolue moyenne est de 1,61 particule par image au test, pour un comptage de référence de quelques particules par image. Le comptage doit être relu à l'écran.
+- **Médiocre hors des fragments isolés sur fond lisse.** Le comptage est peu fiable (chiffres en section 6) et doit être relu à l'écran.
 
 ## 2. Version et empreintes
 
@@ -27,12 +27,12 @@
 
 - **La licence de `dataset3` est à confirmer avant toute présentation à des laboratoires**, et avant toute diffusion des poids.
 - Les dossiers dérivés (`*crop`, `label_index`) sont exclus ; les masques sont des masques binaires (le masque ne distingue pas deux particules qui se touchent).
-- Les fichiers d'acquisition contiennent des champs textuels (noms d'opérateurs, d'échantillons). Ils ne sont ni lus ni conservés par l'entraînement ; seule l'échelle est extraite. Le moteur n'écrit jamais ces champs dans ses réponses.
+- Les fichiers d'acquisition contiennent des champs textuels (noms d'opérateurs, d'échantillons). Les fichiers texte annexes (`.txt`) ne sont jamais ouverts ; seule l'échelle est extraite des étiquettes du fichier TIFF, et rien d'autre n'est conservé. Le moteur n'écrit jamais ces champs dans ses réponses.
 - Effectifs : 237 images en 218 groupes de photos, séparées par groupe : 147 en apprentissage, 48 en validation, 42 en test. La répartition par sous-jeu est dans le manifeste.
 
 ## 4. Pipeline et constantes
 
-1. Lecture sûre de l'image (taille et poids bornés ; PNG, JPEG, TIFF ; une page ; orientation appliquée une fois ; bandeau d'information Hitachi retiré ; aucune métadonnée conservée). L'échelle est lue dans le fichier (MEB Hitachi) ou saisie ; si les deux divergent de plus de 2 %, l'analyse est refusée.
+1. Lecture sûre de l'image (taille et poids bornés ; PNG, JPEG, TIFF ; une page ; orientation appliquée une fois ; bandeau d'information Hitachi retiré ; aucune métadonnée conservée ; une image 16 bits ou couleur est réduite à 8 bits niveaux de gris par Pillow, sans contrôle de la perte de dynamique). L'échelle est lue dans le fichier (MEB Hitachi) ou saisie ; si les deux divergent de plus de 2 %, l'analyse est refusée.
 2. Réduction à 1 024 pixels sur le grand côté.
 3. Forêt de pixels (60 arbres, profondeur 14), descripteurs d'intensité et de texture multi-échelles ; seuil de probabilité 0,7.
 4. Ouverture, remplissage, composantes connexes ; taille minimale 1 % de l'image, soit un diamètre équivalent d'environ 100 pixels sur une image de 1 024 × 768. **Les particules plus petites ne sont pas vues.**
@@ -45,14 +45,15 @@ Constantes : graine 0 ; 1 024 pixels d'analyse ; 300 particules au plus ; 200 po
 ## 5. Protocole d'évaluation
 
 - **Séparation par photo** : les images d'une même photographie (quasi-doublons, champs voisins de `fibre_2`) forment un groupe ; un groupe n'est jamais des deux côtés. Aucune fuite entre apprentissage, validation et test.
-- **Choix sur la validation** : seuil de pixel, taille minimale, score de forme et part segmentée maximale sont choisis sur les 48 images de validation par une grille ; la plage d'échelle admise vient des échelles des images d'apprentissage et de validation.
+- **Choix sur la validation** : seuil de pixel, taille minimale, score de forme et part segmentée maximale sont choisis sur les 48 images de validation par une grille ; la plage d'échelle admise est l'intervalle mesuré sur les images d'apprentissage et de validation, élargi d'un facteur 2 (valeurs dans la lecture de la section 6).
+- **Réglages** : ils sont ceux que la règle de validation donne ; ils peuvent différer des valeurs mesurées pendant la conception (décision R-C6-8 : score de forme minimal et taille minimale acceptés tels que choisis sur la validation, jamais sur le test).
 - **Modèle final** appris sur l'apprentissage et la validation ; **test lu une seule fois** (42 images) après tous les choix.
 - **Référence « seuil d'Otsu »** : un seul traitement fixe (fond retiré par une gaussienne, lissage, polarité automatique, ouverture, remplissage) à résolution et taille minimale égales, sans la grille de 16 réglages du protocole de conception. Elle est donc probablement un peu moins bonne que la meilleure référence possible ; la comparaison doit se lire ainsi.
 - Appariement d'objets à IoU de 0,5 ; tailles sur les objets appariés ; la forme est évaluée sur les composantes du masque de référence (pour isoler le classifieur) puis sur les particules proposées.
 
 ## 6. Résultats mesurés
 
-Au test, le modèle atteint un Dice de 0,71 et un F1 d'objets de 0,52 (Otsu : 0,59 et 0,27) ; l'erreur absolue de comptage est de 1,61 (Otsu : 1,94). Le modèle localise mieux que la référence et compte un peu mieux, mais l'erreur de comptage reste **grande** au regard d'un comptage de quelques particules par image. Feret maximal : erreur relative médiane 2,0 %, 90e centile 30,9 % ; aire : erreur relative médiane 15,6 %.
+Tous les chiffres de cette section sont générés depuis le manifeste par la commande d'entraînement (bloc ci-dessous, lecture comprise).
 
 <!-- BEGIN:metrics -->
 **Réglages choisis sur la validation** : seuil de pixel 0,7, taille minimale 1 % de l'image, score de forme minimal 0,5, part segmentée maximale 25 %, échelle admise de 0,062 à 19,84 µm par pixel de l'image d'analyse.
@@ -111,14 +112,18 @@ Matrice de confusion sur les particules proposées et appariées (38 particules 
 | scale_out_of_range | 0 |
 
 Images gardées : 35, F1 objets 0,61, erreur de comptage 1,53 (32 comptées). Images abstenues : 7, F1 objets 0,08, erreur de comptage 4,00 (1 comptées).
+
+**Lecture** (chiffres issus du manifeste).
+
+- Test global : Dice 0,71, F1 objets 0,52 (Otsu : 0,59 et 0,27) ; erreur de comptage 1,61 (Otsu : 1,94), à rapporter à un comptage de quelques particules par image : le modèle localise mieux que la référence, compte un peu mieux, mais l'erreur de comptage reste grande.
+- Tailles : Feret maximal, erreur relative médiane 2,0 % (90e centile 30,9 %) ; aire, erreur relative médiane 15,6 %.
+- Bien évalué : `fragment_1`, F1 objets 0,96.
+- Faibles : `fibre_2` (tapis de fibres), F1 objets 0,12, aucun comptage de référence ; `fragment_2`, F1 objets 0,29 ; `fibre_1`, F1 objets 0,65, erreur de comptage 2,90 (biais -2,90 : fibres qui se croisent comptées comme une seule).
+- **Billes (`bead`), peu et mal évaluées** : 7 images de test d'un seul échantillon (microbilles cosmétiques). Les tailles sont mauvaises : Feret maximal, erreur relative médiane 40,3 %, biais 42,0 % (7 paires). Sur les particules proposées, 3 billes sur 7 sont reconnues comme billes et 4 sont proposées « fragment » ; le rappel de 100 % des composantes de référence ne s'y retrouve pas.
+- Abstention : 7 images « non fiable » sur 42 au test (16,7 %), dont 6 sur 9 images `fibre_2` ; erreur de comptage des images gardées 1,53 contre 1,61 pour l'ensemble : l'abstention la réduit peu.
+- Forme : exactitude 91,0 % sur les composantes du masque de référence, 84,2 % sur les particules proposées.
+- Échelle admise : 0,062 à 19,84 µm par pixel, soit l'intervalle mesuré sur les images d'apprentissage et de validation (0,124 à 9,92) élargi d'un facteur 2 de chaque côté.
 <!-- END:metrics -->
-
-Lecture.
-
-- Sous-jeu bien évalué : `fragment_1` (fragments isolés sur fond lisse, F1 d'objets 0,96).
-- Sous-jeux **faiblement évalués ou faibles** : `fibre_2` (tapis de fibres, F1 d'objets 0,12, aucun comptage de référence), `fragment_2` (F1 d'objets 0,29), `fibre_1` (F1 d'objets 0,65, erreur de comptage 2,90 avec un biais de -2,90 : fibres qui se croisent comptées comme une seule). Les billes (`bead`) ne comptent que 7 images de test et 8 composantes de forme sur 100 : un seul échantillon de microbilles cosmétiques, donc un rappel de billes mesuré sur très peu de cas.
-- **Abstention** : 7 images « non fiable » sur 42 au test (16,7 %), dont 6 sur 9 images `fibre_2`. L'abstention retire surtout les tapis de fibres, où un comptage n'a pas de sens ; l'erreur de comptage des images gardées est de 1,53 contre 1,61 pour l'ensemble : l'abstention la réduit peu.
-- Exactitude de la forme sur les composantes de référence : 91,0 % ; elle est plus basse sur les particules réellement proposées (voir la matrice).
 
 ## 7. Conditions d'échec connues
 
@@ -128,7 +133,7 @@ Lecture.
 - Substrat texturé (adhésif carbone, film) : faux objets.
 - Particules plus petites que la taille minimale (1 % de l'image) : non détectées ; particules tronquées par le bord : forme et taille peu fiables.
 - Tapis de fibres (`fibre_2`) : l'image est le plus souvent refusée (« non fiable »).
-- Billes : un seul échantillon. Film : **non évaluée**, jamais proposée.
+- Billes : un seul échantillon de microbilles cosmétiques irrégulières ; les tailles et les formes des billes proposées sont mal évaluées et mauvaises (Feret très surestimé, billes souvent proposées « fragment » : chiffres dans la lecture de la section 6). Film : **non évaluée**, jamais proposée.
 - Échelle fausse : toutes les tailles sont fausses dans la même proportion, sans détection possible sans métadonnée.
 - Bandeau d'information d'un autre fabricant non retiré : faux objets.
 - Aucune identification de polymère ; un comptage de particules n'est pas une concentration.

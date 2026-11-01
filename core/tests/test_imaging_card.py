@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from microtrace_core.imaging.train import BEGIN_MARKER, END_MARKER, render_card_metrics
+from microtrace_core.imaging.train import BEGIN_MARKER, END_MARKER, _fr, _pct, render_card_metrics
 
 ROOT = Path(__file__).resolve().parents[2]
 CARD = ROOT / "docs" / "models" / "c6-microscopie.md"
@@ -48,13 +48,44 @@ def test_manifest_provenance():
 
 
 def test_card_figures_come_from_the_manifest():
+    """Prose figures outside the generated block are compared to the manifest."""
     text = CARD.read_text(encoding="utf-8")
     man = _manifest()
-    ab = man["metrics"]["abstention"]
-    assert f"{ab['unreliable']} images « non fiable » sur {ab['n_images']} au test" in text
-    assert str(man["data"]["images"]) in text and str(man["data"]["n_groups"]) in text
-    s = man["selection"]["settings"]
-    assert 0 < s["scale_min"] < s["scale_max"]
-    # weakly evaluated subsets are named
+    d, s = man["data"], man["selection"]["settings"]
+    sp = d["by_split"]
+    for needle in (
+            f"{d['images']} images en {d['n_groups']} groupes",
+            f"{sp['train']} en apprentissage, {sp['val']} en validation, {sp['test']} en test",
+            f"seuil de probabilité {_fr(s['pixel_threshold'])}",
+            f"taille minimale {_fr(100 * s['min_area_frac'])} % de l'image",
+            f"score minimal {_fr(s['shape_min_score'])}",
+            f"part segmentée supérieure à {_fr(100 * s['max_foreground'])} %",
+            f"{_fr(round(s['scale_min'], 3))} à {_fr(round(s['scale_max'], 2))} µm",
+            f"{man['data']['data_list']['files']} fichiers",
+            f"sur les {s_val(man)} images de validation",
+            f"test lu une seule fois** ({man['metrics']['n_images']} images)"):
+        assert needle in text, needle
+    # the generated reading carries the bead weaknesses and the scale margin
+    block = render_card_metrics(man)
+    assert "Billes (`bead`), peu et mal évaluées" in block and "élargi d'un facteur 2" in block
+    bead = man["metrics"]["by_subset"]["bead"]["size"]
+    assert f"{_pct(bead['feret_rel_err_median'])}" in block
+    assert "Billes (`bead`)" in block and block in text
     for name in ("fibre_2", "fragment_2", "fibre_1", "bead"):
         assert name in text
+    ab = man["metrics"]["abstention"]
+    assert f"{ab['unreliable']} images « non fiable » sur {ab['n_images']}" in text
+    # no hand-typed percentage or decimal figure survives outside the generated block
+    i, j = text.index(BEGIN_MARKER), text.index(END_MARKER)
+    prose = text[:i] + text[j:]
+    import re
+    allowed = re.compile(r"1 024|0,0*\d|300|200|2 %|10")
+    left = [m for m in re.findall(r"\d+[,.]\d+|\d+ %", prose)
+            if not allowed.fullmatch(m)]
+    assert not [m for m in left if m not in (f"{_fr(100 * s['min_area_frac'])} %",
+                                              f"{_fr(100 * s['max_foreground'])} %", "2 %", _fr(round(s["scale_min"], 3)),
+                                              _fr(round(s["scale_max"], 2)))], left
+
+
+def s_val(man) -> int:
+    return man["selection"]["n_validation_images"]
