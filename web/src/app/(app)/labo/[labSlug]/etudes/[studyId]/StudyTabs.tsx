@@ -9,6 +9,7 @@ const TABS = [
   { segment: "resultats", label: "Résultats" },
   { segment: "qualite", label: "Qualité" },
   { segment: "spectres", label: "Spectres" },
+  { segment: "images", label: "Images" },
   { segment: "rapport", label: "Rapport" },
   { segment: "journal", label: "Journal" },
 ] as const;
