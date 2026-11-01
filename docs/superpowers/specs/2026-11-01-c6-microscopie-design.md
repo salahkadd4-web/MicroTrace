@@ -317,8 +317,12 @@ Explications :
 3. « Le modèle n'a pas vu de particules extraites de sang. »
 4. « L'image ne dit pas si une particule est un plastique : seule une méthode chimique (spectre, Py-GC/MS) le peut. »
 5. « Une particule plus petite que la taille minimale indiquée n'est pas comptée. Des particules qui se touchent ou se croisent peuvent être comptées comme une seule. »
-6. « La forme « film » n'est pas évaluée dans cette version : elle n'est jamais proposée. »
-7. « Une proposition n'est jamais enregistrée comme mesure : elle est à valider par une personne compétente. »
+6. « Modèle médiocre hors des fragments isolés sur fond lisse : les billes sont souvent proposées « fragment » et leur taille est surestimée ; sur un tapis de fibres l'image est en général jugée non fiable. » (revue finale)
+7. « Recadrez la bande d'informations (texte, échelle, date) avant le dépôt : seule la bande des TIFF Hitachi est retirée automatiquement. Elle pourrait être comptée comme particule et son texte resterait dans l'image exportée. » (revue finale)
+8. « La forme « film » n'est pas évaluée dans cette version : elle n'est jamais proposée. »
+9. « Une proposition n'est jamais enregistrée comme mesure : elle est à valider par une personne compétente. »
+
+Fiche du modèle à l'écran (revue finale) : l'exactitude de l'archive est étiquetée « sur les contours de référence (pas sur les particules proposées) » ; l'exactitude sur les particules proposées et le point faible des billes (reconnues comme billes, erreur médiane du Feret maximal) viennent de `image_model.reading.json`, copie du manifeste vérifiée par un test.
 
 ### 7.6 `GET /ai/image/model`
 

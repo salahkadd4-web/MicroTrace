@@ -18,6 +18,7 @@ import {
 import { ENGINE_DOWN } from "@/lib/engine-messages";
 import { IMAGE_STATUS_BADGES, imageDecisionBadge } from "@/lib/images";
 import { canWrite } from "@/lib/roles";
+import { TRAINING_CONSENT_VERSION } from "@/lib/training-consent";
 import type { ImageModelInfo } from "@/server/engine/client";
 import { getImageModel, listImageAnalyses, listValidatedCounts } from "@/server/images";
 import { requireLab } from "@/server/lab-context";
@@ -35,9 +36,16 @@ const COUNTS_SENTENCE =
 
 const linkClass = "text-sm font-medium text-primary underline-offset-4 hover:underline";
 
-function consentSentence(consent: { granted: boolean; grantedAt: Date | null }): string {
+function consentSentence(consent: {
+  granted: boolean;
+  grantedAt: Date | null;
+  version: string | null;
+}): string {
   const base = "Utilisation des données validées de ce laboratoire pour améliorer les modèles :";
   if (!consent.granted) return `${base} désactivée.`;
+  if (consent.version !== TRAINING_CONSENT_VERSION) {
+    return `${base} consentement à renouveler (texte étendu aux images) ; sans renouvellement, rien n'est exporté.`;
+  }
   return `${base} activée depuis le ${formatDateTimeFr(consent.grantedAt) ?? "—"} (réglage du responsable du laboratoire).`;
 }
 
@@ -128,9 +136,38 @@ function ModelCard({ info }: { info: ImageModelInfo }) {
               ) : null}
               {m.shape_balanced_accuracy !== null ? (
                 <>
-                  <dt className="text-muted-foreground">Exactitude des formes évaluées</dt>
+                  <dt className="text-muted-foreground">
+                    Exactitude du classifieur de forme sur les contours de référence (pas sur les
+                    particules proposées)
+                  </dt>
                   <dd>
-                    {share(m.shape_balanced_accuracy)} (moyenne par forme : {evaluated.map((s) => s.label).join(", ")})
+                    {share(m.shape_balanced_accuracy)} (moyenne par forme : {evaluated.map((s) => s.label).join(", ")}).
+                    Chiffre favorable : il ne tient pas compte des erreurs de contour.
+                  </dd>
+                </>
+              ) : null}
+              {m.shape_proposed_balanced_accuracy != null && m.shape_proposed_accuracy != null ? (
+                <>
+                  <dt className="text-muted-foreground">
+                    Exactitude de la forme sur les particules proposées
+                  </dt>
+                  <dd>
+                    {share(m.shape_proposed_accuracy)} d&apos;exactitude, {share(m.shape_proposed_balanced_accuracy)} en
+                    moyenne par forme
+                    {m.shape_proposed_n != null ? ` (${formatNumberFr(m.shape_proposed_n)} particules appariées)` : ""}
+                  </dd>
+                </>
+              ) : null}
+              {m.bead_shape_n != null && m.bead_shape_correct != null ? (
+                <>
+                  <dt className="text-muted-foreground">Billes : point faible connu</dt>
+                  <dd>
+                    {formatNumberFr(m.bead_shape_correct)} billes sur {formatNumberFr(m.bead_shape_n)} reconnues comme
+                    billes
+                    {m.bead_feret_rel_err_median != null
+                      ? ` ; diamètre de Feret maximal : erreur médiane de ${formatPercentFr(m.bead_feret_rel_err_median)}`
+                      : ""}
+                    . Les tailles et les formes des billes sont à vérifier une à une.
                   </dd>
                 </>
               ) : null}
@@ -148,7 +185,8 @@ function ModelCard({ info }: { info: ImageModelInfo }) {
               <dd>
                 forme incertaine sous un score de {formatNumberFr(t.shape_min_score, 2)} ; image non
                 fiable si plus de {formatPercentFr(t.max_foreground)} de l&apos;image est segmentée
-                ou si le contraste est inférieur à {formatNumberFr(t.min_contrast, 2)}
+                ou si le contraste est inférieur à {formatNumberFr(t.min_contrast, 0)} sur 255 (écart entre les
+                centiles 1 et 99 des niveaux de gris)
               </dd>
             </>
           ) : null}

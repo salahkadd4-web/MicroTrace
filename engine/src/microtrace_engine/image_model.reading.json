@@ -1,0 +1,11 @@
+{
+  "source": "docs/models/c6-microscopie-manifest.json",
+  "shape_proposed_n": 38,
+  "shape_proposed_accuracy": 0.8421052631578947,
+  "shape_proposed_balanced_accuracy": 0.7724867724867724,
+  "bead_shape_n": 7,
+  "bead_shape_correct": 3,
+  "bead_shape_recall": 0.42857142857142855,
+  "bead_feret_rel_err_median": 0.40319203485062305,
+  "bead_size_pairs": 7
+}

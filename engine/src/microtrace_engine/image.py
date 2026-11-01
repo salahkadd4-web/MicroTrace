@@ -55,6 +55,18 @@ __all__ = [
 ]
 
 LOCK_RESOURCE = "image_model.lock.json"
+READING_RESOURCE = "image_model.reading.json"
+
+
+def _read_reading() -> dict[str, Any]:
+    """End-to-end shape figures of the model card, copied from the manifest (a test keeps them
+    equal), shown next to the favourable figure of the archive."""
+    try:
+        raw = resources.files(__package__).joinpath(READING_RESOURCE).read_text(encoding="utf-8")
+        data = json.loads(raw)
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def read_image_lock() -> ModelLock:
@@ -217,7 +229,22 @@ def _metrics(model: ImageModel) -> ImageMetricsModel | None:
         return _f(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
 
     tests = block.get("test_images")
+    reading = _read_reading()
+
+    def rnum(key: str) -> float | None:
+        v = reading.get(key)
+        return _f(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+    def rint(key: str) -> int | None:
+        v = reading.get(key)
+        return v if isinstance(v, int) and not isinstance(v, bool) else None
+
     return ImageMetricsModel(
+        shape_proposed_accuracy=rnum("shape_proposed_accuracy"),
+        shape_proposed_balanced_accuracy=rnum("shape_proposed_balanced_accuracy"),
+        shape_proposed_n=rint("shape_proposed_n"), bead_shape_correct=rint("bead_shape_correct"),
+        bead_shape_n=rint("bead_shape_n"),
+        bead_feret_rel_err_median=rnum("bead_feret_rel_err_median"),
         test_images=int(tests) if isinstance(tests, int) and not isinstance(tests, bool) else None,
         f1_objects=num("f1_objects"), count_mae=num("count_mae"), dice=num("dice"),
         shape_balanced_accuracy=num("shape_balanced_accuracy"),

@@ -27,6 +27,11 @@ NATURE = "Leur nature (plastique ou non) n'est pas déterminée par l'image."
 NO_SCALE = "Échelle inconnue : tailles en pixels, non comparables entre images."
 SIZE_BASIS = "feret_max_um"
 
+BAR_ADVICE = ("Recadrez la bande d'informations (texte, échelle, date) avant le dépôt : seule la "
+              "bande des TIFF Hitachi est retirée automatiquement. Elle pourrait être comptée comme "
+              "particule et son texte resterait dans l'image exportée.")
+BAR_LIMIT = BAR_ADVICE
+
 LIMITS: tuple[str, ...] = (
     TRIAL_SENTENCE,
     "Entraîné et évalué sur des images MEB seulement : sur une image de microscopie optique ou "
@@ -37,6 +42,10 @@ LIMITS: tuple[str, ...] = (
     "(spectre, Py-GC/MS) le peut.",
     "Une particule plus petite que la taille minimale indiquée n'est pas comptée. Des particules "
     "qui se touchent ou se croisent peuvent être comptées comme une seule.",
+    "Modèle médiocre hors des fragments isolés sur fond lisse : les billes sont souvent proposées "
+    "« fragment » et leur taille est surestimée ; sur un tapis de fibres l'image est en général "
+    "jugée non fiable.",
+    BAR_LIMIT,
     "La forme « film » n'est pas évaluée dans cette version : elle n'est jamais proposée.",
     "Une proposition n'est jamais enregistrée comme mesure : elle est à valider par une personne "
     "compétente.",

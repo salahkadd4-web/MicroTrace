@@ -67,7 +67,7 @@ def test_model_info_available(client, auth_headers, image_models_dir):
     assert body["name"] == "c6-microscopie" and body["version"] == "i1"
     assert body["sha256"] == body["expected_sha256"] == image_models_dir.lock.sha256
     assert body["trial_label"] == "Modèle d'essai" and body["trial_sentence"] == TRIAL
-    assert len(body["limits"]) == 7
+    assert len(body["limits"]) == 9
     assert "images MEB seulement" in body["limits"][1]
     assert "ne dit pas si une particule est un plastique" in body["limits"][3]
     assert body["card_path"] == "docs/models/c6-microscopie.md"
@@ -437,6 +437,7 @@ def test_real_model_and_large_image_time():
     info = client.get("/ai/image/model", headers=headers).json()
     assert info["available"] is True and info["sha256"] == info["expected_sha256"]
     assert info["metrics"]["test_images"] == 42 and info["metrics"]["f1_objects"] > 0.5
+    assert info["metrics"]["bead_shape_n"] == 7 and info["metrics"]["shape_proposed_balanced_accuracy"] < 0.8
     data = photo.read_bytes()
     assert Image.open(io.BytesIO(data)).size == (2560, 1800)
     start = time.perf_counter()
@@ -448,3 +449,25 @@ def test_real_model_and_large_image_time():
     body = r.json()
     assert body["status"] in ("proposal", "unreliable") and body["count"] >= 0
     assert body["input"]["analysis_width"] == 1024
+
+
+def test_reading_figures_equal_the_manifest():
+    from microtrace_engine.image import _read_reading
+    manifest = json.loads(
+        (ROOT / "docs" / "models" / "c6-microscopie-manifest.json").read_text(encoding="utf-8"))
+    g = manifest["metrics"]["global"]["shape"]
+    b = manifest["metrics"]["by_subset"]["bead"]
+    r = _read_reading()
+    assert r["shape_proposed_accuracy"] == g["accuracy"]
+    assert r["shape_proposed_balanced_accuracy"] == g["balanced_accuracy"]
+    assert r["shape_proposed_n"] == g["n"]
+    assert r["bead_shape_correct"] == b["shape"]["confusion"]["bille"]["bille"]
+    assert r["bead_shape_n"] == b["shape"]["n"]
+    assert r["bead_feret_rel_err_median"] == b["size"]["feret_rel_err_median"]
+
+
+def test_limits_name_beads_fibre_mats_and_the_information_bar():
+    from microtrace_engine import image_text as text
+    joined = " ".join(text.LIMITS)
+    assert "billes" in joined and "tapis de fibres" in joined
+    assert "Recadrez la bande d'informations (texte, échelle, date) avant le dépôt" in joined

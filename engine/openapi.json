@@ -2151,6 +2151,72 @@
               }
             ],
             "title": "Unreliable Share"
+          },
+          "shape_proposed_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Proposed Accuracy"
+          },
+          "shape_proposed_balanced_accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Proposed Balanced Accuracy"
+          },
+          "shape_proposed_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shape Proposed N"
+          },
+          "bead_shape_correct": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bead Shape Correct"
+          },
+          "bead_shape_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bead Shape N"
+          },
+          "bead_feret_rel_err_median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bead Feret Rel Err Median"
           }
         },
         "additionalProperties": false,

@@ -569,6 +569,18 @@ export interface components {
             shape_balanced_accuracy: number | null;
             /** Unreliable Share */
             unreliable_share: number | null;
+            /** Shape Proposed Accuracy */
+            shape_proposed_accuracy?: number | null;
+            /** Shape Proposed Balanced Accuracy */
+            shape_proposed_balanced_accuracy?: number | null;
+            /** Shape Proposed N */
+            shape_proposed_n?: number | null;
+            /** Bead Shape Correct */
+            bead_shape_correct?: number | null;
+            /** Bead Shape N */
+            bead_shape_n?: number | null;
+            /** Bead Feret Rel Err Median */
+            bead_feret_rel_err_median?: number | null;
         };
         /** ImageModelInfo */
         ImageModelInfo: {

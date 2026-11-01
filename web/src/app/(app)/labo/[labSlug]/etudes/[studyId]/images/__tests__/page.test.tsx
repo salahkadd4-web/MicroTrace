@@ -71,6 +71,12 @@ const info = (over: object = {}) => ({
     dice: 0.709,
     shape_balanced_accuracy: 0.93,
     unreliable_share: 0.1667,
+    shape_proposed_accuracy: 0.842,
+    shape_proposed_balanced_accuracy: 0.772,
+    shape_proposed_n: 38,
+    bead_shape_correct: 3,
+    bead_shape_n: 7,
+    bead_feret_rel_err_median: 0.403,
   },
   training_data: "dataset3 : 237 images MEB, licence à confirmer",
   ...over,
@@ -143,6 +149,21 @@ describe("page Images", () => {
     expect(screen.getAllByText(TRIAL)).toHaveLength(1);
     expect(alert).toHaveTextContent("images MEB seulement");
     expect(alert).toHaveTextContent("ne dit pas si une particule est un plastique");
+  });
+
+  it("consentement c1 : à renouveler, pas « activée » ; c2 : activée", async () => {
+    vi.mocked(getTrainingConsent).mockResolvedValue({
+      granted: true, grantedAt: new Date("2026-10-01T10:00:00Z"), grantedBy: "x", version: "c1", history: [],
+    });
+    await renderPage();
+    expect(screen.getByText(/consentement à renouveler \(texte étendu aux images\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/activée depuis/)).toBeNull();
+    cleanup();
+    vi.mocked(getTrainingConsent).mockResolvedValue({
+      granted: true, grantedAt: new Date("2026-10-01T10:00:00Z"), grantedBy: "x", version: "c2", history: [],
+    });
+    await renderPage();
+    expect(screen.getByText(/activée depuis le/)).toBeInTheDocument();
   });
 
   it("consentement en lecture seule", async () => {
@@ -253,6 +274,12 @@ describe("page Images", () => {
     expect(card).toHaveTextContent("0,49");
     expect(card).toHaveTextContent("2,0 particules par image");
     expect(card).toHaveTextContent("93 %");
+    expect(card).toHaveTextContent("sur les contours de référence (pas sur les particules proposées)");
+    expect(card).toHaveTextContent("84,2 % d'exactitude, 77,2 % en moyenne par forme (38 particules appariées)");
+    expect(card).toHaveTextContent("3 billes sur 7 reconnues comme billes");
+    expect(card).toHaveTextContent("erreur médiane de 40,3 %");
+    expect(card).toHaveTextContent("inférieur à 10 sur 255 (écart entre les centiles 1 et 99");
+    expect(card).not.toHaveTextContent("10,00");
     expect(card).toHaveTextContent("16,7 %");
     expect(card).toHaveTextContent("score de 0,60");
     expect(card).toHaveTextContent("dataset3 : 237 images MEB, licence à confirmer");

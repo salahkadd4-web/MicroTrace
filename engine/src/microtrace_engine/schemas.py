@@ -683,6 +683,13 @@ class ImageMetricsModel(_Model):
     dice: Number | None
     shape_balanced_accuracy: Number | None
     unreliable_share: Number | None
+    # end to end, on the particles the model proposes (not on the reference contours)
+    shape_proposed_accuracy: Number | None = None
+    shape_proposed_balanced_accuracy: Number | None = None
+    shape_proposed_n: int | None = None
+    bead_shape_correct: int | None = None
+    bead_shape_n: int | None = None
+    bead_feret_rel_err_median: Number | None = None
 
 
 class ImageModelInfo(_Model):
