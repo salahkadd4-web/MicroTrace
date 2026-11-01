@@ -60,4 +60,11 @@ describe("matcher du proxy", () => {
   it("garde toujours les exclusions de ressources statiques", () => {
     expect(re.test("/_next/static/x.js")).toBe(false);
   });
+  it("laisse passer les icônes du site sans connexion (logo dans l'onglet)", () => {
+    expect(re.test("/icon.svg")).toBe(false);
+    expect(re.test("/apple-icon")).toBe(false);
+    expect(re.test("/apple-icon.png")).toBe(false);
+    expect(re.test("/icon.svg/x")).toBe(true);
+    expect(re.test("/labo/x/icon.svg")).toBe(true);
+  });
 });

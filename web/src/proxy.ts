@@ -42,6 +42,6 @@ export async function proxy(req: NextRequest, ev: NextFetchEvent) {
 // (requireLab, avant toute lecture du corps) et répond 401 JSON sans session.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$|labo/[^/]+/etudes/[^/]+/spectres/analyser$|labo/[^/]+/etudes/[^/]+/images/analyser$|labo/[^/]+/etudes/[^/]+/rapport/(?:telecharger|dictionnaire)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg$|apple-icon(?:.png)?$|labo/[^/]+/etudes/[^/]+/imports/upload$|labo/[^/]+/etudes/[^/]+/spectres/analyser$|labo/[^/]+/etudes/[^/]+/images/analyser$|labo/[^/]+/etudes/[^/]+/rapport/(?:telecharger|dictionnaire)$).*)",
   ],
 };
