@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatNumberFr } from "@/components/app/NumberFr";
+import { particules } from "@/lib/images";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -46,13 +47,22 @@ export function SizeHistogram({
       </Alert>
     );
   }
+  if (distribution.bins.every((b) => b.count === 0)) {
+    return (
+      <Alert variant="info">
+        <AlertDescription>
+          Aucune particule à répartir : la distribution des tailles est vide.
+        </AlertDescription>
+      </Alert>
+    );
+  }
   const filled = distribution.bins.filter((b) => b.count > 0).length;
   return (
     <div className="space-y-3">
       <h3 className="text-base font-medium">Diamètre de Feret maximal des particules</h3>
       <p className="text-sm text-muted-foreground">
         Nombre de particules candidates par classe de diamètre de Feret maximal (en µm),{" "}
-        {formatNumberFr(total)} particules au total
+        {formatNumberFr(total)} {particules(total)} au total
         {distribution.median_um !== null
           ? `, médiane ${um(distribution.median_um)}${
               distribution.p10_um !== null && distribution.p90_um !== null

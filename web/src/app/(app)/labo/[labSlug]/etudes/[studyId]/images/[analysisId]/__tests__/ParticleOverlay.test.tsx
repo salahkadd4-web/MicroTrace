@@ -48,4 +48,25 @@ describe("ParticleOverlay", () => {
     const items = screen.getAllByRole("listitem").map((li) => li.textContent);
     expect(items).toEqual(["Fibre", "Fragment", "Bille", "Forme incertaine"]);
   });
+
+  it("accord au singulier pour 0 et 1 particule", () => {
+    const { unmount } = render(
+      <ParticleOverlay src="/x/image" width={100} height={100} particles={[]} />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Image analysée : 0 particule candidate délimitée" }),
+    ).toBeInTheDocument();
+    unmount();
+    render(
+      <ParticleOverlay
+        src="/x/image"
+        width={100}
+        height={100}
+        particles={[{ id: 1, shape: "fibre", contour: [[0, 0], [5, 0], [5, 5]] }]}
+      />,
+    );
+    expect(
+      screen.getByRole("img", { name: "Image analysée : 1 particule candidate délimitée" }),
+    ).toBeInTheDocument();
+  });
 });

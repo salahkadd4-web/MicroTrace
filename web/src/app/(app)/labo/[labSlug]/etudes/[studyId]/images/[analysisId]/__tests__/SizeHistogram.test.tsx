@@ -72,4 +72,17 @@ describe("SizeHistogram", () => {
     expect(screen.getByText("Échelle inconnue : pas de distribution en µm.")).toBeInTheDocument();
     expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
+
+  it("distribution vide : phrase explicative, aucun graphique", () => {
+    const empty = { ...dist, bins: dist.bins.map((b) => ({ ...b, count: 0 })), median_um: null };
+    render(<SizeHistogram distribution={empty} total={0} />);
+    expect(screen.getByText(/Aucune particule à répartir/)).toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  });
+
+  it("une seule particule : singulier", () => {
+    const one = { ...dist, bins: dist.bins.map((b, i) => ({ ...b, count: i === 1 ? 1 : 0 })) };
+    render(<SizeHistogram distribution={one} total={1} />);
+    expect(screen.getByText(/1 particule au total/)).toBeInTheDocument();
+  });
 });

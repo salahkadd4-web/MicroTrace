@@ -22,6 +22,7 @@ import { loadStudy } from "../../load-study";
 import { ImageDecisionForm } from "./ImageDecisionForm";
 import { ParticleOverlay } from "./ParticleOverlay";
 import { SizeHistogram } from "./SizeHistogram";
+import { particuleCandidates } from "@/lib/images";
 
 /** Au plus ce nombre de particules est listé (le moteur n'en renvoie pas davantage). */
 const MAX_TABLE_ROWS = 300;
@@ -134,8 +135,8 @@ export default async function ImageAnalysisPage({
           <dt className="text-muted-foreground">Échelle</dt>
           <dd>
             {scale
-              ? `Échelle : ${formatNumberFr(scale.um_per_px_input)} µm/px (${scale.source_label})`
-              : "Échelle : inconnue"}
+              ? `${formatNumberFr(scale.um_per_px_input)} µm/px (${scale.source_label})`
+              : "inconnue"}
           </dd>
           {scale ? (
             <>
@@ -271,6 +272,13 @@ export default async function ImageAnalysisPage({
                 })}
               </TableBody>
             </Table>
+            {out.particles.length > MAX_TABLE_ROWS ? (
+              <p className="text-sm text-muted-foreground">
+                {formatNumberFr(out.particles.length - MAX_TABLE_ROWS)}{" "}
+                {out.particles.length - MAX_TABLE_ROWS < 2 ? "autre particule non affichée" : "autres particules non affichées"}
+                {" "}(le CSV les contient toutes).
+              </p>
+            ) : null}
           </div>
         )}
       </Section>
@@ -287,7 +295,8 @@ export default async function ImageAnalysisPage({
                 <Badge variant={decisionBadge.badge}>{decisionBadge.label}</Badge>
                 {decision.validated ? (
                   <span>
-                    {formatNumberFr(decision.validated.count)} particules candidates validées
+                    {formatNumberFr(decision.validated.count)} {particuleCandidates(decision.validated.count)}{}
+                    {decision.validated.count < 2 ? "validée" : "validées"}
                   </span>
                 ) : null}
               </p>

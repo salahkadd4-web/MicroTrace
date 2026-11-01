@@ -117,7 +117,7 @@ function ModelCard({ info }: { info: ImageModelInfo }) {
               {m.count_mae !== null ? (
                 <>
                   <dt className="text-muted-foreground">Erreur moyenne de comptage</dt>
-                  <dd>{formatNumberFr(m.count_mae, 1)} particules par image</dd>
+                  <dd>{formatNumberFr(m.count_mae, 1)} {m.count_mae < 2 ? "particule" : "particules"} par image</dd>
                 </>
               ) : null}
               {m.dice !== null ? (
@@ -322,12 +322,12 @@ export default async function ImagesPage({
                         <TableCell className="text-right tabular-nums">
                           {formatNumberFr(c.validated.count)}
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{byShape("fibre")}</TableCell>
-                        <TableCell className="text-right tabular-nums">{byShape("fragment")}</TableCell>
-                        <TableCell className="text-right tabular-nums">{byShape("bille")}</TableCell>
-                        <TableCell className="text-right tabular-nums">{byShape("film")}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumberFr(byShape("fibre"))}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumberFr(byShape("fragment"))}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumberFr(byShape("bille"))}</TableCell>
+                        <TableCell className="text-right tabular-nums">{formatNumberFr(byShape("film"))}</TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {byShape("unspecified", "uncertain")}
+                          {formatNumberFr(byShape("unspecified", "uncertain"))}
                         </TableCell>
                         <TableCell className="min-w-28 whitespace-normal">
                           {c.medianFeretUm === null

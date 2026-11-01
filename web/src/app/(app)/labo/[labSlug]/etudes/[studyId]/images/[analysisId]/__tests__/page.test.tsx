@@ -147,7 +147,7 @@ describe("page d'une analyse d'image", () => {
     expect(
       screen.getByText("5 particules candidates (2 fibres, 3 fragments) d'au moins 14 µm. Proposition à valider par une personne compétente."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Échelle : 0,5 µm/px (saisie)")).toBeInTheDocument();
+    expect(screen.getByText("0,5 µm/px (saisie)")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Télécharger l'image annotée (PNG)" })).toHaveAttribute(
       "href", "/labo/labo/etudes/s1/images/an1/annotee",
     );
@@ -169,7 +169,7 @@ describe("page d'une analyse d'image", () => {
       analysis({}, { scale: null, size_distribution: null }) as never,
     );
     await renderPage();
-    expect(screen.getByText("Échelle : inconnue")).toBeInTheDocument();
+    expect(screen.getByText("inconnue")).toBeInTheDocument();
     expect(screen.getByText("Échelle inconnue : pas de distribution en µm.")).toBeInTheDocument();
     const table = screen.getByRole("table", { name: "Particules candidates (tailles en pixels)" });
     expect(within(table).getAllByRole("columnheader")[2]).toHaveTextContent("Feret max (px)");
@@ -201,6 +201,15 @@ describe("page d'une analyse d'image", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(6);
     expect(table).toHaveTextContent("Forme incertaine");
     expect(table).toHaveTextContent("tronquée");
+  });
+
+  it("table coupée à 300 lignes : note avec le nombre de particules non affichées", async () => {
+    const many = Array.from({ length: 302 }, (_, i) => particle(i + 1, "fibre"));
+    vi.mocked(getImageAnalysis).mockResolvedValue(
+      analysis({}, { count: 302, particles: many }) as never,
+    );
+    await renderPage();
+    expect(screen.getByText(/2 autres particules non affichées/)).toBeInTheDocument();
   });
 
   it("version du modèle différente : alerte", async () => {

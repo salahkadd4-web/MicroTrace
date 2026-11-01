@@ -1,3 +1,5 @@
+import { particuleCandidates } from "@/lib/images";
+
 export type OverlayParticle = { id: number; shape: string; contour: number[][] };
 
 /** Couleur de trait par forme ; « incertaine » (et non renseignée) en jeton neutre, pointillé. */
@@ -51,7 +53,7 @@ export function ParticleOverlay({
         <img src={src} alt="" width={width} height={height} className="h-auto w-full" />
         <svg
           role="img"
-          aria-label={`Image analysée : ${particles.length} particules candidates délimitées`}
+          aria-label={`Image analysée : ${particles.length} ${particuleCandidates(particles.length)} ${particles.length < 2 ? "délimitée" : "délimitées"}`}
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
           className="absolute inset-0 h-full w-full"

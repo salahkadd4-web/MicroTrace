@@ -46,3 +46,12 @@ export function imageDecisionBadge(status: string | null): {
     ? { label: found.label, badge: found.badge }
     : { label: "Non examinée", badge: "outline" };
 }
+
+/** Accord français : « 0 » et « 1 » prennent le singulier. */
+export function particuleCandidates(n: number): string {
+  return n < 2 ? "particule candidate" : "particules candidates";
+}
+
+export function particules(n: number): string {
+  return n < 2 ? "particule" : "particules";
+}
