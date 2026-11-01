@@ -36,11 +36,12 @@ export async function proxy(req: NextRequest, ev: NextFetchEvent) {
 // (requireLab, 401 texte sans session, 404 hors laboratoire) et renvoient une pièce jointe, pas
 // une redirection vers la page de connexion.
 // La route d'analyse spectrale (2 Mio) est exclue pour la même raison et authentifie elle-même.
+// La route d'analyse d'images (25 Mio) est exclue de même et authentifie elle-même.
 // La route de dépôt de fichiers (jusqu'à 50 Mo) est exclue : un corps qui traverse le proxy est
 // mis en mémoire tampon et tronqué au-delà de 10 Mo par défaut. Cette route authentifie elle-même
 // (requireLab, avant toute lecture du corps) et répond 401 JSON sans session.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$|labo/[^/]+/etudes/[^/]+/spectres/analyser$|labo/[^/]+/etudes/[^/]+/rapport/(?:telecharger|dictionnaire)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|labo/[^/]+/etudes/[^/]+/imports/upload$|labo/[^/]+/etudes/[^/]+/spectres/analyser$|labo/[^/]+/etudes/[^/]+/images/analyser$|labo/[^/]+/etudes/[^/]+/rapport/(?:telecharger|dictionnaire)$).*)",
   ],
 };

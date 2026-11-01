@@ -28,6 +28,13 @@ describe("matcher du proxy", () => {
     expect(re.test("/labo/mon-labo/etudes/abc123/spectres/analyser/x")).toBe(true);
     expect(re.test("/labo/mon-labo/etudes/abc123/spectres")).toBe(true);
   });
+  it("exclut la route d'analyse d'images (authentification propre), elle seule", () => {
+    expect(re.test("/labo/mon-labo/etudes/abc123/images/analyser")).toBe(false);
+    expect(re.test("/labo/mon-labo/etudes/abc123/images/analyser/x")).toBe(true);
+    expect(re.test("/labo/mon-labo/etudes/abc123/images")).toBe(true);
+    expect(re.test("/labo/mon-labo/etudes/abc123/images/comptages")).toBe(true);
+    expect(re.test("/labo/mon-labo/etudes/abc123/images/a1/image")).toBe(true);
+  });
   it.each([
     "/labo/mon-labo/etudes/abc123/rapport/telecharger",
     "/labo/mon-labo/etudes/abc123/rapport/dictionnaire",

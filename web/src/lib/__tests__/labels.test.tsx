@@ -154,6 +154,48 @@ describe("audit-labels", () => {
       { field: "Statut", before: "—", after: "Incertain" },
     ]);
   });
+
+  it("nomme les analyses d'image sans exposer de champ technique", () => {
+    const analysis = {
+      kind: "image",
+      status: "proposal",
+      count: 5,
+      scaleSource: "entered",
+      modelVersion: "i1",
+      inputSha256: "abc",
+    };
+    expect(entityTypeLabel("ModelPrediction", analysis)).toBe("Analyse d'image");
+    expect(auditObjectName({ entityType: "ModelPrediction", before: null, after: analysis })).toBe(
+      "5 particules candidates",
+    );
+    expect(
+      auditObjectName({
+        entityType: "ModelPrediction",
+        before: null,
+        after: { ...analysis, status: "unreliable", count: 0 },
+      }),
+    ).toBe("image non fiable");
+    expect(
+      auditObjectName({
+        entityType: "ModelPrediction",
+        before: null,
+        after: { kind: "image", decision: "corrected", proposedCount: 5, validatedCount: 1 },
+      }),
+    ).toBe("1 particule candidate");
+    expect(auditActionLabel("image.analysis")).toBe("Analyse d'image enregistrée");
+    expect(auditActionLabel("image.decision")).toBe("Décision sur une image enregistrée");
+    expect(auditActionLabel("image.counts_export")).toBe(
+      "Export des comptages de particules candidates",
+    );
+    expect(diffChanges(null, analysis)).toEqual([
+      { field: "Statut", before: "—", after: "Proposition" },
+      { field: "Particules candidates", before: "—", after: "5" },
+      { field: "Origine de l'échelle", before: "—", after: "Saisie" },
+      { field: "Version du modèle", before: "—", after: "i1" },
+    ]);
+    // La décision spectrale reste « Analyse spectrale ».
+    expect(entityTypeLabel("ModelPrediction", { kind: "spectral" })).toBe("Analyse spectrale");
+  });
 });
 
 describe("libellés d'audit des laboratoires, invitations et membres", () => {

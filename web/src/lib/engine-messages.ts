@@ -7,6 +7,9 @@ export const QUALITY_REFUSED =
 export const SPECTRAL_MODEL_UNAVAILABLE =
   "Le modèle spectral est indisponible : aucune analyse n'est possible pour l'instant.";
 export const SPECTRAL_REFUSED = "Le moteur d'analyse n'a pas pu analyser ce spectre.";
+export const IMAGE_MODEL_UNAVAILABLE =
+  "Le modèle d'images est indisponible : aucune analyse n'est possible pour l'instant.";
+export const IMAGE_REFUSED = "Le moteur d'analyse n'a pas pu analyser cette image.";
 export const CONTEXT_CHANGED =
   "Les paramètres de l'étude (méthodes ou limites) ont changé depuis certains imports : les statuts restent ceux calculés lors de chaque import.";
 export const STUDY_TOO_LARGE =

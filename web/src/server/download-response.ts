@@ -115,3 +115,16 @@ export function failure(e: unknown, tag: string, refused: string, nav?: Navigati
   console.error(`[${tag}] erreur inattendue :`, e instanceof Error ? e.name : typeof e);
   return plain("Une erreur inattendue est survenue.", 500);
 }
+
+/** Image PNG réécrite par le moteur : jamais mise en cache partagée, `nosniff`, affichée ou téléchargée. */
+export function pngResponse(bytes: Uint8Array, download?: { fileName: string }): Response {
+  return new Response(new Uint8Array(bytes), {
+    status: 200,
+    headers: {
+      "Content-Type": "image/png",
+      "Content-Disposition": download ? contentDisposition(download.fileName) : "inline",
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
+    },
+  });
+}

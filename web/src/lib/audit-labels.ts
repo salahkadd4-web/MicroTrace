@@ -8,6 +8,7 @@ import {
   TECHNIQUE_LABELS,
   labelOf,
 } from "@/lib/labels";
+import { IMAGE_DECISIONS } from "@/lib/images";
 import { QUALITY_DECISIONS } from "@/lib/quality";
 import { SPECTRAL_DECISIONS, TECHNIQUE_OPTIONS } from "@/lib/spectral";
 import { unitLabel } from "@/lib/units";
@@ -32,6 +33,9 @@ const ACTION_LABELS: Record<string, string> = {
   "quality.decision": "Décision qualité enregistrée",
   "spectral.analysis": "Analyse spectrale enregistrée",
   "spectral.decision": "Décision spectrale enregistrée",
+  "image.analysis": "Analyse d'image enregistrée",
+  "image.decision": "Décision sur une image enregistrée",
+  "image.counts_export": "Export des comptages de particules candidates",
   "report.download": "Rapport téléchargé",
   "lab.create": "Laboratoire créé",
   "lab.suspend": "Laboratoire suspendu",
@@ -111,6 +115,11 @@ const FIELD_LABELS: Record<string, string> = {
   proposedPolymer: "Polymère proposé",
   proposedLabel: "Proposition",
   polymerLabel: "Polymère retenu",
+  count: "Particules candidates",
+  scaleSource: "Origine de l'échelle",
+  proposedCount: "Particules proposées",
+  validatedCount: "Particules validées",
+  missed: "Particules ajoutées sans contour",
   granted: "Consentement donné",
   at: "Date du consentement",
   version: "Texte accepté",
@@ -123,7 +132,11 @@ export function auditActionLabel(code: string): string {
 }
 
 export function entityTypeLabel(type: string, after?: unknown): string {
-  if (type === "ModelPrediction" && asRecord(after).kind === "spectral") return "Analyse spectrale";
+  if (type === "ModelPrediction") {
+    const kind = asRecord(after).kind;
+    if (kind === "spectral") return "Analyse spectrale";
+    if (kind === "image") return "Analyse d'image";
+  }
   return ENTITY_LABELS[type] ?? type;
 }
 
@@ -149,9 +162,12 @@ const VALUE_LABELS: Record<string, Record<string, string>> = {
     identified: "Identifié (proposition)",
     uncertain: "Incertain",
     not_identified: "Non identifié (abstention)",
+    proposal: "Proposition",
+    unreliable: "Non fiable (abstention)",
   },
+  scaleSource: { metadata: "Lue dans l'image", entered: "Saisie", none: "Inconnue" },
   decision: Object.fromEntries(
-    [...QUALITY_DECISIONS, ...SPECTRAL_DECISIONS].map((d) => [d.code, d.label]),
+    [...QUALITY_DECISIONS, ...SPECTRAL_DECISIONS, ...IMAGE_DECISIONS].map((d) => [d.code, d.label]),
   ),
   format: { html: "Rapport HTML", md: "Rapport Markdown", csv: "Mesures (CSV)", json: "JSON" },
 };
@@ -184,17 +200,18 @@ function asRecord(value: unknown): Record<string, unknown> {
 export function diffChanges(before: unknown, after: unknown, ctx: AuditContext = {}): AuditChange[] {
   const b = asRecord(before);
   const a = asRecord(after);
-  // `kind` vaut « spectral » pour une prédiction (champ technique) ; pour un contrôle qualité, c'est le type.
-  const spectral = a.kind === "spectral" || b.kind === "spectral";
+  // `kind` vaut « spectral » ou « image » pour une prédiction (champ technique) ; pour un contrôle qualité, c'est le type.
+  const prediction =
+    a.kind === "spectral" || b.kind === "spectral" || a.kind === "image" || b.kind === "image";
   const fields = [...new Set([...Object.keys(a), ...Object.keys(b)])].filter(
-    (f) => !HIDDEN_FIELDS.has(f) && !(spectral && f === "kind"),
+    (f) => !HIDDEN_FIELDS.has(f) && !(prediction && f === "kind"),
   );
   const changes: AuditChange[] = [];
   for (const f of fields) {
     const from = format(f, b[f], ctx);
     const to = format(f, a[f], ctx);
     if (from === null || to === null || from === to) continue;
-    const field = spectral && f === "modelVersion" ? "Version du modèle" : (FIELD_LABELS[f] ?? f);
+    const field = prediction && f === "modelVersion" ? "Version du modèle" : (FIELD_LABELS[f] ?? f);
     changes.push({ field, before: from, after: to });
   }
   return changes;
@@ -219,6 +236,14 @@ export function auditObjectName(
         const proposal = str("proposedLabel") ?? "aucune proposition";
         if (technique) return `${technique} — ${proposal}`;
         return str("polymerLabel");
+      }
+      if (data.kind === "image") {
+        if (data.status === "unreliable") return "image non fiable";
+        const n = [data.validatedCount, data.proposedCount, data.count].find(
+          (v): v is number => typeof v === "number",
+        );
+        if (n === undefined) return null;
+        return `${formatNumberFr(n)} ${n >= 2 ? "particules candidates" : "particule candidate"}`;
       }
       const rule = str("ruleTitle");
       const subject = str("subject");

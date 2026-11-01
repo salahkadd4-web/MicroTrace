@@ -25,6 +25,9 @@ vi.mock("@/server/engine/client", async (orig) => {
       spectralModel: vi.fn(),
       identifySpectrum: vi.fn(),
       parseSpectrum: vi.fn(),
+      imageModel: vi.fn(),
+      analyzeImage: vi.fn(),
+      validateImage: vi.fn(),
     },
   };
 });
@@ -43,10 +46,12 @@ import * as qualityModule from "@/server/quality";
 import * as reportDownloadModule from "@/server/report-download";
 import * as resultsModule from "@/server/results";
 import * as studiesModule from "@/server/studies";
+import * as imagesModule from "@/server/images";
 import * as spectralModule from "@/server/spectral";
 import * as settingsModule from "@/server/study-settings";
 import * as trainingConsentModule from "@/server/training-consent";
 import { resetDb } from "../../../test/db-reset";
+import { VALIDATED, proposalFor } from "../../../test/images";
 import { makeLab, makeMember } from "../../../test/labs";
 
 const { listAuditEvents } = auditModule;
@@ -79,6 +84,17 @@ const {
   listSpectralAnalyses,
   recordSpectralDecision,
 } = spectralModule;
+const {
+  analyzeImage,
+  buildCountsCsv,
+  buildParticlesCsv,
+  getImageAnalysis,
+  getImageModel,
+  listImageAnalyses,
+  listValidatedCounts,
+  readAnalysisImage,
+  recordImageDecision,
+} = imagesModule;
 const { buildTrainingExport, getTrainingConsent, setTrainingConsent } = trainingConsentModule;
 const { getStudyResults, loadActiveResultsInput } = resultsModule;
 const { buildDictionaryDownload, buildReportDownload, getReportAvailability } =
@@ -128,6 +144,8 @@ const spectralResponse = (bytes: Uint8Array) =>
       { code: "PP", label: "Polypropylène (PP)" },
     ],
   }) as never;
+const IMAGE = new TextEncoder().encode("image-de-test") as Uint8Array<ArrayBuffer>;
+const IMAGE_INPUT = { fileName: "i.png", mimeType: "image/png", bytes: IMAGE, scaleUmPerPx: "0.5" };
 const FORBIDDEN_WRITE = "Action réservée aux chercheurs du laboratoire.";
 const FORBIDDEN_ADMIN = "Action réservée aux responsables du laboratoire.";
 const MISSING = "id-inexistant";
@@ -362,6 +380,44 @@ const CASES: Record<string, Record<string, Case>> = {
       outcome: { throws: "Étude introuvable." },
     },
   },
+  images: {
+    getImageModel: {
+      run: (ctx) => getImageModel(ctx),
+      outcome: { returns: (r) => expect(r).toMatchObject({ kind: "ok" }) },
+    },
+    listImageAnalyses: {
+      run: (ctx, ids) => listImageAnalyses(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    listValidatedCounts: {
+      run: (ctx, ids) => listValidatedCounts(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    getImageAnalysis: {
+      run: (ctx, ids) => getImageAnalysis(ctx, ids.study, MISSING),
+      outcome: { returns: (r) => expect(r).toBeNull() },
+    },
+    readAnalysisImage: {
+      run: (ctx, ids) => readAnalysisImage(ctx, ids.study, MISSING, "display"),
+      outcome: { returns: (r) => expect(r).toBeNull() },
+    },
+    analyzeImage: {
+      run: (ctx, ids) => analyzeImage(ctx, ids.study, IMAGE_INPUT),
+      outcome: { throws: "Étude introuvable." },
+    },
+    recordImageDecision: {
+      run: (ctx, ids) => recordImageDecision(ctx, ids.study, MISSING, { decision: "accepted" }),
+      outcome: { throws: "Étude introuvable." },
+    },
+    buildCountsCsv: {
+      run: (ctx, ids) => buildCountsCsv(ctx, ids.study),
+      outcome: { throws: "Étude introuvable." },
+    },
+    buildParticlesCsv: {
+      run: (ctx, ids) => buildParticlesCsv(ctx, ids.study, MISSING),
+      outcome: { throws: "Étude introuvable." },
+    },
+  },
   "training-consent": {
     getTrainingConsent: {
       run: (ctx) => getTrainingConsent(ctx),
@@ -465,6 +521,7 @@ const NOT_TENANT_FUNCTIONS: Record<string, Record<string, string>> = {
   results: {},
   quality: {},
   spectral: {},
+  images: {},
   "training-consent": {},
   "report-download": {},
   examples: {},
@@ -486,6 +543,7 @@ const MODULES: Record<string, Record<string, unknown>> = {
   results: resultsModule,
   quality: qualityModule,
   spectral: spectralModule,
+  images: imagesModule,
   "training-consent": trainingConsentModule,
   "report-download": reportDownloadModule,
   examples: examplesModule,
@@ -532,6 +590,9 @@ const WRITES: Record<string, (ctx: LabContext, ids: Ids) => Promise<unknown>> =
     analyzeSpectrum: (ctx, ids) => analyzeSpectrum(ctx, ids.study, SPECTRUM_INPUT),
     recordSpectralDecision: (ctx, ids) =>
       recordSpectralDecision(ctx, ids.study, MISSING, { decision: "accepted" }),
+    analyzeImage: (ctx, ids) => analyzeImage(ctx, ids.study, IMAGE_INPUT),
+    recordImageDecision: (ctx, ids) =>
+      recordImageDecision(ctx, ids.study, MISSING, { decision: "accepted" }),
   };
 
 /** Écritures réservées aux responsables. */
@@ -629,6 +690,11 @@ beforeEach(async () => {
     context: { data_nature: "laboratory", methods: [], limits: [], blank_corrected: "unknown" },
   } as never);
   vi.mocked(engineClient.spectralModel).mockResolvedValue({ available: true } as never);
+  vi.mocked(engineClient.imageModel).mockResolvedValue({ available: true } as never);
+  vi.mocked(engineClient.analyzeImage).mockImplementation(async (a) =>
+    proposalFor(a.file.data as Uint8Array),
+  );
+  vi.mocked(engineClient.validateImage).mockResolvedValue(VALIDATED);
   vi.mocked(engineClient.identifySpectrum).mockImplementation(async (a) =>
     spectralResponse(a.file.data as Uint8Array),
   );
@@ -1013,6 +1079,13 @@ describe("un viewer de A", () => {
       "getSpectralModel",
       "listSpectralAnalyses",
       "getSpectralAnalysis",
+      "getImageModel",
+      "listImageAnalyses",
+      "listValidatedCounts",
+      "getImageAnalysis",
+      "readAnalysisImage",
+      "buildCountsCsv",
+      "buildParticlesCsv",
       "buildReportDownload",
       "buildDictionaryDownload",
       "getReportAvailability",
@@ -1036,6 +1109,15 @@ describe("un viewer de A", () => {
     expect(await listSpectralAnalyses(viewerA, idsA.study)).toEqual({ rows: [], hidden: 0 });
     expect(await getSpectralModel(viewerA)).toMatchObject({ kind: "ok" });
     expect(await getSpectralAnalysis(viewerA, idsA.study, MISSING)).toBeNull();
+    expect(await listImageAnalyses(viewerA, idsA.study)).toEqual({ rows: [], hidden: 0 });
+    expect(await listValidatedCounts(viewerA, idsA.study)).toEqual([]);
+    expect(await getImageModel(viewerA)).toMatchObject({ kind: "ok" });
+    expect(await getImageAnalysis(viewerA, idsA.study, MISSING)).toBeNull();
+    expect(await readAnalysisImage(viewerA, idsA.study, MISSING, "display")).toBeNull();
+    expect((await buildCountsCsv(viewerA, idsA.study)).fileName).toMatch(/^microtrace-comptages-/);
+    await expect(buildParticlesCsv(viewerA, idsA.study, MISSING)).rejects.toThrow(
+      "Analyse introuvable.",
+    );
     expect(await buildStudyContext(viewerA, idsA.study)).toMatchObject({
       data_nature: "laboratory",
     });
@@ -1082,6 +1164,67 @@ describe("analyses spectrales", () => {
     ).rejects.toThrow("Étude archivée : lecture seule.");
     expect(await fullSnapshot()).toBe(before);
     expect((await listSpectralAnalyses(viewerA, idsA.study)).rows).toHaveLength(1);
+  });
+});
+
+describe("analyses d'images", () => {
+  it("une analyse de B citée dans une étude de A : « Analyse introuvable. », sans écriture", async () => {
+    const analysisB = await analyzeImage(ctxB, idsB.study, IMAGE_INPUT);
+    const before = await fullSnapshot();
+    await expect(
+      recordImageDecision(researcherA, idsA.study, analysisB.id, { decision: "accepted" }),
+    ).rejects.toThrow("Analyse introuvable.");
+    await expect(buildParticlesCsv(ctxA, idsA.study, analysisB.id)).rejects.toThrow(
+      "Analyse introuvable.",
+    );
+    expect(await fullSnapshot()).toBe(before);
+    expect(await getImageAnalysis(ctxA, idsA.study, analysisB.id)).toBeNull();
+    expect(await getImageAnalysis(ctxA, idsB.study, analysisB.id)).toBeNull();
+    expect(await readAnalysisImage(ctxA, idsA.study, analysisB.id, "display")).toBeNull();
+    expect(await readAnalysisImage(ctxA, idsB.study, analysisB.id, "annotated")).toBeNull();
+    expect((await listImageAnalyses(ctxA, idsA.study)).rows).toEqual([]);
+  });
+
+  it("une décision de B sur une analyse de A est impossible", async () => {
+    const analysisA = await analyzeImage(ctxA, idsA.study, IMAGE_INPUT);
+    const before = await fullSnapshot();
+    await expect(
+      recordImageDecision(ctxB, idsB.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Analyse introuvable.");
+    await expect(
+      recordImageDecision(ctxB, idsA.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Étude introuvable.");
+    expect(await fullSnapshot()).toBe(before);
+  });
+
+  it("l'export des comptages de A ne contient jamais une ligne de B", async () => {
+    const analysisA = await analyzeImage(ctxA, idsA.study, IMAGE_INPUT);
+    const analysisB = await analyzeImage(ctxB, idsB.study, IMAGE_INPUT);
+    await recordImageDecision(researcherA, idsA.study, analysisA.id, { decision: "accepted" });
+    await recordImageDecision(ctxB, idsB.study, analysisB.id, { decision: "accepted" });
+    const body = (await buildCountsCsv(ctxA, idsA.study)).body;
+    expect(body).toContain(analysisA.id);
+    expect(body).not.toContain(analysisB.id);
+    await expect(buildCountsCsv(ctxA, idsB.study)).rejects.toThrow("Étude introuvable.");
+    expect((await listValidatedCounts(ctxA, idsA.study)).map((r) => r.analysisId)).toEqual([
+      analysisA.id,
+    ]);
+  });
+
+  it("étude archivée : analyse et décision refusées, sans écriture ; lecture et export permis", async () => {
+    const analysisA = await analyzeImage(ctxA, idsA.study, IMAGE_INPUT);
+    await archiveStudy(ctxA, idsA.study, "fin");
+    const before = await fullSnapshot();
+    await expect(analyzeImage(ctxA, idsA.study, IMAGE_INPUT)).rejects.toThrow(
+      "Étude archivée : lecture seule.",
+    );
+    await expect(
+      recordImageDecision(ctxA, idsA.study, analysisA.id, { decision: "accepted" }),
+    ).rejects.toThrow("Étude archivée : lecture seule.");
+    expect(await fullSnapshot()).toBe(before);
+    expect((await listImageAnalyses(viewerA, idsA.study)).rows).toHaveLength(1);
+    expect(await readAnalysisImage(viewerA, idsA.study, analysisA.id, "display")).not.toBeNull();
+    expect((await buildParticlesCsv(viewerA, idsA.study, analysisA.id)).body).toContain("particle_id");
   });
 });
 
