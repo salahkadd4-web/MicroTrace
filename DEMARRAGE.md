@@ -18,6 +18,8 @@ Cela crée le fichier `.env` avec trois secrets aléatoires. Le script refuse d'
 
 ## 3. Démarrer
 
+Avant le premier démarrage, placez les deux fichiers de modèles dans le dossier `models/` du projet : `c5-spectral-s1.npz` et `c6-microscopie-i1.npz` (voir « Installer le modèle spectral » et « Entraîner le modèle d'images »). Ils sont montés en lecture seule dans le moteur ; sans eux, l'application fonctionne mais les onglets Spectres et Images indiquent que le modèle n'est pas installé.
+
 ```powershell
 docker compose up -d --build
 ```
@@ -169,6 +171,24 @@ Le code de sortie de `--check` doit être 0 (voir plus bas ce qu'il demande). Re
 Lancez d'abord la commande de vérification ci-dessus (avec `--check`) : elle réentraîne en mémoire (environ une minute et demie) et compare l'empreinte aux fichiers versionnés, sans rien écrire. Sur une autre machine, l'empreinte peut différer (calcul numérique dépendant de la plateforme) ; dans ce cas, préférez copier les poids de la machine de référence.
 
 **Attention : sans `--check`, la même commande écrit les poids et réécrit les fichiers versionnés** (verrou, manifeste, liste des données et fiche du modèle). N'y recourez que pour un réentraînement voulu, puis relisez `git diff` et ne committez que si c'est intentionnel. Après un réentraînement, **redémarrez le moteur**.
+
+## Entraîner le modèle d'images (une fois)
+
+L'onglet Images a besoin des poids du modèle d'images, qui ne sont **jamais dans Git** (dossiers `models/` et `datasets/`, ignorés). L'empreinte attendue est dans le dépôt (`engine/src/microtrace_engine/image_model.lock.json`) : le moteur refuse tout fichier dont le sha256 ne correspond pas.
+
+**Chemin recommandé : copier les poids.** Prenez le fichier `models/c6-microscopie-i1.npz` de la machine de référence, copiez-le dans le dossier `models/` de cette machine, puis vérifiez-le avec `--check` :
+
+```powershell
+.venv/Scripts/python -m microtrace_core train-image --dataset datasets/Images/dataset3 --models models `
+  --manifest docs/models/c6-microscopie-manifest.json --data-list docs/models/c6-microscopie-i1-data.sha256 `
+  --lock engine/src/microtrace_engine/image_model.lock.json --card docs/models/c6-microscopie.md --check
+```
+
+Le code de sortie de `--check` doit être 0. Cette vérification réentraîne en mémoire et dure environ 37 minutes (elle ne nécessite pas que les poids soient copiés : elle compare l'empreinte recalculée aux fichiers versionnés, sans rien écrire). Redémarrez ensuite le moteur : il ne recharge pas les poids à chaud.
+
+**Entraîner (seulement si c'est voulu).** Il faut le jeu de données `datasets/Images/dataset3` (images MEB, licence à confirmer) et l'extra d'entraînement (`pip install -e "core[train]"`). La même commande, **sans** `--check`, entraîne le modèle (environ 38 minutes sur la machine de référence, sans carte graphique), écrit `models/c6-microscopie-i1.npz` et réécrit les fichiers versionnés (verrou, manifeste, liste des données et carte du modèle) : relisez `git diff` et ne committez que si c'est intentionnel. `models/` et `datasets/` restent hors de Git (`git status` ne doit rien montrer sous ces dossiers). Sur une autre machine, l'empreinte peut différer (calcul numérique dépendant de la plateforme) : préférez alors copier les poids. Après un entraînement, **redémarrez le moteur**.
+
+Sans les poids, l'onglet Images indique que le modèle est absent ; le reste de l'application fonctionne.
 
 ## 12. Mise en production
 

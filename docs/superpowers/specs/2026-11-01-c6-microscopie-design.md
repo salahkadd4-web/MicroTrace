@@ -459,30 +459,30 @@ Plan de C5 : 1. objet et statut (modèle d'essai ; particules candidates, jamais
 
 ### 12.1 Segmentation
 
-**Référence « seuil d'Otsu »** (fond retiré par une gaussienne de 1/8 de l'image, lissage σ = 4, polarité choisie automatiquement, ouverture, remplissage) : meilleur réglage d'une grille de 16 sur un tiers de l'apprentissage + validation (F1 objets 0,33). Sur le **test**, aux mêmes résolution (1 024) et taille minimale (0,5 %) que la forêt : Dice 0,616, **F1 objets 0,29** (précision 0,22, rappel 0,45), erreur absolue de comptage **1,79**, comptage exact 24 %, à ±20 % 55 %.
+**Référence « seuil d'Otsu »** (un seul traitement fixe : fond retiré par une gaussienne de 1/8 de l'image, lissage σ = 4, polarité choisie automatiquement, ouverture, remplissage). Sur le **test** (42 images), aux mêmes résolution (1 024) et taille minimale que la forêt : Dice 0,594, **F1 objets 0,265** (précision 0,20, rappel 0,39), erreur absolue de comptage **1,94** (33 images), comptage exact 12 %, à ±20 % 52 %.
 
-**Forêt de pixels** (apprise sur les 147 images d'apprentissage seules, 441 000 pixels, 316 852 nœuds, apprentissage 114 s ; descripteurs 2,7 s par image ; prédiction scikit-learn 4,8 s par image de 1 024 px). Choix sur la validation (48 images) : seuil **0,7**, taille minimale **0,5 %** de l'image (F1 objets de validation 0,617 ; 0,5 % est le bord de la grille mesurée, la grille de la commande va jusqu'à 1 %).
+**Forêt de pixels** (60 arbres, profondeur 14, 1 500 pixels par classe, poids équilibrés ; modèle final appris sur apprentissage + validation, graine 0). Réglages choisis sur la validation (48 images) par la règle documentée : seuil de pixel **0,7**, taille minimale **1 %** de l'image, seuil de forme **0,5**, abstention au-delà de **25 %** de surface segmentée (F1 objets de validation 0,667, erreur de comptage 1,69). Plage d'échelle d'apprentissage : 0,124 à 9,92 µm/px, élargie d'un facteur 2 de chaque côté (0,062 à 19,8 µm/px).
 
 | Test (42 images) | Dice | F1 objets | Précision | Rappel | Erreur de comptage (33 images) | Exact | ±20 % |
 |---|---|---|---|---|---|---|---|
-| **global** | **0,709** | **0,49** | 0,38 | 0,69 | **2,00** (biais −0,1) | 21 % | 45 % |
-| `bead` (7) | 0,834 | 0,53 | 0,36 | 1,00 | 2,29 (biais +2,0) | | |
-| `fibre_1` (10) | 0,728 | 0,71 | 0,63 | 0,83 | 2,00 (biais −1,8) | | |
-| `fibre_2` (9) | 0,557 | 0,15 | 0,11 | 0,21 | — (pas de comptage) | | |
-| `fragment_1` (7) | 0,917 | **1,00** | 1,00 | 1,00 | 0,86 (biais −0,86) | | |
-| `fragment_2` (9) | 0,582 | 0,20 | 0,14 | 0,38 | 2,67 (biais +2,4) | | |
+| **global** | **0,710** | **0,52** | 0,43 | 0,67 | **1,61** (biais −0,8) | 30 % | 55 % |
+| `bead` (7) | 0,867 | 0,78 | 0,64 | 1,00 | 0,71 (biais +0,4) | | |
+| `fibre_1` (10) | 0,719 | 0,65 | 0,52 | 0,85 | 2,90 (biais −2,9) | | |
+| `fibre_2` (9) | 0,546 | 0,12 | 0,09 | 0,18 | — (pas de comptage) | | |
+| `fragment_1` (7) | 0,918 | **0,96** | 1,00 | 0,93 | 1,00 (biais −1,0) | | |
+| `fragment_2` (9) | 0,582 | 0,29 | 0,23 | 0,42 | 1,33 (biais +0,9) | | |
 
-Le comptage moyen vrai des 33 images de test est de 2,8 particules : une erreur de 2 particules par image est **grande**. La forêt localise mieux qu'Otsu (F1 0,49 contre 0,29 ; Dice 0,71 contre 0,62) mais **ne compte pas mieux** (2,00 contre 1,79). C'est un modèle d'essai médiocre hors des fragments isolés sur fond lisse (`fragment_1`) ; la fiche, l'écran et l'abstention (§4.5) le disent. Ces chiffres justifient l'étape b (§4.4) et la règle « trial = meilleur F1 objets sur la validation » ; le comptage des deux méthodes est publié.
+Le comptage moyen vrai des 33 images de test est de 2,8 particules : une erreur de 1,6 particule par image est **grande**. La forêt localise mieux qu'Otsu (F1 0,52 contre 0,27 ; Dice 0,71 contre 0,59) et compte un peu mieux (1,61 contre 1,94). C'est un modèle d'essai médiocre hors des fragments isolés sur fond lisse (`fragment_1`) ; la fiche, l'écran et l'abstention (§4.5) le disent. Le comptage des deux méthodes est publié.
 
-**Abstention mesurée** (forêt, `MAX_FOREGROUND = 0,25`) : validation 3/48 images « non fiable » ; **test 7/42** (6 `fibre_2` — tapis de fibres — et 1 `fibre_1`) ; erreur de comptage des images gardées 1,97 (une seule image abstenue a un comptage de référence : erreur 3). Aucune image de `dataset3` n'a un contraste inférieur à 17 ni zéro particule détectée : `low_contrast` et `no_particle` ne sont atteints que par les tests synthétiques et l'e2e. Le seuil de surface ne réduit **pas** l'erreur de comptage des images gardées (1,97 contre 2,00) : il retire surtout les tapis de fibres, où un comptage n'a pas de sens. La fiche le dit.
+**Abstention mesurée** (forêt, surface maximale 0,25) : validation 3/48 images « non fiable » ; **test 7/42** (6 `fibre_2` — tapis de fibres — et 1 `fibre_1`, toutes pour `large_foreground`) ; erreur de comptage des images gardées 1,53 (32 images comptées ; une seule image abstenue a un comptage de référence : erreur 4). Aucune image de `dataset3` n'est abstenue pour `low_contrast` ou `no_particle` : ces raisons ne sont atteintes que par les tests synthétiques et l'e2e. Le seuil de surface retire surtout les tapis de fibres, où un comptage n'a pas de sens. La fiche le dit.
 
 **Durée** : 4,9 s par image en moyenne (descripteurs + forêt scikit-learn à 2 fils, 1 024 px, 90 images) ; l'inférence numpy de la forêt est à mesurer à la tâche 3 (plafond du plan : 30 s pour une image de 2 560 × 1 800).
 
-**Tailles** (50 paires appariées du test) : Feret maximal, erreur relative médiane **1,8 %**, 90e centile 30,5 %, biais moyen +4,3 % ; aire, erreur relative médiane 20 % (contours plus larges ou plus étroits que l'annotation).
+**Tailles** (38 paires appariées du test) : Feret maximal, erreur relative médiane **2,0 %**, 90e centile 30,9 %, biais moyen +7,7 % (mais **40,3 %** d'erreur médiane sur les billes : à ne pas utiliser pour elles) ; aire, erreur relative médiane 15,6 % (contours plus larges ou plus étroits que l'annotation).
 
 ### 12.2 Forme
 
-§4.3 : régression logistique 0,91 d'exactitude (0,93 équilibrée) sur les composantes du test ; règles 0,76 à 0,85.
+§4.3 : régression logistique 0,91 d'exactitude (0,93 équilibrée) sur 100 composantes du test, contre 0,76 (0,58 équilibrée) pour les règles. Sur les 38 particules proposées de bout en bout (forêt puis forme) : exactitude 0,84 (0,77 équilibrée) ; fibres 13/13, fragments 16/18, **billes 3/7** (forme confondue avec « fragment » dans 4 cas).
 
 ### 12.3 Conditions d'échec connues (pour la fiche)
 

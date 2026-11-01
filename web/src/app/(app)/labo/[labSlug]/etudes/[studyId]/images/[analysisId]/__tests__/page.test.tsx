@@ -241,6 +241,7 @@ describe("page d'une analyse d'image", () => {
       }) as never,
     );
     await renderPage();
+    expect(screen.getByText("4 particules candidates validées", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("4 particules candidates validées : 4 proposées gardées, 1 exclue.")).toBeInTheDocument();
     expect(screen.getByText("Deux fibres croisées")).toBeInTheDocument();
     expect(screen.getByText(/2 décisions, voir le Journal/)).toBeInTheDocument();

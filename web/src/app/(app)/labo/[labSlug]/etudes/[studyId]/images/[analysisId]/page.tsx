@@ -295,7 +295,7 @@ export default async function ImageAnalysisPage({
                 <Badge variant={decisionBadge.badge}>{decisionBadge.label}</Badge>
                 {decision.validated ? (
                   <span>
-                    {formatNumberFr(decision.validated.count)} {particuleCandidates(decision.validated.count)}{}
+                    {formatNumberFr(decision.validated.count)} {particuleCandidates(decision.validated.count)}{" "}
                     {decision.validated.count < 2 ? "validée" : "validées"}
                   </span>
                 ) : null}

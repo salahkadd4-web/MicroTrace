@@ -4,6 +4,7 @@ Ce fichier recense ce qui a été volontairement reporté pendant le prototype. 
 
 ## Exigences avant tout hébergement de données réelles
 
+- Avant de présenter C6 aux laboratoires : retrouver la source et la licence de `dataset3` (images MEB) ; Roboflow reste exclu tant que sa licence n'est pas connue.
 - Avant de présenter C5 aux laboratoires : confirmer les licences « À compléter » des bibliothèques spectrales (FLOPP, FLOPP-e, SLoPP, SLoPP-E, RaSPI, base Raman vieillie).
 - Vérifier l'adresse e-mail à l'acceptation d'une invitation, ou imposer une réinitialisation du mot de passe. Aujourd'hui :
   - le détenteur du lien choisit le mot de passe de l'adresse invitée ;
@@ -105,3 +106,25 @@ Laissé de côté volontairement pendant la réalisation :
 - Captures d'écran (`e2e/screenshots.spec.ts`) : les pages Spectres sont capturées seulement si les poids (`models/`) et le spectre réel (`datasets/`) sont présents ; sinon cette partie est sautée.
 - Revue finale (mineurs reportés) : phrase d'essai « pas encore sur les vôtres » qui suggère un usage futur des données du laboratoire (à reformuler avec la fondatrice, la phrase est figée dans la fiche et les tests) ; texte du consentement qui ne liste pas tout ce que contient l'export (analyse proposée, score, unités, laser, références du modèle, dates, nom du laboratoire) : un changement de texte impose une nouvelle version du consentement, donc à traiter avec le cadre légal ; références FLOPP et SLoPP sans titre ni DOI, et référence « à compléter » pour RaSPI et raman_weathered, à compléter avec la confirmation des licences (R-C5-1).
 - Question ouverte : un premier choix sur un polymère non évalué (présent dans une seule bibliothèque) devrait-il être plafonné à « incertain » dans une prochaine version du modèle ? La version s1 ne change pas ; l'écran, la fiche et l'explication le signalent seulement.
+
+## C6 — points reportés (clos le 2026-11-01)
+
+Hors périmètre (conception, §14) :
+
+- Mask R-CNN (script optionnel avec carte graphique, extra `ml[maskrcnn]`) : non réalisé ; le modèle servi est classique (forêt de pixels et classifieur de forme). La question de l'usage commercial des poids COCO (préentraînement de Mask R-CNN) reste à trancher avant tout usage.
+- Forme « film » jamais proposée ; nature des particules (plastique ou non) non déterminée par l'image ; images de microscopie optique et particules extraites de sang : performances inconnues, recalibration avec des images annotées du laboratoire à prévoir.
+- Réentraînement avec les images des laboratoires : cadre légal, consentement c2 et marquage « résultats validés » à faire avant (comme C5).
+- Rechargement à chaud du modèle : après un entraînement, redémarrer le moteur ; empreinte des poids dépendante de la plateforme.
+
+Laissé de côté volontairement pendant la réalisation :
+
+- Couche d'images (revue de la tâche 1) : `_stretch` consomme de la mémoire sur les grandes images ; les messages « bombe de décompression » citent des nombres approximatifs ; `packaging` 26.3 (Apache-2.0 ou BSD-2) est une dépendance d'exécution à documenter ; une image RVB 16 bits est ramenée à 8 bits.
+- Moteur (tâche 3) : le dépôt multipart est lu en mémoire avant le refus 413 (plafond de taille du corps à ajouter au proxy) ; 503 (modèle absent) avant 413 (fichier trop gros).
+- Informations du modèle (R-C6-9) : l'écran n'affiche que les métriques de l'archive (erreur de taille et abstention par motif absentes) ; la carte complète les donne.
+- Service web (tâche 4) : les deux PNG d'une analyse restent orphelins dans le magasin si la transaction échoue (à ajouter à la commande de maintenance des fichiers orphelins) ; au plus 5 000 décisions lues par étude.
+- Page d'analyse (tâche 5) : la table des particules est coupée à 300 lignes (le CSV contient tout) et 300 listes de formes (`SelectField`) sont lourdes à afficher : à remplacer par une pagination.
+- Carte du modèle : le gabarit de prose de la carte (`docs/models/c6-microscopie.md`) est hors du dépôt ; seul le bloc de métriques est généré par la commande, et un test signale tout chiffre tapé à la main. L'écran Images cite la carte par son chemin dans le dépôt : à remplacer par une page de documentation accessible aux laboratoires (comme pour C5 et C7).
+- Faiblesses du modèle d'essai : diamètre de Feret des billes très mal estimé (écart médian 40 %), 3 billes retrouvées sur 7 ; abstention sur 7 images de test sur 42.
+- Phrase d'essai « pas encore sur les vôtres » (voir C5) et texte du consentement c2 : à relire avec le cadre légal ; un changement de texte impose une nouvelle version du consentement.
+- Les parcours e2e de l'onglet Images sont ignorés si les poids (`models/`) ou le jeu de données (`datasets/`) manquent, ce qui est le cas en intégration continue : ils ne s'y exécuteront que si l'IC entraîne le modèle (environ 38 minutes) ou monte ces données (jamais dans Git).
+- Captures d'écran (`e2e/screenshots.spec.ts`) : les pages Images sont capturées seulement si les poids et `dataset3` sont présents ; sinon cette partie est sautée.

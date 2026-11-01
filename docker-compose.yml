@@ -31,7 +31,7 @@ services:
     environment:
       ENGINE_SECRET: "${ENGINE_SECRET:?Exécutez d’abord node scripts/generate-secrets.mjs}"
       ENGINE_MODELS_DIR: /app/models
-    # Poids du modèle spectral (C5) : dossier models/ du dépôt, en lecture seule ; jamais dans l'image.
+    # Poids des modèles IA (C5 spectral, C6 images) : dossier models/ du dépôt, en lecture seule ; jamais dans l'image.
     volumes:
       - ./models:/app/models:ro
     healthcheck:
