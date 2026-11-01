@@ -67,7 +67,7 @@ export const IMAGE_EXPORT_FORMAT = "microtrace.image-training-export";
 
 /** Mention de l'export : préparation seulement, aucun entraînement avant le cadre légal. */
 export const EXPORT_NOTICE =
-  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres et les images réécrites par MicroTrace (sans métadonnée) avec leurs particules sont exportées (l'échelle des images est celle de l'image exportée), jamais le fichier déposé. Les analyses d'images jugées non fiables ne sont jamais exportées.";
+  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres et les images réécrites par MicroTrace (sans métadonnée) avec leurs particules sont exportées (l'échelle des images est celle de l'image exportée), jamais le fichier déposé. Les pixels de l'image sont exportés tels que déposés : recadrez la bande d'informations (texte, échelle, date) avant le dépôt, seule la bande des TIFF Hitachi étant retirée automatiquement. Les analyses d'images jugées non fiables ne sont jamais exportées.";
 
 /** Conditions préalables à tout entraînement, rappelées dans l'en-tête de l'export. */
 export const EXPORT_PREREQUISITES =

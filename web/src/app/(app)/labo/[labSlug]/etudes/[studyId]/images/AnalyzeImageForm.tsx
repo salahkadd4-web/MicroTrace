@@ -6,7 +6,7 @@ import { FormError } from "@/components/app/FormError";
 import { FormField } from "@/components/app/FormField";
 import { SubmitButton } from "@/components/app/SubmitButton";
 import { Input } from "@/components/ui/input";
-import { IMAGE_ACCEPT, IMAGE_MAX_BYTES } from "@/lib/images";
+import { IMAGE_ACCEPT, IMAGE_BAR_ADVICE, IMAGE_MAX_BYTES } from "@/lib/images";
 
 const TOO_BIG = "Fichier trop volumineux (25 Mo maximum).";
 const NO_FILE = "Choisissez l'image à analyser.";
@@ -71,6 +71,7 @@ export function AnalyzeImageForm({ labSlug, studyId }: { labSlug: string; studyI
           }}
         />
         <p className="text-xs text-muted-foreground">PNG, JPEG ou TIFF, 25 Mo au plus.</p>
+        <p className="text-xs text-muted-foreground">{IMAGE_BAR_ADVICE}</p>
       </FormField>
       <FormField id="image-scale" label="Échelle (µm par pixel)">
         <Input

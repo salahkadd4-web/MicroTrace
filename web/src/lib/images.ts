@@ -55,3 +55,7 @@ export function particuleCandidates(n: number): string {
 export function particules(n: number): string {
   return n < 2 ? "particule" : "particules";
 }
+
+/** Conseil avant dépôt : seule la bande des TIFF Hitachi est retirée automatiquement. */
+export const IMAGE_BAR_ADVICE =
+  "Recadrez la bande d'informations (texte, échelle, date) avant le dépôt : seule la bande des TIFF Hitachi est retirée automatiquement. Elle pourrait être comptée comme particule et son texte resterait dans l'image exportée.";

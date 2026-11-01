@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
+import { IMAGE_BAR_ADVICE } from "@/lib/images";
 import { AnalyzeImageForm } from "../AnalyzeImageForm";
 
 const fetchMock = vi.fn();
@@ -26,6 +27,7 @@ describe("AnalyzeImageForm", () => {
       "accept",
       ".png,.jpg,.jpeg,.tif,.tiff",
     );
+    expect(screen.getByText(IMAGE_BAR_ADVICE)).toBeInTheDocument();
     expect(screen.getByLabelText("Échelle (µm par pixel)")).toBeInTheDocument();
     expect(screen.getByText(/Laissez vide pour un TIFF de MEB Hitachi/)).toBeInTheDocument();
   });
