@@ -1,7 +1,12 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@/generated/prisma/client";
-import { IMAGE_MODEL_UNAVAILABLE, IMAGE_REFUSED } from "@/lib/engine-messages";
+import {
+  IMAGE_MODEL_UNAVAILABLE,
+  IMAGE_NOT_ANALYSED,
+  IMAGE_REFUSED,
+  IMAGE_VALIDATION_REFUSED,
+} from "@/lib/engine-messages";
 import {
   IMAGE_DECISIONS,
   IMAGE_MAX_BYTES,
@@ -389,7 +394,7 @@ export async function analyzeImage(
     throw e;
   }
   if (response.input.sha256 !== sha256) {
-    throw new DomainError("Le moteur n'a pas analysé le fichier déposé : recommencez.");
+    throw new DomainError(IMAGE_NOT_ANALYSED);
   }
 
   const findExisting = async (db: Pick<typeof prisma, "modelPrediction">) => {
@@ -542,7 +547,11 @@ export async function recordImageDecision(
   const analysis = await findAnalysis(ctx, studyId, analysisId);
   if (!analysis) throw new DomainError("Analyse introuvable.");
   const output = analysis.output as unknown as ImageAnalysisOutput;
-  const { excluded, reshaped, missed } = parseCorrections(input);
+  const parsed = parseCorrections(input);
+  const { excluded, missed } = parsed;
+  const proposed = new Map(output.particles.map((p) => [p.id, p.shape as string]));
+  // Une forme identique à la proposée n'est pas un changement : elle n'est ni stockée ni auditée.
+  const reshaped = parsed.reshaped.filter((r) => proposed.get(r.id) !== r.shape);
   const hasCorrections = excluded.length > 0 || reshaped.length > 0 || missed > 0;
 
   if (decision.code === "accepted") {
@@ -553,9 +562,7 @@ export async function recordImageDecision(
       throw new DomainError("Une acceptation ne porte pas de correction : choisissez « Corrigée ».");
     }
   } else if (decision.code === "corrected") {
-    const proposed = new Map(output.particles.map((p) => [p.id, p.shape]));
-    const shapeChanged = reshaped.some((r) => proposed.get(r.id) !== r.shape);
-    if (excluded.length === 0 && !shapeChanged && missed === 0) {
+    if (!hasCorrections) {
       throw new DomainError(
         "Aucune correction saisie : choisissez « Acceptée » ou modifiez au moins une particule.",
       );
@@ -577,7 +584,7 @@ export async function recordImageDecision(
     } catch (e) {
       if (e instanceof EngineError) {
         if (e.status === 422) throw new DomainError(e.detail);
-        throw new DomainError(IMAGE_REFUSED);
+        throw new DomainError(IMAGE_VALIDATION_REFUSED);
       }
       throw e;
     }

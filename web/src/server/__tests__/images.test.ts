@@ -377,7 +377,7 @@ describe("recordImageDecision", () => {
       analysisId,
       decision: "corrected",
       proposedCount: 5,
-      validatedCount: 4,
+      validatedCount: 5,
       excluded: [2],
       reshaped: [{ id: 1, shape: "bille" }],
       missed: 1,
@@ -399,6 +399,30 @@ describe("recordImageDecision", () => {
     await recordImageDecision(researcher, studyId, analysisId, {
       decision: "corrected",
       reshaped: [{ id: 5, shape: "fibre" }],
+    });
+  });
+
+  it("une forme identique à la proposée est retirée avant le stockage et l'audit", async () => {
+    const analysisId = await analysis();
+    const { id } = await recordImageDecision(researcher, studyId, analysisId, {
+      decision: "corrected",
+      excluded: [2],
+      reshaped: [
+        { id: 1, shape: "fibre" },
+        { id: 5, shape: "bille" },
+      ],
+    });
+    expect(validate).toHaveBeenCalledWith(
+      expect.objectContaining({ reshaped: [{ id: 5, shape: "bille" }] }),
+    );
+    const row = await prisma.modelPrediction.findUniqueOrThrow({ where: { id } });
+    expect((row.input as { reshaped: unknown }).reshaped).toEqual([{ id: 5, shape: "bille" }]);
+    const audit = await prisma.auditEvent.findFirstOrThrow({ where: { action: "image.decision" } });
+    expect((audit.after as { reshaped: unknown }).reshaped).toEqual([{ id: 5, shape: "bille" }]);
+    // Une acceptation qui ne porte qu'une forme identique n'a pas de correction.
+    await recordImageDecision(researcher, studyId, analysisId, {
+      decision: "accepted",
+      reshaped: [{ id: 1, shape: "fibre" }],
     });
   });
 
@@ -550,7 +574,7 @@ describe("recordImageDecision", () => {
         studyId,
         a,
         { decision: "accepted" },
-        "Le moteur d'analyse n'a pas pu analyser cette image.",
+        "Le moteur d'analyse n'a pas pu valider cette analyse.",
       );
     });
     it("moteur injoignable : rien n'est écrit", async () => {
@@ -777,17 +801,19 @@ describe("CSV", () => {
       image_sha256: sha(BYTES),
       scale_um_per_px: "0.5",
       scale_source: "entered",
-      count_validated: "4",
+      count_validated: "5",
       count_fibre: "1",
       count_fragment: "1",
       count_bille: "1",
       count_film: "0",
-      count_unspecified: "1",
+      count_unspecified: "2", // une forme incertaine + une particule manquée
       missed: "1",
       feret_median_um: "11.5",
       model_name: "c6-microscopie",
       model_version: "i1",
     });
+    const shapes = ["fibre", "fragment", "bille", "film", "unspecified"].map((k) => Number(r[`count_${k}`]));
+    expect(shapes.reduce((a, b) => a + b, 0)).toBe(Number(r.count_validated));
     expect(file.body).not.toContain("dupont");
     expect(file.body).not.toContain("fileName");
     expect(file.fileName).not.toContain("dupont");

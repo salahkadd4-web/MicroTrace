@@ -119,8 +119,8 @@ export function unreliableFor(bytes: Uint8Array): ImageAnalyzeResponse {
 
 /** Réponse de `/ai/image/validate` du simulacre. */
 export const VALIDATED: ImageValidatedSummary = {
-  count: 4,
-  kept: 3,
+  count: 5,
+  kept: 4,
   excluded: 1,
   missed: 1,
   count_by_shape: [
@@ -128,6 +128,7 @@ export const VALIDATED: ImageValidatedSummary = {
     { shape: "fragment", label: "Fragment", count: 1 },
     { shape: "bille", label: "Bille", count: 1 },
     { shape: "film", label: "Film", count: 0 },
+    { shape: "uncertain", label: "Forme incertaine", count: 1 },
     { shape: "unspecified", label: "Forme non renseignée", count: 1 },
   ],
   size_distribution: { basis: "feret_max_um", bins: [], median_um: 11.5, p10_um: 10, p90_um: 13 },

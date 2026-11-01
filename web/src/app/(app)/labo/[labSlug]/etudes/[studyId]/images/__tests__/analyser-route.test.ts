@@ -190,6 +190,16 @@ describe("POST images/analyser", () => {
     expect((await call(req())).status).toBe(413);
   });
 
+  it("sha256 renvoyé par le moteur différent : 502 (contrat du moteur rompu)", async () => {
+    await setup("researcher");
+    analyze.mockImplementation(async () => proposalFor(new TextEncoder().encode("autre")));
+    const res = await call(req());
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: "Le moteur n'a pas analysé le fichier déposé : recommencez.",
+    });
+  });
+
   it("deux envois identiques simultanés : une seule analyse", async () => {
     await setup("researcher");
     const [a, b] = await Promise.all([call(req()), call(req())]);

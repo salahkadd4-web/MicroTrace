@@ -1,4 +1,4 @@
-import { IMAGE_MODEL_UNAVAILABLE } from "@/lib/engine-messages";
+import { IMAGE_MODEL_UNAVAILABLE, IMAGE_NOT_ANALYSED } from "@/lib/engine-messages";
 import { IMAGE_MAX_BYTES } from "@/lib/images";
 import { prisma } from "@/server/db";
 import { EngineUnavailableError } from "@/server/engine/client";
@@ -37,6 +37,7 @@ function statusOf(message: string): number {
   if (message.startsWith("Fichier trop volumineux")) return 413;
   if (message === "Étude introuvable.") return 404;
   if (message === IMAGE_MODEL_UNAVAILABLE) return 503;
+  if (message === IMAGE_NOT_ANALYSED) return 502;
   if (ROLE_REFUSALS.has(message)) return 403;
   return 422;
 }
