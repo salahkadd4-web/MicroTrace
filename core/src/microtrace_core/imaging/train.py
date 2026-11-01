@@ -548,7 +548,9 @@ def render_card_metrics(manifest: Mapping) -> str:
          f"échelle admise de {_fr(round(s['scale_min'], 3))} à {_fr(round(s['scale_max'], 2))} "
          "µm par pixel de l'image d'analyse.", "",
          f"**Test** ({m['n_images']} images, lues une seule fois après tous les choix) : "
-         "modèle servi et référence « seuil d'Otsu » à résolution et taille minimale égales.", "",
+         "modèle servi et référence « seuil d'Otsu » à résolution et taille minimale égales "
+         "(la référence est un seul traitement fixe, sans la grille de 16 réglages du "
+         "protocole de conception).", "",
          _HEAD, _SEP, _row("modèle, global", m["global"]),
          _row("référence Otsu, global", base["global"])]
     for name, b in m["by_subset"].items():

@@ -69,7 +69,8 @@ def jpeg(img: Image.Image, **kw) -> bytes:
 
 
 def tiff(arr_or_img, *, comment: str | None = None, author: str | None = None,
-         artist: str | None = None, dpi: tuple[int, int] | None = None, **kw) -> bytes:
+         artist: str | None = None, dpi: tuple[int, int] | None = None,
+         orientation: int | None = None, xmp: bytes | None = None, **kw) -> bytes:
     img = arr_or_img if isinstance(arr_or_img, Image.Image) else Image.fromarray(arr_or_img)
     info = TiffImagePlugin.ImageFileDirectory_v2()
     if comment is not None:
@@ -80,6 +81,11 @@ def tiff(arr_or_img, *, comment: str | None = None, author: str | None = None,
         info.tagtype[40093] = 1
     if artist is not None:
         info[315] = artist
+    if orientation is not None:
+        info[274] = orientation
+    if xmp is not None:
+        info[700] = xmp
+        info.tagtype[700] = 1
     buf = io.BytesIO()
     save_kw = dict(kw)
     if dpi is not None:
@@ -92,7 +98,9 @@ def trapped_tiff(h: int = 384, w: int = 512) -> bytes:
     """A Hitachi-like TIFF whose metadata hold a person's name in every place we know of."""
     arr = to_u8(gradient(h, w, 20, 90) + noise((h, w)))
     arr[100:160, 100:180] = 220
-    return tiff(arr, comment=TRAP_COMMENT, author=TRAP_NAME, artist=TRAP_NAME)
+    xmp = (b'<x:xmpmeta><rdf:RDF><rdf:Description><dc:creator>Jean Dupont</dc:creator>'
+           b'</rdf:Description></rdf:RDF></x:xmpmeta>')
+    return tiff(arr, comment=TRAP_COMMENT, author=TRAP_NAME, artist=TRAP_NAME, xmp=xmp)
 
 
 def png_chunks(data: bytes) -> list[str]:

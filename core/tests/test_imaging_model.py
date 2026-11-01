@@ -109,8 +109,10 @@ def test_abstention_reasons():
     many, reasons = _reasons(model, discs_image(1024, 1024, discs))
     assert m.Reason.TOO_MANY_PARTICLES in reasons and many.status is m.Status.UNRELIABLE
     assert len(many.particles) == m.MAX_PARTICLES == many.count
-    kept_min = min(p.particle.area_px for p in many.particles)
-    assert kept_min >= 14 ** 2 * 3  # only the larger discs survive the cut
+    areas = sorted((p.particle.area_px for p in many.particles), reverse=True)
+    all_areas = sorted((math.pi * r * r for _, _, r in discs), reverse=True)
+    assert areas[0] > 0.95 * all_areas[0] and areas[-1] > 0.95 * all_areas[299]  # the largest 300
+    assert min(areas) > 0.9 * 615  # every r = 15 and r = 16 disc is among them
     assert [p.particle.id for p in many.particles] == list(range(1, 301))
 
     flat = np.full((200, 200), 100, np.uint8)
@@ -250,3 +252,16 @@ def test_analysis_is_stable_for_png_bytes():
     d = decode_image(png(gray))
     assert m.analyze(threshold_model(), d, None).count == 1
     assert Image.open  # Pillow is imported for decode only
+
+
+def test_entered_scale_must_be_a_positive_number():
+    d = decoded(np.zeros((200, 300), np.uint8))
+    for bad in (float("nan"), float("inf"), 0.0, -1.0):
+        with pytest.raises(ValueError):
+            m.resolve_scale(d, bad, 300)
+
+
+def test_duplicate_reshaped_ids_are_refused():
+    with pytest.raises(m.CorrectionError) as exc:
+        m.apply_corrections(_particles(), None, [], [(2, "fibre"), (2, "bille")], 0)
+    assert (exc.value.code, exc.value.particle_id) == ("duplicate", 2)

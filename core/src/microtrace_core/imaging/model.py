@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -131,6 +132,8 @@ def resolve_scale(decoded: DecodedImage, entered: float | None, analysis_width: 
     ``entered`` is um per pixel of the deposited image. A value that contradicts the metadata by
     more than ``SCALE_MISMATCH_TOLERANCE`` is refused.
     """
+    if entered is not None and not (math.isfinite(entered) and entered > 0):
+        raise ValueError("entered scale must be a positive finite number")
     meta = decoded.metadata_um_per_px
     ratio = decoded.width / analysis_width
     if meta is not None:
@@ -297,6 +300,9 @@ def apply_corrections(particles: Sequence[Mapping], scale_um_per_px: float | Non
         raise ValueError("missed count out of range")
     by_id = {int(p["id"]): p for p in particles}
     drop = {int(i) for i in excluded}
+    if len({int(pid) for pid, _ in reshaped}) != len(reshaped):
+        raise CorrectionError("duplicate", int(sorted(
+            pid for pid, n in Counter(int(i) for i, _ in reshaped).items() if n > 1)[0]))
     new_shape: dict[int, str] = {}
     for pid in sorted(drop):
         if pid not in by_id:

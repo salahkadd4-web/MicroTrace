@@ -70,6 +70,15 @@ def test_index_never_reads_the_acquisition_sidecars(root, monkeypatch):
         opened.append(self.name)
         return real_read_text(self, *a, **k)
 
+    import builtins
+
+    real_builtin_open = builtins.open
+
+    def spy_builtin(file, *a, **k):
+        opened.append(Path(str(file)).name)
+        return real_builtin_open(file, *a, **k)
+
+    monkeypatch.setattr(builtins, "open", spy_builtin)
     monkeypatch.setattr(Path, "open", spy_open)
     monkeypatch.setattr(Path, "read_text", spy_read_text)
     items = build_index(root)
@@ -78,6 +87,7 @@ def test_index_never_reads_the_acquisition_sidecars(root, monkeypatch):
     assert "Dupont" not in blob and "PC-SEM" not in blob
     # the only text files the index may open are the counts files, never the sidecars
     texts = {n for n in opened if n.endswith(".txt")}
+    assert opened  # the spies do fire
     assert texts == {spec[5] for spec in SUBSET_SPECS.values()}
 
 

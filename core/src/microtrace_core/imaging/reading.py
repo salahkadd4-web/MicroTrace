@@ -152,6 +152,9 @@ def _orient(a: np.ndarray, orientation: int) -> np.ndarray:
     return a
 
 
+_INVERSE_ORIENTATION = {6: 8, 8: 6}
+
+
 def _to_gray(img: Image.Image) -> tuple[np.ndarray, int, str, bool]:
     """(uint8 gray, bit depth, colour kind, alpha ignored) from a loaded image."""
     mode = img.mode
@@ -222,6 +225,10 @@ def decode_image(data: bytes) -> DecodedImage:
             raise ImageReadError(ImageIssue.UNREADABLE, width, height, width * height) from None
 
         gray, bit_depth, color, alpha_ignored = _to_gray(img)
+        # Pillow already applies the orientation of a TIFF while loading it; bring that back to
+        # the stored layout so every format is oriented once, here, after the bar is cut.
+        if fmt == "TIFF" and orientation in range(2, 9):
+            gray = _orient(gray, _INVERSE_ORIENTATION.get(orientation, orientation))
     finally:
         img.close()
 
@@ -230,6 +237,7 @@ def decode_image(data: bytes) -> DecodedImage:
     if um_per_px is not None:
         cropped = math.ceil(gray.shape[0] * HITACHI_BAR_FRACTION)
         gray = gray[: gray.shape[0] - cropped]
+        _check_size(gray.shape[1], gray.shape[0])  # the cropped image must still be big enough
     del bar_text
 
     applied = orientation in range(2, 9)

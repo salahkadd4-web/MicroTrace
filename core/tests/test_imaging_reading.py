@@ -5,7 +5,7 @@ import io
 
 import numpy as np
 import pytest
-from PIL import Image
+from PIL import Image, ImageFile
 
 from microtrace_core.imaging import reading
 from microtrace_core.imaging.reading import (
@@ -82,19 +82,61 @@ def test_decode_exif_orientation_6():
     assert d.gray.shape == (256, 140)
 
 
-@pytest.mark.parametrize("orientation", range(2, 9))
-def test_decode_every_orientation_matches_pillow(orientation):
+_METHODS = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180,
+            4: Image.Transpose.FLIP_TOP_BOTTOM, 5: Image.Transpose.TRANSPOSE,
+            6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
+            8: Image.Transpose.ROTATE_90}
+
+
+def _oriented_file(fmt: str, arr: np.ndarray, orientation: int) -> bytes:
+    if fmt == "PNG":
+        exif = Image.Exif()
+        exif[0x0112] = orientation
+        return png(arr, exif=exif)
+    if fmt == "JPEG":
+        exif = Image.Exif()
+        exif[0x0112] = orientation
+        return jpeg(Image.fromarray(arr), exif=exif, quality=95)
+    return tiff(arr, orientation=orientation)
+
+
+@pytest.mark.parametrize("fmt", ["PNG", "JPEG", "TIFF"])
+@pytest.mark.parametrize("orientation", range(1, 9))
+def test_decode_every_orientation_once(fmt, orientation):
     rng = np.random.default_rng(0)
     arr = rng.integers(0, 255, (130, 190), dtype=np.uint8)
-    exif = Image.Exif()
-    exif[0x0112] = orientation
-    d = decode_image(png(arr, exif=exif))
-    method = {2: Image.Transpose.FLIP_LEFT_RIGHT, 3: Image.Transpose.ROTATE_180,
-              4: Image.Transpose.FLIP_TOP_BOTTOM, 5: Image.Transpose.TRANSPOSE,
-              6: Image.Transpose.ROTATE_270, 7: Image.Transpose.TRANSVERSE,
-              8: Image.Transpose.ROTATE_90}[orientation]
-    assert np.array_equal(d.gray, np.asarray(Image.fromarray(arr).transpose(method)))
-    assert d.orientation_applied
+    if fmt == "JPEG":  # lossy: smooth, asymmetric content
+        yy, xx = np.mgrid[0:130, 0:190]
+        arr = to_u8(xx * 1.2 + yy * 0.3 + 40 * (xx > 120))
+    d = decode_image(_oriented_file(fmt, arr, orientation))
+    expected = arr if orientation == 1 else np.asarray(
+        Image.fromarray(arr).transpose(_METHODS[orientation]))
+    assert d.gray.shape == expected.shape and (d.height, d.width) == expected.shape
+    if fmt == "JPEG":
+        assert np.abs(d.gray.astype(int) - expected.astype(int)).mean() < 6
+    else:
+        assert np.array_equal(d.gray, expected)
+    assert d.orientation_applied is (orientation != 1)
+
+
+def test_hitachi_bar_is_cut_in_the_stored_layout_whatever_the_orientation():
+    for orientation in range(1, 9):
+        stored = np.full((400, 320), 100, np.uint8)
+        stored[375:] = 255  # the information bar: ceil(400 / 16) = 25 stored bottom rows
+        stored[:, :10] = 30  # content marker on the stored left edge
+        d = decode_image(tiff(stored, comment=SERIAL_COMMENT, orientation=orientation))
+        assert d.cropped_bottom_px == 25 and d.metadata_um_per_px == 0.9921875
+        assert not (d.gray == 255).any(), orientation
+        assert d.gray.size == 375 * 320 and (d.height, d.width) == d.gray.shape
+        assert d.gray.shape == ((375, 320) if orientation in (1, 2, 3, 4) else (320, 375))
+        assert int((d.gray == 30).sum()) == 10 * 375  # no content row lost
+
+
+def test_cropped_image_must_still_be_large_enough():
+    stored = to_u8(np.tile(np.linspace(0, 255, 256), (136, 1)))  # 136 rows, 9 are the bar
+    with pytest.raises(ImageReadError) as exc:
+        decode_image(tiff(stored, comment=SERIAL_COMMENT))
+    assert exc.value.issue is ImageIssue.TOO_SMALL
 
 
 def _truncated() -> bytes:
@@ -145,13 +187,14 @@ def test_too_small_error_carries_numbers_only():
 
 def test_huge_header_is_refused_before_any_decoding(monkeypatch):
     calls = []
-    original = Image.Image.load
+    original = ImageFile.ImageFile.load
 
     def spy(self, *a, **k):
         calls.append(1)
         return original(self, *a, **k)
 
     monkeypatch.setattr(Image.Image, "load", spy)
+    monkeypatch.setattr(ImageFile.ImageFile, "load", spy)
     data = forged_png_header(50_000, 50_000)
     assert len(data) < 250
     with pytest.raises(ImageReadError) as exc:
