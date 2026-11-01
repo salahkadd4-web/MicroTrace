@@ -227,3 +227,13 @@ def correction_message(code: str, particle_id: int | None) -> str:
     if code == "duplicate":
         return f"Particule {particle_id} : forme corrigée plusieurs fois."
     return "Forme inconnue."
+
+
+def recorded_problem(code: str, value: int | None = None, other: int | None = None) -> str:
+    """422 messages for a recorded analysis that contradicts itself."""
+    if code == "duplicate_id":
+        return f"Analyse enregistrée incohérente : particule {value} en double."
+    if code == "count":
+        return (f"Analyse enregistrée incohérente : {value} particules annoncées pour "
+                f"{other} dans la liste.")
+    return f"Analyse enregistrée incohérente : forme de la particule {value} inconnue."

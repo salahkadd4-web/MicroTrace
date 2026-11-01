@@ -67,6 +67,7 @@ from .image import (
     ImageModelStore,
     parse_scale,
     read_image_lock,
+    recorded_problem,
     to_validated,
 )
 from .image import to_model_info as to_image_model_info
@@ -644,7 +645,12 @@ def create_app(settings: Settings, spectral_lock: ModelLock | None = None,
         dependencies=[Depends(require_secret)],
     )
     def image_validate(req: ImageValidateRequest) -> ImageValidatedSummary:
-        # sync route, no access to the weights: available even when the model is missing
+        # sync route, no access to the weights: available even when the model is missing.
+        # The recorded analysis is trusted only after a consistency check; Task 4 (web) sends
+        # only the analysis it stored server-side, never one supplied by a browser.
+        problem = recorded_problem(req.analysis)
+        if problem is not None:
+            raise HTTPException(status_code=422, detail=problem)
         try:
             return to_validated(req.analysis, req.excluded,
                                 [(r.id, r.shape) for r in req.reshaped], req.missed_count)

@@ -6,6 +6,7 @@ module: no comment, author, path, EXIF or XMP string is returned, logged or kept
 from __future__ import annotations
 
 import io
+import logging
 import math
 import re
 import struct
@@ -22,6 +23,8 @@ MIN_SIDE = 128
 HITACHI_BAR_FRACTION = 1 / 16
 
 Image.MAX_IMAGE_PIXELS = MAX_PIXELS
+# Pillow logs the raw value of every TIFF tag at DEBUG (operator names, comments): never
+logging.getLogger("PIL").setLevel(logging.WARNING)
 
 _XP_COMMENT = 40092
 _ORIENTATION = 0x0112

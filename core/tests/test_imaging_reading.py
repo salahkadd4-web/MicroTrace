@@ -247,3 +247,11 @@ def test_no_metadata_string_leaks():
         chunks = png_chunks(blob)
         assert not {"tEXt", "iTXt", "zTXt", "eXIf"} & set(chunks)
         assert chunks[0] == "IHDR" and chunks[-1] == "IEND"
+
+
+def test_importing_the_reader_pins_pillow_logging_above_debug():
+    import logging
+
+    import microtrace_core.imaging.reading  # noqa: F401
+
+    assert logging.getLogger("PIL").level >= logging.WARNING

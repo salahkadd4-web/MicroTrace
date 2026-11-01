@@ -51,7 +51,7 @@ from .spectral import ModelLock, ModelState, SpectralModelStore
 
 __all__ = [
     "ImageModelStore", "ModelLock", "ModelState", "MAX_IMAGE_BYTES", "read_image_lock",
-    "parse_scale", "to_model_info", "to_response", "to_validated", "shape_vocabulary",
+    "parse_scale", "recorded_problem", "to_model_info", "to_response", "to_validated", "shape_vocabulary",
 ]
 
 LOCK_RESOURCE = "image_model.lock.json"
@@ -242,6 +242,23 @@ def to_model_info(store: ImageModelStore) -> ImageModelInfo:
 
 
 # --- human decision (design 7.7): no access to the weights -------------------------------------
+
+RECORDED_SHAPES = (*SHAPES, text.UNCERTAIN)  # what the model can propose; never "film"
+
+
+def recorded_problem(analysis: ImageRecordedAnalysis) -> str | None:
+    """The French 422 message when the recorded analysis contradicts itself, else None."""
+    seen: set[int] = set()
+    for p in analysis.particles:
+        if p.id in seen:
+            return text.recorded_problem("duplicate_id", p.id)
+        seen.add(p.id)
+        if p.shape not in RECORDED_SHAPES:
+            return text.recorded_problem("shape", p.id)
+    if analysis.count != len(analysis.particles):
+        return text.recorded_problem("count", analysis.count, len(analysis.particles))
+    return None
+
 
 def to_validated(analysis: ImageRecordedAnalysis, excluded: Sequence[int],
                  reshaped: Sequence[tuple[int, str]], missed: int) -> ImageValidatedSummary:

@@ -331,6 +331,37 @@ def test_validate_422(client, auth_headers, extra, message):
     assert r.status_code == 422 and r.json()["detail"] == message
 
 
+def _recorded(body):
+    return {k: body[k] for k in ("particles", "scale", "count")}
+
+
+def test_validate_refuses_inconsistent_recorded_analyses(client, auth_headers):
+    import copy
+
+    body = _analysis(client, auth_headers)
+
+    def post(analysis):
+        return client.post("/ai/image/validate", headers=auth_headers, json={
+            "analysis": analysis, "excluded": [], "reshaped": [], "missed_count": 0})
+
+    dup = copy.deepcopy(_recorded(body))
+    dup["particles"][1]["id"] = dup["particles"][0]["id"]
+    r = post(dup)
+    assert r.status_code == 422
+    assert r.json()["detail"] == (
+        f"Analyse enregistrée incohérente : particule {dup['particles'][0]['id']} en double.")
+    bad_count = {**_recorded(body), "count": 999}
+    r = post(bad_count)
+    assert r.status_code == 422 and r.json()["detail"] == (
+        "Analyse enregistrée incohérente : 999 particules annoncées pour 5 dans la liste.")
+    for shape in ("film", "unspecified"):
+        odd = copy.deepcopy(_recorded(body))
+        odd["particles"][0]["shape"] = shape
+        r = post(odd)
+        assert r.status_code == 422 and "forme de la particule" in r.json()["detail"]
+    assert post(_recorded(body)).status_code == 200
+
+
 def test_validate_missed_count_bounds(client, auth_headers):
     body = _analysis(client, auth_headers)
     req = {"analysis": {k: body[k] for k in ("particles", "scale", "count")},
