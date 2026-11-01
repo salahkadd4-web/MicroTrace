@@ -52,6 +52,7 @@ vi.mock("../actions", () => ({
   revokeInvitationAction: vi.fn(async () => ({})),
 }));
 
+import { TRAINING_CONSENT_VERSION } from "@/lib/training-consent";
 import { requireLab } from "@/server/lab-context";
 import { getTrainingConsent } from "@/server/training-consent";
 import MembresPage from "../page";
@@ -100,7 +101,7 @@ describe("section Données et amélioration des modèles", () => {
       granted: true,
       grantedAt: new Date("2026-10-02T10:00:00Z"),
       grantedBy: "Alice Martin",
-      version: "c1",
+      version: TRAINING_CONSENT_VERSION,
       history: [
         { id: "h1", at: new Date("2026-10-03T10:00:00Z"), action: "lab.training_export", by: "Alice Martin" },
         { id: "h2", at: new Date("2026-10-02T10:00:00Z"), action: "lab.training_consent.grant", by: "Alice Martin" },
@@ -109,7 +110,7 @@ describe("section Données et amélioration des modèles", () => {
     render(await MembresPage(props));
     const section = screen.getByRole("region", { name: "Données et amélioration des modèles" });
     expect(within(section).getByText("Activé")).toBeInTheDocument();
-    expect(section).toHaveTextContent("Depuis le 02/10/2026 12:00, par Alice Martin (texte c1)");
+    expect(section).toHaveTextContent("Depuis le 02/10/2026 12:00, par Alice Martin (texte c2)");
     expect(within(section).getByRole("button", { name: "Retirer le consentement" })).toBeInTheDocument();
     expect(
       within(section).getByRole("link", { name: "Exporter les données consenties (JSON)" }),
@@ -117,8 +118,31 @@ describe("section Données et amélioration des modèles", () => {
     expect(
       within(section).getByRole("link", { name: "Exporter les données consenties (CSV)" }),
     ).toHaveAttribute("href", "/labo/labo/membres/export-entrainement?format=csv");
+    expect(
+      within(section).getByRole("link", { name: "Exporter les images consenties (JSON)" }),
+    ).toHaveAttribute("href", "/labo/labo/membres/export-entrainement?format=json&type=images");
+    expect(
+      within(section).getByRole("link", { name: "Exporter les images consenties (CSV)" }),
+    ).toHaveAttribute("href", "/labo/labo/membres/export-entrainement?format=csv&type=images");
+    expect(section).toHaveTextContent("images analysées telles que réécrites");
+    expect(section).not.toHaveTextContent("retirez puis accordez de nouveau");
     const history = within(section).getByRole("table", { name: "Historique" });
     expect(within(history).getByText("Export des données consenties")).toBeInTheDocument();
     expect(within(history).getByText("Consentement donné (amélioration des modèles)")).toBeInTheDocument();
+  });
+
+  it("consentement donné en c1 : demande de le retirer puis de l'accorder de nouveau", async () => {
+    vi.mocked(getTrainingConsent).mockResolvedValueOnce({
+      granted: true,
+      grantedAt: new Date("2026-10-02T10:00:00Z"),
+      grantedBy: "Alice Martin",
+      version: "c1",
+      history: [],
+    });
+    render(await MembresPage(props));
+    const section = screen.getByRole("region", { name: "Données et amélioration des modèles" });
+    expect(section).toHaveTextContent(
+      "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.",
+    );
   });
 });

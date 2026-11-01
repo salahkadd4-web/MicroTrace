@@ -8,6 +8,8 @@ import {
   EXPORT_FORMAT,
   EXPORT_NOTICE,
   EXPORT_PREREQUISITES,
+  IMAGE_EXPORT_COLUMNS,
+  IMAGE_EXPORT_FORMAT,
   EXPORT_TOO_LARGE,
   NO_CONSENT_EXPORT,
   TRAINING_CONSENT_VERSION,
@@ -157,10 +159,10 @@ type ExportRow = Record<(typeof EXPORT_COLUMNS)[number], string | number | null>
  * Lignes d'export : la dernière décision de chaque analyse spectrale des études du laboratoire, si elle
  * est acceptée ou corrigée, les plus récentes d'abord. Rien d'une autre étude ni d'un autre laboratoire.
  */
-async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; total: number }> {
+async function latestAccepted(ctx: LabContext, kind: "spectral" | "image") {
   const decisions = await prisma.modelPrediction.findMany({
     where: {
-      kind: "spectral",
+      kind,
       status: { not: "proposed" },
       study: ELIGIBLE_STUDY(ctx),
     },
@@ -187,6 +189,11 @@ async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; tota
         (b.decidedAt ?? b.createdAt).getTime() - (a.decidedAt ?? a.createdAt).getTime() ||
         (a.id < b.id ? 1 : -1),
     );
+  return accepted;
+}
+
+async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; total: number }> {
+  const accepted = await latestAccepted(ctx, "spectral");
   const kept = accepted.slice(0, MAX_ROWS);
   if (kept.length === 0) return { rows: [], total: 0 };
   const analyses = await prisma.modelPrediction.findMany({
@@ -231,13 +238,129 @@ async function consentedRows(ctx: LabContext): Promise<{ rows: ExportRow[]; tota
   return { rows, total: accepted.length };
 }
 
+type ImageExportRow = Record<(typeof IMAGE_EXPORT_COLUMNS)[number], string | number | null>;
+type ImageParticleExport = {
+  id: number;
+  contour: number[][];
+  proposed_shape: string;
+  validated_shape: string | null;
+  excluded: boolean;
+};
+type ImageRowSet = {
+  row: ImageExportRow;
+  displaySha256: string | null;
+  particles: ImageParticleExport[];
+};
+
+const numbersOf = (v: unknown): number[] =>
+  Array.isArray(v) ? v.filter((n): n is number => typeof n === "number") : [];
+
 /**
- * Export des décisions spectrales consenties du laboratoire (responsable). Préparation seulement : aucun
- * entraînement n'est lancé ici. Le consentement est relu en base ; refusé, rien n'est audité.
+ * Lignes d'export des images : la dernière décision acceptée ou corrigée de chaque analyse, hors études
+ * simulées ou sans pseudonymisation, et hors analyses dont l'état proposé était « non fiable » (quelle
+ * que soit la décision humaine). Ni nom de fichier, ni note, ni titre, ni métadonnée.
+ */
+async function consentedImageRows(ctx: LabContext): Promise<{ rows: ImageRowSet[]; total: number }> {
+  const accepted = (await latestAccepted(ctx, "image")).filter(
+    ([, d]) => text(rec(d.output).proposedStatus) !== "unreliable",
+  );
+  const kept = accepted.slice(0, MAX_ROWS);
+  if (kept.length === 0) return { rows: [], total: 0 };
+  const analyses = await prisma.modelPrediction.findMany({
+    where: {
+      id: { in: kept.map(([id]) => id) },
+      kind: "image",
+      status: "proposed",
+      study: ELIGIBLE_STUDY(ctx),
+    },
+    include: { study: { select: { nature: true } } },
+  });
+  const byId = new Map(analyses.map((a) => [a.id, a]));
+  const rows: ImageRowSet[] = [];
+  for (const [analysisId, d] of kept) {
+    const a = byId.get(analysisId);
+    if (!a || a.studyId !== d.studyId) continue;
+    const ai = rec(a.input);
+    const ao = rec(a.output);
+    if (text(ao.status) === "unreliable") continue;
+    const di = rec(d.input);
+    const validated = rec(rec(d.output).validated);
+    const scale = rec(ao.scale);
+    const aInput = rec(ao.input);
+    const excluded = new Set(numbersOf(di.excluded));
+    const reshaped = new Map<number, string>();
+    if (Array.isArray(di.reshaped)) {
+      for (const r of di.reshaped) {
+        const { id, shape } = rec(r);
+        if (typeof id === "number" && typeof shape === "string") reshaped.set(id, shape);
+      }
+    }
+    const particles: ImageParticleExport[] = [];
+    if (Array.isArray(ao.particles)) {
+      for (const raw of ao.particles) {
+        const p = rec(raw);
+        const id = num(p.id);
+        if (id === null) continue;
+        const shape = text(p.shape) ?? "unspecified";
+        particles.push({
+          id,
+          contour: Array.isArray(p.contour) ? (p.contour as number[][]) : [],
+          proposed_shape: shape,
+          validated_shape: excluded.has(id) ? null : (reshaped.get(id) ?? shape),
+          excluded: excluded.has(id),
+        });
+      }
+    }
+    const displaySha256 = text(ai.displaySha256);
+    rows.push({
+      displaySha256,
+      particles,
+      row: {
+        analysis_id: a.id,
+        decision_id: d.id,
+        study_id: a.studyId,
+        study_nature: a.study.nature,
+        decided_at: (d.decidedAt ?? d.createdAt).toISOString(),
+        decision: d.status,
+        // Empreinte de l'image réécrite par MicroTrace (celle qui est exportée), jamais du fichier déposé.
+        image_sha256: displaySha256,
+        analysis_width: num(aInput.analysis_width),
+        analysis_height: num(aInput.analysis_height),
+        scale_um_per_px: num(scale.um_per_px_input),
+        scale_source: text(scale.source) ?? "none",
+        proposed_count: num(ao.count),
+        validated_count: num(validated.count),
+        model_name: a.modelName,
+        model_version: a.modelVersion,
+        model_sha256: a.modelSha256,
+      },
+    });
+  }
+  return { rows, total: accepted.length };
+}
+
+/** Lit l'image d'analyse du magasin (empreinte revérifiée) : absente ou corrompue sont signalées, non fatales. */
+async function readDisplay(sha: string | null): Promise<{ bytes: Buffer | null; corrupt: boolean }> {
+  if (!sha) return { bytes: null, corrupt: false };
+  try {
+    return { bytes: await readStoredFile(sha), corrupt: false };
+  } catch (e) {
+    if (e instanceof Error && e.message === "Fichier du magasin corrompu.") {
+      return { bytes: null, corrupt: true };
+    }
+    throw e;
+  }
+}
+
+/**
+ * Export des décisions consenties du laboratoire (responsable), spectrales ou d'images. Préparation
+ * seulement : aucun entraînement n'est lancé ici. Le consentement est relu en base ; refusé, rien n'est
+ * audité.
  */
 export async function buildTrainingExport(
   ctx: LabContext,
   format: "json" | "csv",
+  kind: "spectral" | "image" = "spectral",
   opts: { maxFilesBytes?: number } = {},
 ): Promise<DownloadFile> {
   assertRole(ctx, "lab_admin");
@@ -251,12 +374,86 @@ export async function buildTrainingExport(
   if (lab.trainingConsentVersion !== TRAINING_CONSENT_VERSION) throw new DomainError(CONSENT_RENEW);
   const consentAt = lab.trainingConsentAt;
   const consentVersion = lab.trainingConsentVersion;
-  const { rows, total } = await consentedRows(ctx);
-  const truncated = total > rows.length;
   const generatedAt = new Date();
-  const fileName = `microtrace-${lab.slug}-entrainement-spectral-${parisDay(generatedAt)}.${format}`;
   const maxBytes = opts.maxFilesBytes ?? MAX_FILES_BYTES;
+  const header = {
+    exported_at: generatedAt.toISOString(),
+    laboratory: { slug: lab.slug, name: lab.name },
+    consent: { granted_at: consentAt.toISOString(), version: consentVersion },
+    notice: EXPORT_NOTICE,
+    prerequisites: EXPORT_PREREQUISITES,
+  };
 
+  let body: string;
+  let rowCount: number;
+  let truncated: boolean;
+  let fileName: string;
+  if (kind === "image") {
+    const { rows, total } = await consentedImageRows(ctx);
+    rowCount = rows.length;
+    truncated = total > rows.length;
+    fileName = `microtrace-${lab.slug}-entrainement-images-${parisDay(generatedAt)}.${format}`;
+    if (format === "json") {
+      let totalBytes = 0;
+      const out: Record<string, unknown>[] = [];
+      for (const r of rows) {
+        const f = await readDisplay(r.displaySha256);
+        totalBytes += f.bytes?.length ?? 0;
+        if (totalBytes > maxBytes) throw new DomainError(EXPORT_TOO_LARGE);
+        out.push({
+          ...r.row,
+          display_png_base64: f.bytes ? f.bytes.toString("base64") : null,
+          ...(f.bytes ? {} : f.corrupt ? { file_corrupt: true } : { file_missing: true }),
+          particles: r.particles,
+        });
+      }
+      body = JSON.stringify({
+        format: IMAGE_EXPORT_FORMAT,
+        version: 1,
+        ...header,
+        total_rows: total,
+        truncated,
+        rows: out,
+      });
+    } else {
+      const lines = [
+        IMAGE_EXPORT_COLUMNS,
+        ...rows.map((r) => IMAGE_EXPORT_COLUMNS.map((c) => r.row[c])),
+      ].map((r) => r.map((v) => csvCell(v as string | number | null, ",")).join(","));
+      body = `${lines.join("\r\n")}\r\n`;
+    }
+  } else {
+    const { rows, total } = await consentedRows(ctx);
+    rowCount = rows.length;
+    truncated = total > rows.length;
+    fileName = `microtrace-${lab.slug}-entrainement-spectral-${parisDay(generatedAt)}.${format}`;
+    body = await spectralBody(rows, total, truncated, format, header, maxBytes);
+  }
+
+  await auditExport(ctx, { format, rowCount, consentAt, consentVersion, kind, truncated, body });
+  return {
+    body,
+    contentType: format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8",
+    fileName,
+  };
+}
+
+type ExportHeader = {
+  exported_at: string;
+  laboratory: { slug: string; name: string };
+  consent: { granted_at: string; version: string };
+  notice: string;
+  prerequisites: string;
+};
+
+async function spectralBody(
+  rows: ExportRow[],
+  total: number,
+  truncated: boolean,
+  format: "json" | "csv",
+  header: ExportHeader,
+  maxBytes: number,
+): Promise<string> {
   let body: string;
   if (format === "json") {
     let totalBytes = 0;
@@ -316,11 +513,7 @@ export async function buildTrainingExport(
     body = JSON.stringify({
       format: EXPORT_FORMAT,
       version: 1,
-      exported_at: generatedAt.toISOString(),
-      laboratory: { slug: lab.slug, name: lab.name },
-      consent: { granted_at: consentAt.toISOString(), version: consentVersion },
-      notice: EXPORT_NOTICE,
-      prerequisites: EXPORT_PREREQUISITES,
+      ...header,
       total_rows: total,
       truncated,
       rows: withSpectra,
@@ -331,9 +524,26 @@ export async function buildTrainingExport(
     );
     body = `${lines.join("\r\n")}\r\n`;
   }
+  return body;
+}
 
-  // L'audit est écrit sous le verrou du laboratoire, après relecture du consentement : un retrait
-  // validé pendant la construction du fichier l'emporte (ni fichier, ni événement d'export).
+/**
+ * L'audit est écrit sous le verrou du laboratoire, après relecture du consentement : un retrait
+ * validé pendant la construction du fichier l'emporte (ni fichier, ni événement d'export).
+ */
+async function auditExport(
+  ctx: LabContext,
+  a: {
+    format: "json" | "csv";
+    rowCount: number;
+    consentAt: Date;
+    consentVersion: string;
+    kind: "spectral" | "image";
+    truncated: boolean;
+    body: string;
+  },
+): Promise<void> {
+  const { consentAt, consentVersion } = a;
   await prisma.$transaction(async (tx) => {
     await lockLaboratory(tx, ctx.laboratoryId);
     const now = await tx.laboratory.findUnique({
@@ -354,17 +564,13 @@ export async function buildTrainingExport(
       entityId: ctx.laboratoryId,
       laboratoryId: ctx.laboratoryId,
       after: {
-        format,
-        rows: rows.length,
+        format: a.format,
+        rows: a.rowCount,
         consentVersion,
-        truncated,
-        bodySha256: createHash("sha256").update(body, "utf8").digest("hex"),
+        ...(a.kind === "image" ? { kind: a.kind } : {}),
+        truncated: a.truncated,
+        bodySha256: createHash("sha256").update(a.body, "utf8").digest("hex"),
       },
     });
   });
-  return {
-    body,
-    contentType: format === "json" ? "application/json; charset=utf-8" : "text/csv; charset=utf-8",
-    fileName,
-  };
 }

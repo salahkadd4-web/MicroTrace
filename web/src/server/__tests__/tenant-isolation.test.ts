@@ -1055,6 +1055,7 @@ describe("un viewer de A", () => {
     await expect(listPendingInvitations(researcherA)).rejects.toThrow(FORBIDDEN_ADMIN);
     await expect(buildTrainingExport(viewerA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
     await expect(buildTrainingExport(researcherA, "json")).rejects.toThrow(FORBIDDEN_ADMIN);
+    await expect(buildTrainingExport(viewerA, "json", "image")).rejects.toThrow(FORBIDDEN_ADMIN);
   });
 
   it("couvre toutes les écritures des services", () => {
@@ -1259,5 +1260,17 @@ describe("consentement du laboratoire", () => {
     expect(JSON.parse(body).rows).toEqual([]);
     expect(body).not.toContain(analysisB.id);
     expect(JSON.parse((await buildTrainingExport(ctxB, "json")).body).rows).toHaveLength(1);
+  });
+
+  it("l'export d'images de A ne contient jamais l'analyse acceptée de B", async () => {
+    await declarePseudonymisation(ctxB, idsB.study);
+    const analysisB = await analyzeImage(ctxB, idsB.study, IMAGE_INPUT);
+    await recordImageDecision(ctxB, idsB.study, analysisB.id, { decision: "accepted" });
+    await setTrainingConsent(ctxB, true);
+    await setTrainingConsent(ctxA, true);
+    const body = (await buildTrainingExport(ctxA, "json", "image")).body;
+    expect(JSON.parse(body).rows).toEqual([]);
+    expect(body).not.toContain(analysisB.id);
+    expect(JSON.parse((await buildTrainingExport(ctxB, "json", "image")).body).rows).toHaveLength(1);
   });
 });

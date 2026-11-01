@@ -24,8 +24,10 @@ export async function GET(
 
   const format = new URL(request.url).searchParams.get("format");
   if (format !== "json" && format !== "csv") return plain("Format d'export inconnu.", 400);
+  const type = new URL(request.url).searchParams.get("type") ?? "spectres";
+  if (type !== "spectres" && type !== "images") return plain("Type d'export inconnu.", 400);
   try {
-    return attachment(await buildTrainingExport(auth.ctx, format));
+    return attachment(await buildTrainingExport(auth.ctx, format, type === "images" ? "image" : "spectral"));
   } catch (e) {
     if (e instanceof DomainError && (e.message === NO_CONSENT_EXPORT || e.message === CONSENT_RENEW)) {
       return plain(e.message, 403);

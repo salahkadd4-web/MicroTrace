@@ -16,7 +16,11 @@ const dir = mkdtempSync(path.join(tmpdir(), "mt-consent-"));
 process.env.MICROTRACE_VAR_DIR = dir;
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-import { EXPORT_COLUMNS } from "@/lib/training-consent";
+import {
+  EXPORT_COLUMNS,
+  IMAGE_EXPORT_COLUMNS,
+  TRAINING_CONSENT_VERSION,
+} from "@/lib/training-consent";
 import { prisma } from "@/server/db";
 import { EngineError, engineClient } from "@/server/engine/client";
 import { storeFile } from "@/server/file-store";
@@ -200,7 +204,7 @@ describe("consentement", () => {
     await setTrainingConsent(admin, true);
     const lab = await prisma.laboratory.findUniqueOrThrow({ where: { id: admin.laboratoryId } });
     expect(lab.trainingConsentById).toBe(admin.userId);
-    expect(lab.trainingConsentVersion).toBe("c1");
+    expect(lab.trainingConsentVersion).toBe(TRAINING_CONSENT_VERSION);
     expect(lab.trainingConsentAt).toBeInstanceOf(Date);
     const [ev] = await events("lab.training_consent.grant");
     expect(ev).toMatchObject({
@@ -209,10 +213,10 @@ describe("consentement", () => {
       laboratoryId: admin.laboratoryId,
       actorId: admin.userId,
     });
-    expect(ev.after).toMatchObject({ name: "Labo A", granted: true, version: "c1" });
+    expect(ev.after).toMatchObject({ name: "Labo A", granted: true, version: TRAINING_CONSENT_VERSION });
     expect(ev.before).toMatchObject({ granted: false, at: null, version: null });
     const view = await getTrainingConsent(viewer);
-    expect(view).toMatchObject({ granted: true, grantedBy: "Adèle", version: "c1", history: [] });
+    expect(view).toMatchObject({ granted: true, grantedBy: "Adèle", version: TRAINING_CONSENT_VERSION, history: [] });
     expect(view.grantedAt).toBeInstanceOf(Date);
     const adminView = await getTrainingConsent(admin);
     expect(adminView.history).toHaveLength(1);
@@ -279,7 +283,7 @@ describe("buildTrainingExport", () => {
       format: "microtrace.spectral-training-export",
       version: 1,
       laboratory: { slug: "labo-a", name: "Labo A" },
-      consent: { version: "c1" },
+      consent: { version: TRAINING_CONSENT_VERSION },
     });
     expect(doc.notice).toContain("loi 18-07");
     expect(doc.prerequisites).toContain("résultats validés");
@@ -323,7 +327,7 @@ describe("buildTrainingExport", () => {
     expect(ev.after).toEqual({
       format: "json",
       rows: 4,
-      consentVersion: "c1",
+      consentVersion: TRAINING_CONSENT_VERSION,
       truncated: false,
       bodySha256: sha(new TextEncoder().encode(file.body)),
     });
@@ -374,7 +378,7 @@ describe("buildTrainingExport", () => {
   it("export trop volumineux : refusé avec le message, aucun audit", async () => {
     await seedDecisions();
     await setTrainingConsent(admin, true);
-    await expect(buildTrainingExport(admin, "json", { maxFilesBytes: 10 })).rejects.toThrow(
+    await expect(buildTrainingExport(admin, "json", "spectral", { maxFilesBytes: 10 })).rejects.toThrow(
       "Export trop volumineux (50 Mo maximum) : contactez l'équipe MicroTrace.",
     );
     expect(await events("lab.training_export")).toHaveLength(0);
@@ -426,7 +430,7 @@ describe("buildTrainingExport", () => {
     expect(file.body).not.toContain("spectrum");
     expect(file.body).not.toContain("nom-secret");
     const [ev] = await events("lab.training_export");
-    expect(ev.after).toMatchObject({ format: "csv", rows: 4, consentVersion: "c1" });
+    expect(ev.after).toMatchObject({ format: "csv", rows: 4, consentVersion: TRAINING_CONSENT_VERSION });
   });
 
   it("retrait puis export : refusé", async () => {
@@ -479,5 +483,236 @@ describe("buildTrainingExport", () => {
     const doc = JSON.parse((await buildTrainingExport(admin, "json")).body);
     expect(doc).toMatchObject({ total_rows: 1001, truncated: true });
     expect(doc.rows).toHaveLength(1000);
+  });
+});
+
+describe("buildTrainingExport (images)", () => {
+  const PNG = (tag: string) =>
+    Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from(tag)]);
+  const particles = [1, 2, 3].map((id) => ({
+    id,
+    contour: [
+      [0, 0],
+      [id, 0],
+      [id, id],
+    ],
+    shape: "fragment",
+    shape_label: "Fragment",
+    shape_score: 0.8,
+    shape_status: "proposed",
+  }));
+
+  async function imageAnalysis(
+    studyId: string,
+    tag: string,
+    opts: { status?: "proposal" | "unreliable"; store?: boolean } = {},
+  ) {
+    const display = PNG(`display-${tag}`);
+    const displaySha = sha(display);
+    if (opts.store !== false) await storeFile(displaySha, display);
+    const upload = sha(Buffer.from(`upload-${tag}`));
+    const row = await prisma.modelPrediction.create({
+      data: {
+        studyId,
+        kind: "image",
+        inputFileSha256: upload,
+        input: {
+          role: "analysis",
+          fileName: `photo-secrete-${tag}.png`,
+          sizeBytes: 123,
+          mimeType: "image/png",
+          scaleEntered: "0.5",
+          displaySha256: displaySha,
+          annotatedSha256: sha(PNG(`annotated-${tag}`)),
+        },
+        output: {
+          status: opts.status ?? "proposal",
+          count: 3,
+          scale: { um_per_px_input: 0.5, um_per_px_analysis: 1, source: "entered" },
+          input: { analysis_width: 640, analysis_height: 480, sha256: upload },
+          particles,
+        },
+        score: 0.8,
+        modelName: "c6-microscopie",
+        modelVersion: "i1",
+        modelSha256: "e".repeat(64),
+        createdAt: at(-100),
+      },
+    });
+    return { id: row.id, display, upload };
+  }
+
+  const imageDecide = (
+    studyId: string,
+    analysisId: string,
+    status: "accepted" | "corrected" | "rejected",
+    minutes: number,
+    opts: { excluded?: number[]; proposed?: string } = {},
+  ) =>
+    prisma.modelPrediction.create({
+      data: {
+        studyId,
+        kind: "image",
+        input: {
+          role: "decision",
+          analysisId,
+          decision: status,
+          excluded: opts.excluded ?? [],
+          reshaped: opts.excluded ? [{ id: 1, shape: "fibre" }] : [],
+          missedCount: 0,
+        },
+        output: {
+          analysisId,
+          proposedStatus: opts.proposed ?? "proposal",
+          proposedCount: 3,
+          validated: { count: status === "rejected" ? 0 : 3 - (opts.excluded?.length ?? 0) },
+        },
+        score: 0.8,
+        modelName: "c6-microscopie",
+        modelVersion: "i1",
+        modelSha256: "e".repeat(64),
+        status,
+        decidedById: researcher.userId,
+        decidedAt: at(minutes),
+        decisionNote: "note-secrete",
+        createdAt: at(minutes),
+      },
+    });
+
+  async function seedImages() {
+    const i1 = await imageAnalysis(studyA1, "i1");
+    const i2 = await imageAnalysis(studyA1, "i2");
+    const i3 = await imageAnalysis(studyA1, "i3");
+    const i4 = await imageAnalysis(studyA1, "i4");
+    const i5 = await imageAnalysis(studySim, "i5");
+    const i6 = await imageAnalysis(studyUndeclared, "i6");
+    const j1 = await imageAnalysis(studyB, "j1");
+    await imageDecide(studyA1, i1.id, "accepted", 10);
+    await imageDecide(studyA1, i2.id, "corrected", 11, { excluded: [2] });
+    await imageDecide(studyA1, i3.id, "rejected", 12);
+    await imageDecide(studySim, i5.id, "accepted", 13);
+    await imageDecide(studyUndeclared, i6.id, "accepted", 14);
+    await imageDecide(studyB, j1.id, "accepted", 15);
+    return { i1, i2, i3, i4, i5, i6, j1 };
+  }
+
+  it("consentement c1 : export spectral et images refusés (à renouveler), sans audit ; c2 après renouvellement", async () => {
+    await seedImages();
+    await setTrainingConsent(admin, true);
+    await prisma.laboratory.update({
+      where: { id: admin.laboratoryId },
+      data: { trainingConsentVersion: "c1" },
+    });
+    for (const kind of ["spectral", "image"] as const) {
+      await expect(buildTrainingExport(admin, "json", kind)).rejects.toThrow(
+        "Le texte du consentement a changé : retirez puis accordez de nouveau le consentement avant d'exporter.",
+      );
+    }
+    expect(await events("lab.training_export")).toHaveLength(0);
+    await setTrainingConsent(admin, false);
+    await setTrainingConsent(admin, true);
+    expect((await getTrainingConsent(admin)).version).toBe("c2");
+    await expect(buildTrainingExport(admin, "json", "image")).resolves.toBeDefined();
+  });
+
+  it("sans consentement : refusé, aucun audit", async () => {
+    await seedImages();
+    await expect(buildTrainingExport(admin, "json", "image")).rejects.toThrow(NO_EXPORT);
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("JSON : dernières décisions acceptées ou corrigées, octets du magasin, particules, rien d'autre", async () => {
+    const s = await seedImages();
+    await setTrainingConsent(admin, true);
+    await setTrainingConsent(adminB, true);
+    const file = await buildTrainingExport(admin, "json", "image");
+    expect(file.fileName).toMatch(/^microtrace-labo-a-entrainement-images-\d{4}-\d{2}-\d{2}\.json$/);
+    const doc = JSON.parse(file.body);
+    expect(doc).toMatchObject({
+      format: "microtrace.image-training-export",
+      version: 1,
+      consent: { version: "c2" },
+      total_rows: 2,
+      truncated: false,
+    });
+    expect(doc.notice).toContain("images");
+    const rows = doc.rows as Record<string, unknown>[];
+    expect(rows.map((r) => r.analysis_id)).toEqual([s.i2.id, s.i1.id]);
+    for (const r of rows) {
+      expect(Object.keys(r).sort()).toEqual(
+        [...IMAGE_EXPORT_COLUMNS, "display_png_base64", "particles"].sort(),
+      );
+      for (const k of ["file_name", "note", "title", "file_base64"]) expect(r).not.toHaveProperty(k);
+    }
+    expect(Buffer.from(String(rows[0].display_png_base64), "base64")).toEqual(s.i2.display);
+    expect(rows[0]).toMatchObject({
+      decision: "corrected",
+      study_nature: "laboratory",
+      scale_um_per_px: 0.5,
+      scale_source: "entered",
+      analysis_width: 640,
+      analysis_height: 480,
+      proposed_count: 3,
+      validated_count: 2,
+      model_version: "i1",
+    });
+    const ps = rows[0].particles as { id: number; excluded: boolean; validated_shape: string | null }[];
+    expect(ps[1]).toMatchObject({ id: 2, excluded: true, validated_shape: null });
+    expect(ps[0]).toMatchObject({ id: 1, excluded: false, validated_shape: "fibre" });
+    for (const forbidden of [
+      "photo-secrete",
+      "note-secrete",
+      s.i2.upload,
+      s.i5.id,
+      s.i6.id,
+      s.j1.id,
+      s.i4.id,
+      s.i3.id,
+    ]) {
+      expect(file.body).not.toContain(forbidden);
+    }
+    const [ev] = await events("lab.training_export");
+    expect(ev.after).toMatchObject({ format: "json", rows: 2, consentVersion: "c2", kind: "image" });
+  });
+
+  it("analyse non fiable : exclue quelle que soit la décision", async () => {
+    const bad = await imageAnalysis(studyA1, "bad", { status: "unreliable" });
+    await imageDecide(studyA1, bad.id, "corrected", 1, { excluded: [1], proposed: "unreliable" });
+    const good = await imageAnalysis(studyA1, "good");
+    await imageDecide(studyA1, good.id, "accepted", 2);
+    await setTrainingConsent(admin, true);
+    const doc = JSON.parse((await buildTrainingExport(admin, "json", "image")).body);
+    expect(doc.rows.map((r: { analysis_id: string }) => r.analysis_id)).toEqual([good.id]);
+  });
+
+  it("image retirée du magasin : display_png_base64 nul et file_missing", async () => {
+    const a = await imageAnalysis(studyA1, "gone", { store: false });
+    await imageDecide(studyA1, a.id, "accepted", 1);
+    await setTrainingConsent(admin, true);
+    const doc = JSON.parse((await buildTrainingExport(admin, "json", "image")).body);
+    expect(doc.rows[0]).toMatchObject({ display_png_base64: null, file_missing: true });
+  });
+
+  it("trop volumineux : refusé, aucun audit", async () => {
+    const a = await imageAnalysis(studyA1, "big");
+    await imageDecide(studyA1, a.id, "accepted", 1);
+    await setTrainingConsent(admin, true);
+    await expect(buildTrainingExport(admin, "json", "image", { maxFilesBytes: 5 })).rejects.toThrow(
+      "Export trop volumineux",
+    );
+    expect(await events("lab.training_export")).toHaveLength(0);
+  });
+
+  it("CSV : en-tête des colonnes, une ligne par analyse retenue, ni image ni particules", async () => {
+    await seedImages();
+    await setTrainingConsent(admin, true);
+    const file = await buildTrainingExport(admin, "csv", "image");
+    const lines = file.body.split(/\r?\n/).filter((l) => l !== "");
+    expect(lines[0]).toBe(IMAGE_EXPORT_COLUMNS.join(","));
+    expect(lines).toHaveLength(3);
+    expect(file.body).not.toContain("display_png_base64");
+    expect(file.body).not.toContain("photo-secrete");
+    const [ev] = await events("lab.training_export");
+    expect(ev.after).toMatchObject({ format: "csv", rows: 2, kind: "image" });
   });
 });

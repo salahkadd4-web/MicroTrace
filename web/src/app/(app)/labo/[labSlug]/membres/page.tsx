@@ -16,7 +16,12 @@ import {
 } from "@/components/ui/table";
 import { auditActionLabel } from "@/lib/audit-labels";
 import { ROLE_LABELS } from "@/lib/labels";
-import { TRAINING_CONSENT_DETAILS, TRAINING_CONSENT_LABEL } from "@/lib/training-consent";
+import {
+  CONSENT_RENEW,
+  TRAINING_CONSENT_DETAILS,
+  TRAINING_CONSENT_LABEL,
+  TRAINING_CONSENT_VERSION,
+} from "@/lib/training-consent";
 import { requireLab } from "@/server/lab-context";
 import { listMembers, listPendingInvitations } from "@/server/members";
 import { getTrainingConsent } from "@/server/training-consent";
@@ -148,6 +153,11 @@ export default async function MembresPage({
             ))}
           </ul>
           <ConsentControls labSlug={labSlug} granted={consent.granted} />
+          {consent.granted && consent.version !== TRAINING_CONSENT_VERSION ? (
+            <p className="text-sm text-destructive" role="status">
+              {CONSENT_RENEW}
+            </p>
+          ) : null}
           {consent.granted ? (
             <ul className="flex flex-wrap gap-4 text-sm">
               <li>
@@ -164,6 +174,22 @@ export default async function MembresPage({
                   className="font-medium text-primary underline-offset-4 hover:underline"
                 >
                   Exporter les données consenties (CSV)
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`/labo/${labSlug}/membres/export-entrainement?format=json&type=images`}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Exporter les images consenties (JSON)
+                </a>
+              </li>
+              <li>
+                <a
+                  href={`/labo/${labSlug}/membres/export-entrainement?format=csv&type=images`}
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                >
+                  Exporter les images consenties (CSV)
                 </a>
               </li>
             </ul>

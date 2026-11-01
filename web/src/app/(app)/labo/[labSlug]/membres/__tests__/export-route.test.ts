@@ -108,6 +108,36 @@ describe("GET membres/export-entrainement", () => {
     expect((await res.text()).startsWith("analysis_id,decision_id,")).toBe(true);
   });
 
+  it("type=images : nom d'images, format d'images ; type inconnu : 400 ; spectres par défaut", async () => {
+    await setTrainingConsent(m.admin, true);
+    as(m.admin, "ad@example.org");
+    const res = await call("?format=json&type=images");
+    expect(res.status).toBe(200);
+    const name = "microtrace-labo-a-entrainement-images-2026-10-31.json";
+    expect(res.headers.get("content-disposition")).toBe(
+      `attachment; filename="${name}"; filename*=UTF-8''${name}`,
+    );
+    expect(JSON.parse(await res.text())).toMatchObject({
+      format: "microtrace.image-training-export",
+      rows: [],
+    });
+    const csv = await call("?format=csv&type=images");
+    expect((await csv.text()).startsWith("analysis_id,decision_id,study_id,study_nature,")).toBe(true);
+    const unknown = await call("?format=json&type=xml");
+    expect(unknown.status).toBe(400);
+    expect(await unknown.text()).toBe("Type d'export inconnu.");
+    const spectres = await call("?format=json&type=spectres");
+    expect(spectres.headers.get("content-disposition")).toContain("entrainement-spectral");
+  });
+
+  it("type=images par un non-responsable : 404", async () => {
+    await setTrainingConsent(m.admin, true);
+    as(m.researcher, "r@example.org");
+    const res = await call("?format=json&type=images");
+    expect(res.status).toBe(404);
+    expect(await res.text()).toBe("Introuvable.");
+  });
+
   it("HEAD : 405 Allow GET, sans audit", async () => {
     const res = HEAD();
     expect(res.status).toBe(405);

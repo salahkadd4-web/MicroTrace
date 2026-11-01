@@ -1,6 +1,6 @@
 /** Textes et colonnes du consentement du laboratoire (conception C5 §10). Aucun calcul ici. */
 
-export const TRAINING_CONSENT_VERSION = "c1";
+export const TRAINING_CONSENT_VERSION = "c2";
 
 export const TRAINING_CONSENT_LABEL =
   "Autoriser l'utilisation des données validées de ce laboratoire pour améliorer les modèles";
@@ -8,6 +8,8 @@ export const TRAINING_CONSENT_LABEL =
 /** Ce qui serait utilisé, ce qui ne l'est jamais, et le calendrier : montrés avant d'activer. */
 export const TRAINING_CONSENT_DETAILS: readonly string[] = [
   "Seraient utilisés : les valeurs numériques des spectres déposés et le polymère retenu des analyses acceptées ou corrigées, dans les études dont la pseudonymisation est déclarée. Jamais les fichiers eux-mêmes, les noms de fichiers, les notes, les mesures ni les études simulées.",
+  "Seraient aussi utilisées : les images analysées telles que réécrites par MicroTrace (pixels seulement, sans aucune métadonnée), les contours proposés et les corrections des analyses d'images acceptées ou corrigées. Jamais le fichier d'image déposé ni son nom.",
+  "Seraient aussi utilisées : les images analysées telles que réécrites par MicroTrace (pixels seulement, sans aucune métadonnée), les contours proposés et les corrections des analyses d'images acceptées ou corrigées. Jamais le fichier d'image déposé ni son nom.",
   "Le retrait s'applique aux prochains entraînements.",
   "Pendant la phase d'essai, aucune donnée de laboratoire ne sert à entraîner un modèle. Aucun réentraînement n'aura lieu avant la validation du cadre légal (loi 18-07) et du contrat avec le laboratoire.",
 ];
@@ -37,9 +39,31 @@ export const EXPORT_COLUMNS: readonly string[] = [
 
 export const EXPORT_FORMAT = "microtrace.spectral-training-export";
 
+/** Colonnes de l'export d'images (JSON : en plus `display_png_base64` et `particles`), dans l'ordre. */
+export const IMAGE_EXPORT_COLUMNS: readonly string[] = [
+  "analysis_id",
+  "decision_id",
+  "study_id",
+  "study_nature",
+  "decided_at",
+  "decision",
+  "image_sha256",
+  "analysis_width",
+  "analysis_height",
+  "scale_um_per_px",
+  "scale_source",
+  "proposed_count",
+  "validated_count",
+  "model_name",
+  "model_version",
+  "model_sha256",
+];
+
+export const IMAGE_EXPORT_FORMAT = "microtrace.image-training-export";
+
 /** Mention de l'export : préparation seulement, aucun entraînement avant le cadre légal. */
 export const EXPORT_NOTICE =
-  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres sont exportées, jamais le fichier déposé.";
+  "Données d'un seul laboratoire, exportées avec son consentement. Aucun réentraînement avant la validation du cadre légal (loi 18-07, ANPDP) et du contrat. Les études simulées et les études sans pseudonymisation déclarée ne sont jamais exportées ; seules les valeurs numériques des spectres et les images réécrites par MicroTrace (sans métadonnée) avec leurs particules sont exportées, jamais le fichier déposé. Les analyses d'images jugées non fiables ne sont jamais exportées.";
 
 /** Conditions préalables à tout entraînement, rappelées dans l'en-tête de l'export. */
 export const EXPORT_PREREQUISITES =
